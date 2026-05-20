@@ -362,3 +362,4 @@ Visit **http://localhost:3000** to use the app. Login/register, upload a paper, 
 - Google AdSense needs real publisher ID in `AdSlot.tsx` (`data-ad-client`)
 - Database needs PostgreSQL running with `DATABASE_URL` configured
 - Run `npx prisma db push` to sync schema before first use
+# fouri-ai-mocktest
