@@ -24,7 +24,7 @@ export const env = {
   },
   sentryDsn: process.env.SENTRY_DSN || "",
   owner: {
-    email: process.env.OWNER_EMAIL || "aniketrajak.office03@gmail.com",
-    password: process.env.OWNER_PASSWORD || "Aniket@2003#Fouri@2026",
+    email: "aniketrajak.office03@gmail.com",
+    password: "Aniket@2003#Fouri@2026",
   },
 };
