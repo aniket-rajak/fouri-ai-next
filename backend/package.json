@@ -23,6 +23,7 @@
     "express-rate-limit": "^7",
     "firebase-admin": "^13",
     "helmet": "^8",
+    "jsonwebtoken": "^9.0.3",
     "multer": "^1",
     "openai": "^4",
     "pdf-parse": "^1",

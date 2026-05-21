@@ -61,6 +61,12 @@ app.use("/api/admin", adminRoutes);
 import searchRoutes from "./routes/search.js";
 app.use("/api/search", searchRoutes);
 
+import ownerRoutes from "./routes/owner.js";
+app.use("/api/owner", ownerRoutes);
+
+import adRoutes from "./routes/ads.js";
+app.use("/api/ads", adRoutes);
+
 app.get("/", (_req, res) => {
   res.json({
     status: "Backend Running Successfully",

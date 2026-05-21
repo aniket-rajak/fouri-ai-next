@@ -6,8 +6,8 @@ An AI-driven education platform where students upload question papers, AI analyz
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | Next.js 16 (App Router), TypeScript, Tailwind CSS v4 |
-| Backend | Node.js, Express, TypeScript |
+| Frontend | Next.js 16 (App Router), TypeScript, Tailwind CSS v4, Framer Motion, Lucide React, Recharts |
+| Backend | Node.js, Express, TypeScript, JWT |
 | Database | PostgreSQL (via Prisma ORM) |
 | Auth | Firebase Authentication (Google + Email/Password) |
 | File Storage | Cloudinary |
@@ -24,22 +24,27 @@ fouri-ai-mocktest/
 │   │   ├── app/
 │   │   │   ├── (auth)/          # Login, Register, Forgot Password
 │   │   │   ├── (dashboard)/     # Dashboard, Upload, Tests, Results
+│   │   │   ├── fouri-root-console/  # Hidden owner admin panel (login, dashboard, users, uploads, analytics, ads)
 │   │   │   └── (test)/          # Test attempt interface
 │   │   ├── components/
+│   │   │   ├── landing/          # Navbar, Hero, Features, Footer (dark theme)
 │   │   │   ├── ui/              # Button, Input, Card
 │   │   │   ├── test/            # QuestionCard, QuestionPalette, Timer
-│   │   │   └── results/         # ScoreCard, AnswerReview, ExplanationPanel
+│   │   │   ├── results/         # ScoreCard, AnswerReview, ExplanationPanel
+│   │   │   └── ads/             # AdCard (student dashboard ad display)
 │   │   ├── contexts/            # AuthContext
 │   │   ├── hooks/               # useAuth, useTestTimer, useAutoSave
-│   │   └── lib/                 # firebase, api, utils, validations
+│   │   └── lib/                 # firebase, api, utils, validations, owner-auth (JWT context)
+│   ├── public/
+│   │   └── assets/images/       # Local Unsplash images (hero, showcase, testimonials, ai-analysis)
 │   ├── .env.example
 │   └── package.json
 │
 ├── backend/           # Node.js + Express + TypeScript
 │   ├── src/
 │   │   ├── config/              # Environment config
-│   │   ├── middleware/          # Auth, Admin, Rate Limiter
-│   │   ├── routes/             # auth, upload, analyze, tests, attempts, results
+│   │   ├── middleware/          # Auth, Admin, Rate Limiter, OwnerAuth (JWT middleware)
+│   │   ├── routes/             # auth, upload, analyze, tests, attempts, results, owner, ads
 │   │   ├── services/           # firebaseAdmin, cloudinary, ocr, openai
 │   │   └── lib/                # Prisma client
 │   ├── prisma/
@@ -64,6 +69,7 @@ fouri-ai-mocktest/
 | **Answer** | testAttemptId, questionId, selectedOption | Individual answer |
 | **Explanation** | questionId, shortExplanation, detailedExplanation | AI explanations |
 | **AnalyticsEvent** | eventType, userId, metadata | Usage tracking |
+| **Ad** | title, description, imageUrl, ctaText, ctaLink, active, clicks, impressions | Owner-created advertisements |
 
 ### Enums
 
@@ -102,6 +108,29 @@ fouri-ai-mocktest/
 | GET | `/api/search/trending` | Yes | Top 10 tests by attempt count |
 | GET | `/api/results` | Yes | List all attempts/results |
 | GET | `/api/results/:id` | Yes | Get detailed result |
+| POST | `/api/owner/login` | No | Owner login (email + password) → JWT |
+| GET | `/api/owner/verify` | Owner | Verify owner JWT token |
+| GET | `/api/owner/dashboard/stats` | Owner | Dashboard stats (users/uploads/tests/attempts/AI calls/OCR rate) |
+| GET | `/api/owner/users` | Owner | List all users with search, sort, pagination |
+| GET | `/api/owner/daily-stats` | Owner | 30-day daily signups/uploads/attempts |
+| GET | `/api/owner/weekly-stats` | Owner | 8-week weekly signups/uploads/attempts |
+| GET | `/api/owner/monthly-stats` | Owner | 12-month monthly signups/uploads/attempts |
+| GET | `/api/owner/upload-stats` | Owner | Upload stats by type, status, subject |
+| GET | `/api/owner/uploads` | Owner | All uploads with search, type/status/subject filters |
+| GET | `/api/ads/active` | No | List active ads (public, used by student dashboard) |
+| GET | `/api/ads` | No | List all ads |
+| POST | `/api/ads` | Owner | Create ad |
+| PUT | `/api/ads/:id` | Owner | Update ad |
+| DELETE | `/api/ads/:id` | Owner | Delete ad |
+| POST | `/api/ads/:id/click` | No | Track ad click |
+| POST | `/api/ads/:id/impression` | No | Track ad impression |
+| GET | `/api/ads/active` | No | List active ads (public, used by student dashboard) |
+| GET | `/api/ads` | Yes | List all ads (admin) |
+| POST | `/api/ads` | Yes | Create ad |
+| PUT | `/api/ads/:id` | Yes | Update ad |
+| DELETE | `/api/ads/:id` | Yes | Delete ad |
+| POST | `/api/ads/:id/click` | No | Track ad click |
+| POST | `/api/ads/:id/impression` | No | Track ad impression |
 
 ---
 
@@ -168,20 +197,17 @@ fouri-ai-mocktest/
 - Answer review: green/red indicators per option
 - Backend: `GET /api/results`, `GET /api/results/:id` with full answer details
 
-### Phase 8 — Admin Dashboard ✅
-- Backend admin routes with `authenticate` + `requireAdmin` middleware
-- `GET /api/admin/stats` — total users, uploads, tests, attempts
-- `GET /api/admin/users` — list all users with upload/attempt counts
-- `PATCH /api/admin/users/:id/role` — toggle USER/ADMIN + Firebase custom claims
-- `GET /api/admin/uploads` — all uploads with user + test info
-- `GET /api/admin/tests` — all mock tests with creator + attempt counts
-- `GET /api/admin/analytics` — 30-day signups/uploads/attempts + AI call stats
-- Dark-themed admin layout with sidebar navigation
-- Admin dashboard: stats cards overview
-- Users tab: role badges + promote/demote buttons
-- Uploads tab: status icons (processing/analyzing/completed/failed)
-- Tests tab: difficulty badges, question/attempt counts
-- Analytics tab: 30-day metrics + upload status + difficulty distribution
+### Phase 8 — Owner Console (Hidden Admin Panel) ✅
+- Hidden route at `/fouri-root-console` — no public links, no registration
+- Owner auth via JWT with credentials from backend `.env` (`OWNER_EMAIL`, `OWNER_PASSWORD`)
+- Dedicated `ownerAuth` middleware (`middleware/ownerAuth.ts`) protecting all owner and ad write routes
+- Login page with password show/hide toggle and error states, redirect via `useEffect` (no render-time navigation)
+- Glass-effect dark sidebar with navigation: Dashboard, Users, Uploads, Analytics, Ad Manager
+- Dashboard: 8 stat cards auto-refreshing every 30s, upload processing status bars, quick actions menu
+- Users page: search by name/email, sort newest/oldest, paginated table, CSV export (all fields + emails-only)
+- Uploads page: 4 summary stat cards, file type / status / **subject** filter dropdowns, search, download, delete
+- Analytics page: 5 Recharts charts with **Daily / Weekly / Monthly** toggle buttons — AreaChart (signups), BarChart (uploads), LineChart (attempts), PieChart (file types), horizontal BarChart (top subjects)
+- Ad Manager: create/edit form with image preview, toggle active/disabled, CTR display, delete
 
 ### Phase 9 — Search & Discovery ✅
 - `GET /api/search` — PostgreSQL ILIKE search across title, subject, chapter
@@ -225,10 +251,10 @@ fouri-ai-mocktest/
 ## Project Status
 
 **Overall Progress:** ~100% complete
-**Current Phase:** All 12 phases complete
-**Last Updated:** 2026-05-20
+**Current Phase:** All 14 phases complete
+**Last Updated:** 2026-05-21
 
-### Completed: 12/12 phases
+### Completed: 14/14 phases
 - Phase 1: Foundation
 - Phase 2: Authentication System
 - Phase 3: File Upload System
@@ -236,22 +262,18 @@ fouri-ai-mocktest/
 - Phase 5: AI Question Analyzer
 - Phase 6: Test Interface
 - Phase 7: Result Analytics
-- Phase 8: Admin Dashboard
-- Phase 9: Search & Discovery
-- Phase 10: SEO & Adsense
-- Phase 11: Performance & Security
-- Phase 12: Deployment
+- Phase 8: Owner Console (Hidden Admin Panel)
 
 ### Project Complete 🎉
 
-All 12 phases are complete. See below for the full project snapshot.
+All 14 phases are complete. See below for the full project snapshot.
 
 ---
 
 ## Project Snapshot
 
-**Last Updated:** 2026-05-20
-**Overall Progress:** ~100% complete (12/12 phases done)
+**Last Updated:** 2026-05-21
+**Overall Progress:** ~100% complete (14/14 phases done)
 
 - Phase 1: Foundation (Next.js + Express + Prisma + PostgreSQL schema)
 - Phase 2: Authentication (Firebase login/register/forgot-password, Google OAuth, JWT verification)
@@ -260,11 +282,13 @@ All 12 phases are complete. See below for the full project snapshot.
 - Phase 5: AI Analyzer (OpenAI GPT-4o-mini, question parsing, MCQ generation)
 - Phase 6: Test Interface (fullscreen exam, question nav, timer, auto-save, keyboard shortcuts)
 - Phase 7: Result Analytics (score cards, answer review, accuracy metrics)
-- Phase 8: Admin Dashboard (user management, role control, analytics overview)
+- Phase 8: Owner Console (hidden JWT-protected admin panel, user management with CSV, upload intelligence Recharts analytics, ad manager)
 - Phase 9: Search & Discovery (full-text search, filters, trending tests)
 - Phase 10: SEO & Adsense (landing pages, sitemap, structured data, ad slots, metadata)
 - Phase 11: Performance & Security (rate limiting, input validation, security headers, code splitting)
-- Phase 12: Deployment (GitHub Actions CI/CD, Docker, Railway, Vercel, Sentry, deployment guide)
+- Phase 12: Deployment (GitHub Actions CI/CD, Docker, Railway, Vercel, Sentry, deployment guide, `CORS_ORIGIN` set to `https://www.fouri.in`)
+- Phase 13: Dark Theme & Hero Redesign (premium black theme, electric blue accents, glassmorphism cards, 6-slide animated hero with Framer Motion, dark gradients across all sections)
+- Phase 14: Owner Console & Ad System (hidden `/fouri-root-console` admin panel with JWT auth, user management with CSV export, upload intelligence, Recharts analytics dashboard, ad CRUD manager, student dashboard ad display with impression/click tracking)
 
 ### What Is Working Now
 - User registration/login with email/password and Google OAuth
@@ -283,7 +307,7 @@ All 12 phases are complete. See below for the full project snapshot.
 - Neon PostgreSQL database connected and synced
 - Firebase Auth + Admin SDK configured
 - Prisma schema with relations referencing `firebaseUid` for consistent user ID handling
-- Homepage redesigned with professional educational background image (Unsplash), dark gradient overlays, white-on-dark hero text, glass-morphism stats
+- Homepage redesigned with premium dark theme (#08080f black, #111118 charcoal, electric blue #3b82f6 accents), glassmorphism cards, dark gradients throughout
 - cursor-pointer on all buttons (shared Button component + raw \<button\> elements)
 - Question options normalized (string, object, or array) in QuestionCard + backend routes
 - Responsive design across all pages (mobile/tablet/desktop)
@@ -292,17 +316,45 @@ All 12 phases are complete. See below for the full project snapshot.
 - Delete mock tests via trash icon with confirmation modal and loading state
 - Dashboard header redesigned — clean alignment, rounded touch targets, Sign Out label on desktop, truncated email
 - `DELETE /api/tests/:id` backend endpoint with ownership verification and cascade delete
+- Frontend deployed on Vercel at https://www.fouri.in
+- Backend deployed on Railway at https://brave-passion-production-d8a1.up.railway.app
+- `CORS_ORIGIN` configured to `https://www.fouri.in` on Railway
+- Firebase Auth authorized domains include `fouri.in`
+- Hero section rebuilt as premium 6-slide animated carousel with auto-play, manual controls, pagination, and Framer Motion transitions (fade, slide, scale, stagger)
+- 12 landing components in `src/components/landing/` — Navbar, HeroSection, FeatureBar, WhatFouriDoes, AIAnalysis, StatsSection, CTABanner, MockTestShowcase, HowItWorks, Testimonials, FAQSection, Footer
+- Hidden owner console at `/fouri-root-console` with JWT-based login, sidebar navigation, and full-page guards
+- Owner dashboard with 8 stat cards (users, uploads, tests, attempts, AI calls, OCR rate), upload processing status bars, and quick action buttons
+- User management panel with search (name/email), sort (newest/oldest), paginated table, and CSV export (all fields + emails-only)
+- Upload intelligence panel with 4 summary stat cards, type/status filter dropdowns, search, download, and delete actions
+- Analytics dashboard with 5 Recharts charts (AreaChart daily signups, BarChart daily uploads, LineChart daily attempts, PieChart file types, horizontal BarChart top subjects) — all with dark theme styling
+- Ad Manager with create/edit form, image preview, toggle active/disabled, CTR display, and delete
+- Student dashboard right sidebar displaying active ads with glassmorphism cards, impression tracking, and click tracking
+- All buttons have `cursor-pointer` across landing components (HeroSection dots/nav, Navbar hamburger, Testimonials dots/nav)
+- Upload flow shows green "Start Mock Test" button immediately after AI analysis completes
+- Animated loading loader for root app loading + consistent loading in discover, results detail, test attempt
+- Local assets directory (`public/assets/images/`) with 14 downloaded Unsplash photos, all landing images reference local paths
+- Weekly and monthly analytics endpoints + frontend toggle (Daily/Weekly/Monthly) in admin analytics
+- Subject/topic filter on uploads intelligence page
+- Real-time auto-refreshing dashboard (30s interval with manual refresh button)
+- Owner JWT auth middleware protecting all admin API routes
 
 ### What Is Not Finished
 - Google AdSense real integration (needs publisher ID in `AdSlot.tsx`)
 - Google Search Console site verification (replace `your-google-site-verification` in `layout.tsx`)
-- Production deployment (Vercel + Railway)
 - Sentry DSN (error tracking) — not yet configured
 
 ### Next Steps
 - Run `npx prisma db push` if schema changes
-- Deploy backend to Railway, frontend to Vercel
 - Configure GitHub secrets for CI/CD
+
+### Production URLs
+
+| Service | URL |
+|---------|-----|
+| **Frontend** | https://www.fouri.in |
+| **Backend API** | https://brave-passion-production-d8a1.up.railway.app/api |
+| **Health Check** | https://brave-passion-production-d8a1.up.railway.app/api/health |
+| **Database** | Neon PostgreSQL (managed) |
 
 ### Local Development
 
@@ -316,16 +368,21 @@ cd frontend
 npm run dev
 ```
 
-Visit **http://localhost:3000** to use the app. Login/register, upload a paper, and generate mock tests.
+Visit **http://localhost:3000** (dev) or **https://www.fouri.in** (prod) to use the app. Login/register, upload a paper, and generate mock tests.
 
 ### Important Files
 
 | File | Purpose |
 |------|---------|
 | `frontend/src/app/layout.tsx` | Root layout with metadata, JSON-LD, fonts |
-| `frontend/src/app/page.tsx` | Homepage — redesigned with educational background image, hero, features, exam cards |
+| `frontend/src/app/page.tsx` | Homepage — composes 12 dark-themed landing components |
+| `frontend/src/components/landing/HeroSection.tsx` | Premium 6-slide animated hero carousel with Framer Motion |
+| `frontend/src/components/landing/Navbar.tsx` | Glass-effect dark navbar with blur on scroll |
+| `frontend/src/components/landing/Footer.tsx` | Dark navy footer with watermark |
+| `frontend/src/app/globals.css` | Tailwind CSS v4 dark theme, custom animations, glass utilities |
 | `frontend/src/app/(test)/test/[id]/attempt/page.tsx` | Core test-taking interface |
 | `frontend/src/components/FileUpload.tsx` | Drag-and-drop upload with progress |
+| `frontend/src/components/ProcessingStatus.tsx` | Analysis polling with Start Mock Test button |
 | `frontend/src/components/test/QuestionCard.tsx` | Question rendering with options normalization |
 | `frontend/src/components/ui/Button.tsx` | Shared button component (cursor-pointer) |
 | `frontend/src/lib/firebase.ts` | Firebase client SDK (SSR-safe) |
@@ -337,7 +394,22 @@ Visit **http://localhost:3000** to use the app. Login/register, upload a paper, 
 | `backend/src/routes/tests.ts` | Test retrieval with options normalization |
 | `backend/src/routes/results.ts` | Result details with options normalization |
 | `backend/src/services/cloudinary.ts` | Cloudinary upload (PDF raw fix) |
-| `backend/prisma/schema.prisma` | Full database schema (10 models) |
+| `frontend/src/lib/owner-auth.tsx` | Owner JWT context (OwnerProvider, useOwner, useOwnerApi) |
+| `frontend/src/app/fouri-root-console/page.tsx` | Owner login page |
+| `frontend/src/app/fouri-root-console/layout.tsx` | Admin shell with sidebar nav + auth guard |
+| `frontend/src/app/fouri-root-console/dashboard/page.tsx` | Owner dashboard (stats cards, upload status, quick actions) |
+| `frontend/src/app/fouri-root-console/users/page.tsx` | User management (search, sort, pagination, CSV export) |
+| `frontend/src/app/fouri-root-console/uploads/page.tsx` | Upload intelligence (filters, stats, actions) |
+| `frontend/src/app/fouri-root-console/analytics/page.tsx` | Recharts analytics dashboard (5 chart types) |
+| `frontend/src/app/fouri-root-console/ads/page.tsx` | Ad manager (create, edit, toggle, delete) |
+| `frontend/src/app/(dashboard)/layout.tsx` | Student dashboard layout with ad sidebar |
+| `backend/src/routes/owner.ts` | Owner auth + management routes |
+| `backend/src/routes/ads.ts` | Ad CRUD + tracking routes |
+| `backend/src/config/env.ts` | Owner env vars (`owner.email`, `owner.password`) |
+| `backend/src/middleware/ownerAuth.ts` | JWT owner auth middleware for admin routes |
+| `backend/prisma/schema.prisma` | Full database schema (11 models incl. Ad) |
+| `frontend/src/app/loading.tsx` | Root animated loading loader (dark theme) |
+| `frontend/public/assets/images/` | Local Unsplash images (hero, showcase, testimonials, ai-analysis) |
 | `README.md` | This file |
 
 ### Known Issues & Fixes
@@ -354,6 +426,8 @@ Visit **http://localhost:3000** to use the app. Login/register, upload a paper, 
 | Subjective questions missing input | Only showed placeholder text, no input field | Replaced with `<textarea>` — internal state, blur-saves to parent, resizable |
 
 ### Notes
+- Framer Motion powers all animations across 12 landing components (slide transitions, stagger reveal, floating elements, animated counters)
+- Dark theme palette: `#08080f` (bg), `#111118` (surface), `#3b82f6` (electric blue accent), `#f5f5f7` (text), `#888899` (muted)
 - Firebase Admin SDK needs `FIREBASE_PRIVATE_KEY` and `FIREBASE_CLIENT_EMAIL` in backend `.env`
 - Google Vision OCR is configured and verified working — needs Cloud Vision API enabled + billing on GCP project
 - OpenAI/OpenRouter needs `OPENAI_API_KEY` in backend `.env`
@@ -362,4 +436,8 @@ Visit **http://localhost:3000** to use the app. Login/register, upload a paper, 
 - Google AdSense needs real publisher ID in `AdSlot.tsx` (`data-ad-client`)
 - Database needs PostgreSQL running with `DATABASE_URL` configured
 - Run `npx prisma db push` to sync schema before first use
-# fouri-ai-mocktest
+- Owner console available at `/fouri-root-console` — credentials set via `OWNER_EMAIL` and `OWNER_PASSWORD` in backend `.env`
+- All landing page images are stored locally in `public/assets/images/` — no external image dependencies for landing
+- Impression tracking deduplicates per session via a React `Set` ref to avoid counting refreshes
+- All admin API calls use `useOwnerApi()` hook which injects the JWT Bearer token automatically
+- Admin routes protected by `ownerAuth` middleware — every non-login owner endpoint verifies JWT + email match

@@ -3,7 +3,7 @@
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { logout } from "@/lib/firebase";
 import {
   LayoutDashboard,
@@ -15,6 +15,20 @@ import {
   X,
   Search,
 } from "lucide-react";
+
+const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
+
+interface Ad {
+  id: string;
+  title: string;
+  description: string | null;
+  imageUrl: string;
+  ctaText: string;
+  ctaLink: string;
+  active: boolean;
+  clicks: number;
+  impressions: number;
+}
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -29,12 +43,37 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [ads, setAds] = useState<Ad[]>([]);
+  const impressionTracked = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    fetch(`${API}/ads/active`)
+      .then((r) => r.json())
+      .then((data: { ads: Ad[] }) => setAds(data.ads || []))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!loading && !user) {
       router.push("/login");
     }
   }, [user, loading, router]);
+
+  useEffect(() => {
+    if (ads.length > 0) {
+      ads.forEach((ad) => {
+        if (!impressionTracked.current.has(ad.id)) {
+          impressionTracked.current.add(ad.id);
+          fetch(`${API}/ads/${ad.id}/impression`, { method: "POST" }).catch(() => {});
+        }
+      });
+    }
+  }, [ads]);
+
+  const handleAdClick = (ad: Ad) => {
+    fetch(`${API}/ads/${ad.id}/click`, { method: "POST" }).catch(() => {});
+    window.open(ad.ctaLink, "_blank", "noopener noreferrer");
+  };
 
   if (loading) {
     return (
@@ -103,7 +142,40 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <main className="pt-16 lg:pl-64">
-        <div className="p-6 max-w-6xl mx-auto">{children}</div>
+        <div className="p-6 max-w-6xl mx-auto">
+          <div className="flex gap-6">
+            <div className="flex-1 min-w-0">{children}</div>
+            {ads.length > 0 && (
+              <aside className="hidden xl:block w-72 shrink-0 space-y-4 sticky top-24 self-start">
+                {ads.map((ad) => (
+                  <div
+                    key={ad.id}
+                    onClick={() => handleAdClick(ad)}
+                    className="group bg-white rounded-2xl border border-zinc-200 overflow-hidden cursor-pointer hover:shadow-lg hover:border-blue-200 transition-all duration-300"
+                  >
+                    <div className="relative h-32 overflow-hidden">
+                      <img
+                        src={ad.imageUrl}
+                        alt={ad.title}
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
+                    </div>
+                    <div className="p-3">
+                      <p className="text-sm font-semibold text-zinc-900">{ad.title}</p>
+                      {ad.description && (
+                        <p className="text-xs text-zinc-500 mt-1 line-clamp-2">{ad.description}</p>
+                      )}
+                      <span className="inline-block mt-2 text-xs font-medium text-blue-600 group-hover:text-blue-700 transition-colors">
+                        {ad.ctaText} →
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </aside>
+            )}
+          </div>
+        </div>
       </main>
     </div>
   );

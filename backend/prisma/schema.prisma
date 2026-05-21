@@ -173,3 +173,19 @@ model AnalyticsEvent {
   @@index([eventType])
   @@index([createdAt])
 }
+
+model Ad {
+  id          String   @id @default(uuid())
+  title       String
+  description String?
+  imageUrl    String
+  ctaText     String   @default("Learn More")
+  ctaLink     String
+  active      Boolean  @default(true)
+  clicks      Int      @default(0)
+  impressions Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([active])
+}

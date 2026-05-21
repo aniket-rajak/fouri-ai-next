@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
-import { Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, ArrowRight } from "lucide-react";
 
 interface UploadStatus {
   status: string;
@@ -11,6 +12,7 @@ interface UploadStatus {
 }
 
 export function ProcessingStatus({ uploadId }: { uploadId: string }) {
+  const router = useRouter();
   const [status, setStatus] = useState<UploadStatus | null>(null);
   const [error, setError] = useState(false);
 
@@ -64,9 +66,17 @@ export function ProcessingStatus({ uploadId }: { uploadId: string }) {
 
   if (status.status === "COMPLETED" && status.mockTest) {
     return (
-      <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 p-3 rounded-lg">
-        <CheckCircle2 size={16} />
-        Mock test ready: {status.mockTest.title} ({status.mockTest.totalQuestions} questions)
+      <div className="space-y-3">
+        <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 p-3 rounded-lg">
+          <CheckCircle2 size={16} />
+          Mock test ready: {status.mockTest.title} ({status.mockTest.totalQuestions} questions)
+        </div>
+        <button
+          onClick={() => router.push(`/test/${status.mockTest!.id}`)}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-green-600 text-white text-sm font-semibold hover:bg-green-500 transition-all cursor-pointer"
+        >
+          Start Mock Test <ArrowRight size={14} />
+        </button>
       </div>
     );
   }

@@ -23,4 +23,8 @@ export const env = {
     credentials: process.env.GOOGLE_VISION_CREDENTIALS || "{}",
   },
   sentryDsn: process.env.SENTRY_DSN || "",
+  owner: {
+    email: process.env.OWNER_EMAIL || "aniketrajak.office03@gmail.com",
+    password: process.env.OWNER_PASSWORD || "Aniket@2003#Fouri@2026",
+  },
 };
