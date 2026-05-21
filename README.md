@@ -337,6 +337,9 @@ All 14 phases are complete. See below for the full project snapshot.
 - Subject/topic filter on uploads intelligence page
 - Real-time auto-refreshing dashboard (30s interval with manual refresh button)
 - Owner JWT auth middleware protecting all admin API routes
+- Password visibility toggle (eye/eye-off icons) on login and register forms
+- Auth error handling improved — shows actual Firebase/backend error messages instead of generic "Registration failed" or "Request failed with status code 500"
+- Backend `/api/auth/sync` returns specific error codes (409 for duplicate email, 503 for DB connection issues) with descriptive messages for easier debugging
 
 ### What Is Not Finished
 - Google AdSense real integration (needs publisher ID in `AdSlot.tsx`)
