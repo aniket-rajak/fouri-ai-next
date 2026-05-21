@@ -19,9 +19,15 @@ router.post("/sync", authenticate, async (req, res) => {
     });
 
     res.json({ user });
-  } catch (error) {
-    console.error("Auth sync error:", error);
-    res.status(500).json({ error: "Failed to sync user" });
+  } catch (error: any) {
+    console.error("Auth sync error:", error?.message || error);
+    if (error?.code === "P2002") {
+      res.status(409).json({ error: "Email already registered" });
+    } else if (error?.code === "P1001" || error?.code === "P1000") {
+      res.status(503).json({ error: "Database connection failed. Please try again." });
+    } else {
+      res.status(500).json({ error: error?.message || "Failed to sync user" });
+    }
   }
 });
 

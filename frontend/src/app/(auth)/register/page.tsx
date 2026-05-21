@@ -11,10 +11,12 @@ import { signUpWithEmail, signInWithGoogle } from "@/lib/firebase";
 import { api } from "@/lib/api";
 import { registerSchema, type RegisterInput } from "@/lib/validations";
 import { toast } from "sonner";
+import { Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
 
 export default function RegisterPage() {
   const router = useRouter();
+  const [showPassword, setShowPassword] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const {
     register,
@@ -33,9 +35,17 @@ export default function RegisterPage() {
       toast.success("Account created successfully");
       router.push("/dashboard");
     } catch (error: unknown) {
-      const msg =
-        error instanceof Error ? error.message : "Registration failed";
-      toast.error(msg);
+      if (error instanceof Error && "response" in error) {
+        const axiosErr = error as { response?: { data?: { error?: string } } };
+        toast.error(axiosErr.response?.data?.error || error.message);
+      } else {
+        const errMsg = error instanceof Error ? error.message : "Registration failed";
+        if (errMsg.includes("too-many-requests")) {
+          toast.error("Too many attempts. Please try again in a few minutes.");
+        } else {
+          toast.error(errMsg);
+        }
+      }
     }
   };
 
@@ -84,15 +94,25 @@ export default function RegisterPage() {
             {...register("email")}
             className="text-black placeholder:text-black"
           />
-          <Input
-            id="password"
-            label="Password"
-            type="password"
-            placeholder="At least 6 characters"
-            error={errors.password?.message}
-            {...register("password")}
-            className="text-black placeholder:text-black"
-          />
+          <div className="relative">
+            <Input
+              id="password"
+              label="Password"
+              type={showPassword ? "text" : "password"}
+              placeholder="At least 6 characters"
+              error={errors.password?.message}
+              {...register("password")}
+              className="text-black placeholder:text-black pr-10"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-[38px] text-zinc-400 hover:text-zinc-600 cursor-pointer"
+              tabIndex={-1}
+            >
+              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+          </div>
           <Button type="submit" loading={isSubmitting} className="w-full">
             Create Account
           </Button>

@@ -291,7 +291,7 @@ All 14 phases are complete. See below for the full project snapshot.
 - Phase 14: Owner Console & Ad System (hidden `/fouri-root-console` admin panel with JWT auth, user management with CSV export, upload intelligence, Recharts analytics dashboard, ad CRUD manager, student dashboard ad display with impression/click tracking)
 
 ### What Is Working Now
-- User registration/login with email/password and Google OAuth
+- User registration/login with email/password and Google OAuth (with detailed Firebase error toasts instead of generic messages)
 - Drag-and-drop file upload to Cloudinary (PDFs uploaded as raw resources for public access)
 - Google Vision OCR — image and PDF text extraction (verified working end-to-end)
 - AI analysis via OpenRouter (OpenAI-compatible) — question parsing, MCQ generation, explanations
@@ -342,10 +342,13 @@ All 14 phases are complete. See below for the full project snapshot.
 - Google AdSense real integration (needs publisher ID in `AdSlot.tsx`)
 - Google Search Console site verification (replace `your-google-site-verification` in `layout.tsx`)
 - Sentry DSN (error tracking) — not yet configured
+- Firebase Identity Platform (GCIP) upgrade — removes per-IP rate limits for production traffic (current free tier triggers `auth/too-many-requests` under high traffic)
 
 ### Next Steps
 - Run `npx prisma db push` if schema changes
 - Configure GitHub secrets for CI/CD
+- Upgrade Firebase Auth to GCIP for production-scale rate limits
+- Insert real Google AdSense publisher ID and Search Console verification tag
 
 ### Production URLs
 
@@ -424,6 +427,7 @@ Visit **http://localhost:3000** (dev) or **https://www.fouri.in** (prod) to use 
 | Question options not rendering | Stored as string or object in DB, expected array | Added `normalizeOptions()` helper + backend normalization in routes |
 | cursor-pointer missing on buttons | Not set on raw `<button>` elements | Added cursor-pointer to Button.tsx + all raw buttons (9 files) |
 | Subjective questions missing input | Only showed placeholder text, no input field | Replaced with `<textarea>` — internal state, blur-saves to parent, resizable |
+| Firebase Auth 400 on signup (intermittent) | Per-IP rate limiting on Firebase Auth free tier (~100 signups/hr/IP) | Upgrade to GCIP (Identity Platform) for project-wide quota; added user-friendly error toast on rate limit |
 
 ### Notes
 - Framer Motion powers all animations across 12 landing components (slide transitions, stagger reveal, floating elements, animated counters)
