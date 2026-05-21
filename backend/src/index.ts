@@ -49,6 +49,13 @@ app.use("/api/admin", adminRoutes);
 import searchRoutes from "./routes/search.js";
 app.use("/api/search", searchRoutes);
 
+app.get("/", (_req, res) => {
+  res.json({
+    status: "Backend Running Successfully",
+    service: "Fouri AI Mocktest API"
+  });
+});
+
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
