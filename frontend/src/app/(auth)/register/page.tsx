@@ -32,8 +32,10 @@ export default function RegisterPage() {
       await api.post("/auth/sync");
       toast.success("Account created successfully");
       router.push("/dashboard");
-    } catch {
-      toast.error("Registration failed. Try again.");
+    } catch (error: unknown) {
+      const msg =
+        error instanceof Error ? error.message : "Registration failed";
+      toast.error(msg);
     }
   };
 
@@ -46,8 +48,9 @@ export default function RegisterPage() {
       await api.post("/auth/sync");
       toast.success("Account created successfully");
       router.push("/dashboard");
-    } catch {
-      toast.error("Registration failed");
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "Registration failed";
+      toast.error(msg);
     } finally {
       setGoogleLoading(false);
     }
@@ -57,7 +60,10 @@ export default function RegisterPage() {
     <div className="min-h-screen flex items-center justify-center px-4 bg-zinc-50">
       <Card className="w-full max-w-sm">
         <div className="text-center mb-6">
-          <Link href="/" className="text-xl font-bold tracking-tight">
+          <Link
+            href="/"
+            className="text-xl font-bold tracking-tight text-black"
+          >
             FOURI.IN
           </Link>
           <h1 className="text-xl font-semibold text-zinc-900 mt-4">
@@ -76,6 +82,7 @@ export default function RegisterPage() {
             placeholder="you@example.com"
             error={errors.email?.message}
             {...register("email")}
+            className="text-black placeholder:text-black"
           />
           <Input
             id="password"
@@ -84,6 +91,7 @@ export default function RegisterPage() {
             placeholder="At least 6 characters"
             error={errors.password?.message}
             {...register("password")}
+            className="text-black placeholder:text-black"
           />
           <Button type="submit" loading={isSubmitting} className="w-full">
             Create Account

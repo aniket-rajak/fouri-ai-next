@@ -405,7 +405,7 @@ Visit **http://localhost:3000** (dev) or **https://www.fouri.in** (prod) to use 
 | `frontend/src/app/(dashboard)/layout.tsx` | Student dashboard layout with ad sidebar |
 | `backend/src/routes/owner.ts` | Owner auth + management routes |
 | `backend/src/routes/ads.ts` | Ad CRUD + tracking routes |
-| `backend/src/config/env.ts` | Owner env vars (`owner.email`, `owner.password`) |
+| `backend/src/config/env.ts` | Owner credentials + all env config |
 | `backend/src/middleware/ownerAuth.ts` | JWT owner auth middleware for admin routes |
 | `backend/prisma/schema.prisma` | Full database schema (11 models incl. Ad) |
 | `frontend/src/app/loading.tsx` | Root animated loading loader (dark theme) |
@@ -436,7 +436,7 @@ Visit **http://localhost:3000** (dev) or **https://www.fouri.in** (prod) to use 
 - Google AdSense needs real publisher ID in `AdSlot.tsx` (`data-ad-client`)
 - Database needs PostgreSQL running with `DATABASE_URL` configured
 - Run `npx prisma db push` to sync schema before first use
-- Owner console available at `/fouri-root-console` — credentials set via `OWNER_EMAIL` and `OWNER_PASSWORD` in backend `.env`
+- Owner console available at `/fouri-root-console` — credentials hardcoded in `backend/src/config/env.ts`
 - All landing page images are stored locally in `public/assets/images/` — no external image dependencies for landing
 - Impression tracking deduplicates per session via a React `Set` ref to avoid counting refreshes
 - All admin API calls use `useOwnerApi()` hook which injects the JWT Bearer token automatically

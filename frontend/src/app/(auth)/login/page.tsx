@@ -32,8 +32,10 @@ export default function LoginPage() {
       await api.post("/auth/sync");
       toast.success("Logged in successfully");
       router.push("/dashboard");
-    } catch {
-      toast.error("Invalid email or password");
+    } catch (error: unknown) {
+      const msg =
+        error instanceof Error ? error.message : "Invalid email or password";
+      toast.error(msg);
     }
   };
 
@@ -46,8 +48,9 @@ export default function LoginPage() {
       await api.post("/auth/sync");
       toast.success("Logged in successfully");
       router.push("/dashboard");
-    } catch {
-      toast.error("Google login failed");
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "Google login failed";
+      toast.error(msg);
     } finally {
       setGoogleLoading(false);
     }
@@ -57,7 +60,10 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center px-4 bg-zinc-50">
       <Card className="w-full max-w-sm">
         <div className="text-center mb-6">
-          <Link href="/" className="text-xl font-bold tracking-tight">
+          <Link
+            href="/"
+            className="text-xl font-bold tracking-tight text-black"
+          >
             FOURI.IN
           </Link>
           <h1 className="text-xl font-semibold text-zinc-900 mt-4">Login</h1>
@@ -74,6 +80,7 @@ export default function LoginPage() {
             placeholder="you@example.com"
             error={errors.email?.message}
             {...register("email")}
+            className="text-black placeholder:text-black"
           />
           <Input
             id="password"
@@ -82,6 +89,7 @@ export default function LoginPage() {
             placeholder="••••••••"
             error={errors.password?.message}
             {...register("password")}
+            className="text-black placeholder:text-black"
           />
           <Button type="submit" loading={isSubmitting} className="w-full">
             Login
