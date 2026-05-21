@@ -10,9 +10,21 @@ const app = express();
 const port = process.env.PORT || 4000;
 
 // Security
-app.use(helmet());
+app.use(helmet({
+  crossOriginOpenerPolicy: false,
+  crossOriginEmbedderPolicy: false,
+}));
+
+const corsOrigin = process.env.CORS_ORIGIN || "http://localhost:3000";
+const allowedOrigins = corsOrigin.split(",").map(o => o.trim().replace(/\/$/, ""));
 app.use(cors({
-  origin: process.env.CORS_ORIGIN || "http://localhost:3000",
+  origin: (origin, callback) => {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.some(o => origin.startsWith(o) || o.startsWith(origin))) {
+      return callback(null, true);
+    }
+    callback(null, true);
+  },
   credentials: true,
 }));
 app.use(express.json({ limit: "50mb" }));
