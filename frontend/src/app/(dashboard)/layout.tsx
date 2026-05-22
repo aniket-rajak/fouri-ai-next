@@ -2,6 +2,7 @@
 
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useRef } from "react";
 import { logout } from "@/lib/firebase";
@@ -25,6 +26,7 @@ interface Ad {
   imageUrl: string;
   ctaText: string;
   ctaLink: string;
+  blogUrl: string | null;
   active: boolean;
   clicks: number;
   impressions: number;
@@ -72,7 +74,8 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
   const handleAdClick = (ad: Ad) => {
     fetch(`${API}/ads/${ad.id}/click`, { method: "POST" }).catch(() => {});
-    window.open(ad.ctaLink, "_blank", "noopener noreferrer");
+    const url = ad.blogUrl || ad.ctaLink;
+    window.open(url, "_blank", "noopener noreferrer");
   };
 
   if (loading) {
@@ -146,7 +149,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
           <div className="flex gap-6">
             <div className="flex-1 min-w-0">{children}</div>
             {ads.length > 0 && (
-              <aside className="hidden xl:block w-72 shrink-0 space-y-4 sticky top-24 self-start">
+              <aside className="hidden xl:block w-72 shrink-0 space-y-4 sticky top-24 self-start max-h-[calc(100vh-8rem)] overflow-y-auto">
                 {ads.map((ad) => (
                   <div
                     key={ad.id}
@@ -154,9 +157,11 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                     className="group bg-white rounded-2xl border border-zinc-200 overflow-hidden cursor-pointer hover:shadow-lg hover:border-blue-200 transition-all duration-300"
                   >
                     <div className="relative h-32 overflow-hidden">
-                      <img
+                      <Image
                         src={ad.imageUrl}
                         alt={ad.title}
+                        width={300}
+                        height={200}
                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />

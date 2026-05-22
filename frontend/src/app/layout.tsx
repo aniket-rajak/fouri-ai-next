@@ -3,6 +3,7 @@ import { Inter, JetBrains_Mono, Poppins } from "next/font/google";
 import { Toaster } from "sonner";
 import "./globals.css";
 import { JsonLd } from "@/components/JsonLd";
+import { Analytics } from "@/components/Analytics";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -70,7 +71,10 @@ export const metadata: Metadata = {
     },
   },
   verification: {
-    google: "your-google-site-verification",
+    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION || "",
+  },
+  alternates: {
+    canonical: "https://fouri.in",
   },
 };
 
@@ -101,6 +105,7 @@ export default function RootLayout({
       </head>
       <body className="min-h-full flex flex-col bg-[#08080f] text-[#f5f5f7] font-sans">
         {children}
+        <Analytics />
         <Toaster richColors position="top-center" />
       </body>
     </html>

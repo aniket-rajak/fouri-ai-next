@@ -3,10 +3,11 @@ import { authenticate } from "../middleware/auth.js";
 import { prisma } from "../lib/prisma.js";
 import { extractText } from "../services/ocr.js";
 import { analyzeQuestions } from "../services/openai.js";
+import { analyzeLimiter, standardLimiter } from "../middleware/rateLimiter.js";
 
 const router = Router();
 
-router.post("/:uploadId", authenticate, async (req, res) => {
+router.post("/:uploadId", analyzeLimiter, authenticate, async (req, res) => {
   try {
     const uploadId = req.params.uploadId as string;
     const upload = await prisma.upload.findUnique({
@@ -119,7 +120,7 @@ async function processUpload(uploadId: string): Promise<void> {
   }
 }
 
-router.get("/:uploadId/status", authenticate, async (req, res) => {
+router.get("/:uploadId/status", standardLimiter, authenticate, async (req, res) => {
   try {
     const uploadId = req.params.uploadId as string;
     const upload = await prisma.upload.findUnique({

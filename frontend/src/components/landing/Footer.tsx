@@ -5,22 +5,23 @@ import { Sparkles, Globe, MessageCircle, Mail } from "lucide-react";
 
 const footerLinks = {
   features: [
-    { label: "Upload Papers", href: "#features" },
-    { label: "OCR Extraction", href: "#ai-analysis" },
-    { label: "Mock Tests", href: "#mock-tests" },
-    { label: "Analytics", href: "#features" },
+    { label: "Upload Papers", href: "/upload" },
+    { label: "OCR Extraction", href: "/#ai-analysis" },
+    { label: "Mock Tests", href: "/#mock-tests" },
+    { label: "Analytics", href: "/results" },
   ],
   resources: [
     { label: "JEE Mock Tests", href: "/jee-mock-test" },
     { label: "NEET Mock Tests", href: "/neet-mock-test" },
     { label: "WBJEE Mock Tests", href: "/wbjee-mock-test" },
     { label: "CUET Mock Tests", href: "/cuet-mock-test" },
+    { label: "Blog", href: "/blog" },
   ],
   company: [
-    { label: "About", href: "#" },
-    { label: "Privacy Policy", href: "#" },
-    { label: "Terms of Service", href: "#" },
-    { label: "Contact", href: "#" },
+    { label: "About", href: "/about" },
+    { label: "Privacy Policy", href: "/privacy" },
+    { label: "Terms of Service", href: "/terms" },
+    { label: "Contact", href: "/contact" },
   ],
 };
 

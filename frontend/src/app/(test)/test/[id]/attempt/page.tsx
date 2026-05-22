@@ -71,9 +71,16 @@ export default function TestAttemptPage() {
         // Restore from localStorage
         const stored = localStorage.getItem(`fouri_attempt_${att.id}`);
         if (stored) {
-          const parsed = JSON.parse(stored);
-          if (parsed.answers?.length) {
-            setAnswers(parsed.answers);
+          try {
+            const parsed = JSON.parse(stored);
+            if (parsed.answers?.length) {
+              setAnswers(parsed.answers);
+            }
+            if (parsed.markedIds?.length) {
+              setMarkedIds(new Set(parsed.markedIds));
+            }
+          } catch {
+            // ignore corrupt data
           }
         }
 
@@ -111,11 +118,10 @@ export default function TestAttemptPage() {
     onTabSwitch: handleTabSwitch,
   });
 
-  const answerList = answers;
-
   const { restoreFromLocal } = useAutoSave(
     attemptId,
-    answerList,
+    answers,
+    markedIds,
     !loading && !!attemptId
   );
 

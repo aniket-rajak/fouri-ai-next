@@ -62,13 +62,14 @@ export function QuestionCard({
         <button
           onClick={() => onToggleMark(question.id)}
           className={cn(
-            "shrink-0 p-2 rounded-lg transition-colors cursor-pointer",
+            "shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium transition-all cursor-pointer",
             isMarked
-              ? "bg-amber-100 text-amber-600"
-              : "text-zinc-300 hover:text-zinc-500 hover:bg-zinc-100"
+              ? "bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100"
+              : "border-zinc-200 text-zinc-500 hover:border-amber-300 hover:text-amber-600 hover:bg-amber-50"
           )}
         >
-          <Bookmark size={18} fill={isMarked ? "currentColor" : "none"} />
+          <Bookmark size={15} fill={isMarked ? "currentColor" : "none"} />
+          {isMarked ? "Marked" : "Mark for Review"}
         </button>
       </div>
 

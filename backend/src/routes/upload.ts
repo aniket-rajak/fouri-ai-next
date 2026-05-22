@@ -73,4 +73,25 @@ router.get("/", authenticate, async (req, res) => {
   }
 });
 
+router.delete("/:id", authenticate, async (req, res) => {
+  try {
+    const uploadId = req.params.id as string;
+    const upload = await prisma.upload.findUnique({ where: { id: uploadId } });
+    if (!upload || upload.userId !== req.user!.uid) {
+      res.status(404).json({ error: "Upload not found" });
+      return;
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.mockTest.deleteMany({ where: { sourceUploadId: uploadId } });
+      await tx.upload.delete({ where: { id: uploadId } });
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("Delete upload error:", error);
+    res.status(500).json({ error: "Failed to delete upload" });
+  }
+});
+
 export default router;

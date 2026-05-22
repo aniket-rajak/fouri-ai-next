@@ -9,78 +9,118 @@ dotenv.config();
 const app = express();
 const port = process.env.PORT || 4000;
 
-// Security
+// Security headers
 app.use(helmet({
-  crossOriginOpenerPolicy: false,
+  crossOriginOpenerPolicy: { policy: "unsafe-none" },
   crossOriginEmbedderPolicy: false,
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "https://www.googletagmanager.com"],
+      imgSrc: ["'self'", "https:", "data:"],
+      connectSrc: ["'self'", "https://www.fouri.in"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      fontSrc: ["'self'", "https:", "data:"],
+      frameSrc: ["'self'", "https://www.google.com"],
+    },
+  },
 }));
 
-const corsOrigin = process.env.CORS_ORIGIN || "http://localhost:3000";
-const allowedOrigins = corsOrigin.split(",").map(o => o.trim().replace(/\/$/, ""));
+// CORS — strict whitelist only (with localhost fallback for dev)
+const corsEnv = process.env.CORS_ORIGIN || "";
+const localhostOrigins = ["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000"];
+const allowedOrigins = [
+  ...localhostOrigins,
+  ...corsEnv.split(",").map(o => o.trim().replace(/\/$/, "")).filter(Boolean),
+];
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin) return callback(null, true);
-    if (allowedOrigins.some(o => origin.startsWith(o) || o.startsWith(origin))) {
+    if (allowedOrigins.some(o => origin === o)) {
       return callback(null, true);
     }
-    callback(null, true);
+    if (process.env.NODE_ENV === "development" && origin?.startsWith("http://localhost")) {
+      return callback(null, true);
+    }
+    callback(new Error("Not allowed by CORS"));
   },
   credentials: true,
+  maxAge: 0,
 }));
-app.use(express.json({ limit: "50mb" }));
+app.use(express.json({ limit: "10mb" }));
 
-// Global rate limiter
-import { globalLimiter } from "./middleware/rateLimiter.js";
+// Rate limiters
+import {
+  globalLimiter, authLimiter, uploadLimiter, analyzeLimiter,
+  standardLimiter, ownerLimiter, contactLimiter,
+} from "./middleware/rateLimiter.js";
 app.use("/api", globalLimiter);
 
 // Routes
 import authRoutes from "./routes/auth.js";
-import { authLimiter } from "./middleware/rateLimiter.js";
 app.use("/api/auth", authLimiter, authRoutes);
 
 import uploadRoutes from "./routes/upload.js";
-import { uploadLimiter } from "./middleware/rateLimiter.js";
 app.use("/api/upload", uploadLimiter, uploadRoutes);
 
 import analyzeRoutes from "./routes/analyze.js";
-import { analyzeLimiter } from "./middleware/rateLimiter.js";
-app.use("/api/analyze", analyzeLimiter, analyzeRoutes);
+app.use("/api/analyze", analyzeRoutes);
 
 import testsRoutes from "./routes/tests.js";
-app.use("/api/tests", testsRoutes);
+app.use("/api/tests", standardLimiter, testsRoutes);
 
 import resultsRoutes from "./routes/results.js";
-app.use("/api/results", resultsRoutes);
+app.use("/api/results", standardLimiter, resultsRoutes);
 
 import attemptsRoutes from "./routes/attempts.js";
-app.use("/api/attempts", attemptsRoutes);
+app.use("/api/attempts", standardLimiter, attemptsRoutes);
 
 import adminRoutes from "./routes/admin.js";
-app.use("/api/admin", adminRoutes);
+app.use("/api/admin", standardLimiter, adminRoutes);
 
 import searchRoutes from "./routes/search.js";
-app.use("/api/search", searchRoutes);
+app.use("/api/search", standardLimiter, searchRoutes);
 
 import ownerRoutes from "./routes/owner.js";
-app.use("/api/owner", ownerRoutes);
+app.use("/api/owner", ownerLimiter, ownerRoutes);
 
 import adRoutes from "./routes/ads.js";
-app.use("/api/ads", adRoutes);
+app.use("/api/ads", standardLimiter, adRoutes);
+
+import blogRoutes from "./routes/blogs.js";
+app.use("/api/blogs", standardLimiter, blogRoutes);
+
+import imageUploadRoutes from "./routes/uploadImage.js";
+app.use("/api/upload-image", standardLimiter, imageUploadRoutes);
+
+import contactRoutes from "./routes/contact.js";
+app.use("/api/contact", contactLimiter, contactRoutes);
 
 app.get("/", (_req, res) => {
   res.json({
     status: "Backend Running Successfully",
-    service: "Fouri AI Mocktest API"
+    service: "Fouri AI Mocktest API",
   });
 });
 
-app.get("/api/health", (_req, res) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString() });
+import { prisma } from "./lib/prisma.js";
+
+app.get("/api/health", async (_req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({ status: "ok", timestamp: new Date().toISOString() });
+  } catch {
+    res.status(503).json({ status: "degraded", message: "Database not ready" });
+  }
 });
 
 // Global error handler
 import { captureError } from "./services/sentry.js";
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  if (err.message === "Not allowed by CORS") {
+    res.status(403).json({ error: "Origin not allowed" });
+    return;
+  }
   captureError(err);
   console.error("Unhandled error:", err);
   res.status(500).json({ error: "Internal server error" });

@@ -6,13 +6,14 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   LayoutDashboard, Users, Upload, BarChart3, Image as ImageIcon,
-  LogOut, Menu, X, Sparkles, ChevronRight,
+  LogOut, Menu, X, Sparkles, ChevronRight, FileText,
 } from "lucide-react";
 
 const navItems = [
   { href: "/fouri-root-console/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/fouri-root-console/users", label: "Users", icon: Users },
   { href: "/fouri-root-console/uploads", label: "Uploads", icon: Upload },
+  { href: "/fouri-root-console/blogs", label: "Blog", icon: FileText },
   { href: "/fouri-root-console/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/fouri-root-console/ads", label: "Ad Manager", icon: ImageIcon },
 ];

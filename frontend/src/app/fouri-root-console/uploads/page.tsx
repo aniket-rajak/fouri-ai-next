@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useOwnerApi } from "@/lib/owner-auth";
+import { useOwnerApi, useOwner } from "@/lib/owner-auth";
 import { motion } from "framer-motion";
 import {
   Upload, Search, Loader2, FileText, CheckCircle2, XCircle, Clock,
-  Download, Trash2, RefreshCw,
+  Download, Trash2, RefreshCw, AlertTriangle,
 } from "lucide-react";
 import { api } from "@/lib/api";
 
@@ -28,8 +28,16 @@ const statusConfig: Record<string, { icon: any; color: string }> = {
   FAILED: { icon: XCircle, color: "text-rose-400 bg-rose-500/10 border-rose-500/20" },
 };
 
+const bulkStatusOptions = [
+  { value: "FAILED", label: "Failed", color: "text-rose-300" },
+  { value: "PROCESSING", label: "Processing", color: "text-amber-300" },
+  { value: "ANALYZING", label: "Analyzing", color: "text-blue-300" },
+  { value: "COMPLETED", label: "Completed", color: "text-emerald-300" },
+];
+
 export default function OwnerUploadsPage() {
   const ownerApi = useOwnerApi();
+  const { token } = useOwner();
   const [uploads, setUploads] = useState<UploadRecord[]>([]);
   const [subjects, setSubjects] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,6 +45,10 @@ export default function OwnerUploadsPage() {
   const [typeFilter, setTypeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [subjectFilter, setSubjectFilter] = useState("all");
+
+  const [bulkStatuses, setBulkStatuses] = useState<string[]>([]);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [showBulkConfirm, setShowBulkConfirm] = useState(false);
 
   const fetchUploads = useCallback(async () => {
     setLoading(true);
@@ -61,11 +73,57 @@ export default function OwnerUploadsPage() {
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this upload?")) return;
     try {
-      await api.delete(`/upload/${id}`);
+      await ownerApi(`/owner/uploads/${id}`, { method: "DELETE" });
       setUploads((prev) => prev.filter((u) => u.id !== id));
     } catch {
       alert("Failed to delete");
     }
+  };
+
+  const handleDownload = async (upload: UploadRecord) => {
+    try {
+      const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
+      const res = await fetch(`${apiBase}/owner/uploads/${upload.id}/download`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Download failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = upload.filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      alert("Download failed");
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    const selected = bulkStatuses.filter(Boolean);
+    if (selected.length === 0) return;
+    setBulkDeleting(true);
+    try {
+      const result = await ownerApi("/owner/uploads/bulk-delete", {
+        method: "POST",
+        body: JSON.stringify({ statuses: selected }),
+      }) as { deleted: number };
+      await fetchUploads();
+      setBulkStatuses([]);
+    } catch {
+      alert("Bulk delete failed");
+    } finally {
+      setBulkDeleting(false);
+      setShowBulkConfirm(false);
+    }
+  };
+
+  const toggleBulkStatus = (status: string) => {
+    setBulkStatuses((prev) =>
+      prev.includes(status) ? prev.filter((s) => s !== status) : [...prev, status]
+    );
   };
 
   const types = [...new Set(uploads.map((u) => u.fileType).filter(Boolean))];
@@ -85,6 +143,8 @@ export default function OwnerUploadsPage() {
     { label: "Processing", value: uploads.filter((u) => u.status === "PROCESSING" || u.status === "ANALYZING").length, icon: Clock, color: "from-amber-600 to-amber-500" },
     { label: "Failed", value: uploads.filter((u) => u.status === "FAILED").length, icon: XCircle, color: "from-rose-600 to-rose-500" },
   ];
+
+  const bulkCount = bulkStatuses.reduce((sum, s) => sum + uploads.filter((u) => u.status === s).length, 0);
 
   return (
     <div className="space-y-6">
@@ -149,6 +209,93 @@ export default function OwnerUploadsPage() {
         </select>
       </div>
 
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-[#111118] rounded-xl border border-white/5 p-4"
+      >
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-medium text-[#f5f5f7]">Bulk Delete Uploads</h3>
+          <span className="text-[10px] text-[#888899]">{bulkCount} files selected</span>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          {bulkStatusOptions.map((opt) => {
+            const count = uploads.filter((u) => u.status === opt.value).length;
+            return (
+              <label
+                key={opt.value}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs cursor-pointer transition-all ${
+                  bulkStatuses.includes(opt.value)
+                    ? "border-blue-500/50 bg-blue-500/10 text-blue-300"
+                    : "border-white/5 text-[#888899] hover:border-white/10"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={bulkStatuses.includes(opt.value)}
+                  onChange={() => toggleBulkStatus(opt.value)}
+                  className="sr-only"
+                />
+                <span className={`${opt.color}`}>{opt.label}</span>
+                <span className="text-[10px] opacity-60">({count})</span>
+              </label>
+            );
+          })}
+          <button
+            onClick={() => setShowBulkConfirm(true)}
+            disabled={bulkStatuses.length === 0 || bulkCount === 0 || bulkDeleting}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs hover:bg-rose-500/20 transition-all disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+          >
+            {bulkDeleting ? (
+              <Loader2 size={12} className="animate-spin" />
+            ) : (
+              <Trash2 size={12} />
+            )}
+            Delete Selected
+          </button>
+        </div>
+      </motion.div>
+
+      {showBulkConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-[#111118] border border-white/10 rounded-2xl p-6 max-w-sm w-full mx-4 shadow-2xl"
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-rose-500/10 flex items-center justify-center">
+                <AlertTriangle size={20} className="text-rose-400" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-[#f5f5f7]">Confirm Bulk Delete</h3>
+                <p className="text-xs text-[#888899]">This action cannot be undone</p>
+              </div>
+            </div>
+            <p className="text-xs text-[#888899] mb-4">
+              Delete <strong className="text-[#f5f5f7]">{bulkCount} uploads</strong> with status:
+              {" "}{bulkStatuses.map((s) => s.toLowerCase()).join(", ")}.
+              Associated mock tests and data will also be removed.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setShowBulkConfirm(false)}
+                className="px-4 py-2 rounded-xl bg-white/5 text-xs text-[#f5f5f7] hover:bg-white/10 transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                disabled={bulkDeleting}
+                className="px-4 py-2 rounded-xl bg-rose-500/20 border border-rose-500/30 text-rose-300 text-xs hover:bg-rose-500/30 transition-all disabled:opacity-30 cursor-pointer"
+              >
+                {bulkDeleting ? "Deleting..." : `Delete ${bulkCount} Files`}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
       {loading ? (
         <div className="flex items-center justify-center py-16">
           <Loader2 size={24} className="animate-spin text-blue-400" />
@@ -188,14 +335,12 @@ export default function OwnerUploadsPage() {
                       {upload.status.toLowerCase()}
                     </span>
                     {upload.cloudinaryUrl && (
-                      <a
-                        href={upload.cloudinaryUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-[#888899] hover:text-[#f5f5f7] hover:bg-white/10 transition-all"
+                      <button
+                        onClick={() => handleDownload(upload)}
+                        className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-[#888899] hover:text-[#f5f5f7] hover:bg-white/10 transition-all cursor-pointer"
                       >
                         <Download size={13} />
-                      </a>
+                      </button>
                     )}
                     <button
                       onClick={() => handleDelete(upload.id)}

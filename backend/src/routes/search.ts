@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { authenticate } from "../middleware/auth.js";
 import { prisma } from "../lib/prisma.js";
+import { getCached, setCache } from "../lib/cache.js";
 
 const router = Router();
 
@@ -13,6 +14,13 @@ router.get("/", authenticate, async (req, res) => {
     const sort = (req.query.sort as string) || "newest";
     const page = Math.max(1, parseInt(req.query.page as string) || 1);
     const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 20));
+
+    const cacheKey = `search:${q}:${subject || ""}:${examType || ""}:${difficulty || ""}:${sort}:${page}:${limit}`;
+    const cached = getCached<object>(cacheKey);
+    if (cached) {
+      res.json(cached);
+      return;
+    }
 
     const where: Record<string, unknown> = { status: "PUBLISHED" };
 
@@ -65,7 +73,7 @@ router.get("/", authenticate, async (req, res) => {
       }),
     ]);
 
-    res.json({
+    const result = {
       tests,
       pagination: {
         page,
@@ -77,7 +85,10 @@ router.get("/", authenticate, async (req, res) => {
         subjects: distinct[0].map((s) => s.subject).filter(Boolean),
         examTypes: distinct[1].map((e) => e.examType).filter(Boolean),
       },
-    });
+    };
+
+    setCache(cacheKey, result, 60_000);
+    res.json(result);
   } catch (error) {
     console.error("Search error:", error);
     res.status(500).json({ error: "Search failed" });
@@ -85,6 +96,13 @@ router.get("/", authenticate, async (req, res) => {
 });
 
 router.get("/trending", authenticate, async (_req, res) => {
+  const cacheKey = "search:trending";
+  const cached = getCached<object>(cacheKey);
+  if (cached) {
+    res.json(cached);
+    return;
+  }
+
   try {
     const tests = await prisma.mockTest.findMany({
       where: { status: "PUBLISHED" },
@@ -99,7 +117,9 @@ router.get("/trending", authenticate, async (_req, res) => {
         attemptCount: true,
       },
     });
-    res.json({ tests });
+    const result = { tests };
+    setCache(cacheKey, result, 120_000);
+    res.json(result);
   } catch (error) {
     console.error("Trending error:", error);
     res.status(500).json({ error: "Failed to fetch trending" });

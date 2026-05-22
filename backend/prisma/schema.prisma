@@ -70,6 +70,7 @@ model Upload {
 
   @@index([userId])
   @@index([status])
+  @@index([createdAt])
 }
 
 model MockTest {
@@ -94,6 +95,7 @@ model MockTest {
   @@index([subject])
   @@index([examType])
   @@index([status])
+  @@index([status, createdAt])
 }
 
 model Question {
@@ -133,6 +135,8 @@ model TestAttempt {
   @@index([userId])
   @@index([mockTestId])
   @@index([userId, mockTestId])
+  @@index([startedAt])
+  @@index([userId, status])
 }
 
 model Answer {
@@ -174,6 +178,23 @@ model AnalyticsEvent {
   @@index([createdAt])
 }
 
+model Blog {
+  id        String   @id @default(uuid())
+  title     String
+  slug      String   @unique
+  content   String
+  excerpt   String?
+  imageUrl  String?
+  author    String   @default("FOURI Team")
+  published Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([slug])
+  @@index([published])
+  @@index([createdAt])
+}
+
 model Ad {
   id          String   @id @default(uuid())
   title       String
@@ -181,6 +202,7 @@ model Ad {
   imageUrl    String
   ctaText     String   @default("Learn More")
   ctaLink     String
+  blogUrl     String?
   active      Boolean  @default(true)
   clicks      Int      @default(0)
   impressions Int      @default(0)

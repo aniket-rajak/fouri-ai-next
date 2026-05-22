@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { prisma } from "../lib/prisma.js";
 import { ownerAuth } from "../middleware/ownerAuth.js";
+import { validate, schemas } from "../middleware/validate.js";
 
 const router = Router();
 
@@ -29,14 +30,9 @@ router.get("/active", async (_req, res) => {
   }
 });
 
-router.post("/", ownerAuth, async (req, res) => {
+router.post("/", ownerAuth, validate(schemas.adCreate), async (req, res) => {
   try {
-    const { title, description, imageUrl, ctaText, ctaLink } = req.body;
-
-    if (!title || !imageUrl || !ctaLink) {
-      res.status(400).json({ error: "Title, imageUrl, and ctaLink are required" });
-      return;
-    }
+    const { title, description, imageUrl, ctaText, ctaLink, blogUrl } = req.body;
 
     const ad = await prisma.ad.create({
       data: {
@@ -45,6 +41,7 @@ router.post("/", ownerAuth, async (req, res) => {
         imageUrl,
         ctaText: ctaText || "Learn More",
         ctaLink,
+        blogUrl: blogUrl || null,
         active: true,
       },
     });
@@ -56,10 +53,10 @@ router.post("/", ownerAuth, async (req, res) => {
   }
 });
 
-router.put("/:id", ownerAuth, async (req, res) => {
+router.put("/:id", ownerAuth, validate(schemas.adUpdate), async (req, res) => {
   try {
     const adId = req.params.id as string;
-    const { title, description, imageUrl, ctaText, ctaLink, active } = req.body;
+    const { title, description, imageUrl, ctaText, ctaLink, blogUrl, active } = req.body;
 
     const existing = await prisma.ad.findUnique({ where: { id: adId } });
     if (!existing) {
@@ -75,6 +72,7 @@ router.put("/:id", ownerAuth, async (req, res) => {
         ...(imageUrl !== undefined && { imageUrl }),
         ...(ctaText !== undefined && { ctaText }),
         ...(ctaLink !== undefined && { ctaLink }),
+        ...(blogUrl !== undefined && { blogUrl }),
         ...(active !== undefined && { active }),
       },
     });

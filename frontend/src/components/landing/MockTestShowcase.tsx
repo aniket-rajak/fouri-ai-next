@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion";
 import Link from "next/link";
+import Image from "next/image";
 import { Clock, Play } from "lucide-react";
 
 const mockTests = [
@@ -99,9 +100,11 @@ export default function MockTestShowcase() {
               className="group bg-[#111118] rounded-3xl overflow-hidden border border-white/5 hover:border-blue-500/30 hover:shadow-xl hover:shadow-blue-500/5 transition-all duration-500"
             >
               <div className="relative h-48 overflow-hidden">
-                <img
+                <Image
                   src={test.image}
                   alt={test.title}
+                  width={400}
+                  height={300}
                   className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                   loading="lazy"
                 />

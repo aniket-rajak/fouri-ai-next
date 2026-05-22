@@ -24,7 +24,14 @@ export const env = {
   },
   sentryDsn: process.env.SENTRY_DSN || "",
   owner: {
-    email: "aniketrajak.office03@gmail.com",
-    password: "Aniket@2003#Fouri@2026",
+    email: process.env.OWNER_EMAIL || "",
+    password: process.env.OWNER_PASSWORD || "",
+  },
+  smtp: {
+    host: process.env.SMTP_HOST || "smtp.hostinger.com",
+    port: parseInt(process.env.SMTP_PORT || "465"),
+    user: process.env.SMTP_USER || "office@fouri.in",
+    pass: process.env.SMTP_PASS || "",
+    from: process.env.SMTP_FROM || "office@fouri.in",
   },
 };

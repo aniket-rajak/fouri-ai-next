@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
+import Image from "next/image";
 import {
   Upload, Brain, FileCheck, BarChart3, Sparkles, ArrowRight,
   ChevronLeft, ChevronRight, Zap, Target, Shield,
@@ -287,11 +288,13 @@ export default function HeroSection() {
               >
                 <div className="relative rounded-3xl overflow-hidden shadow-2xl shadow-blue-500/5 border border-white/5">
                   <div className="absolute inset-0 bg-gradient-to-t from-blue-500/10 to-transparent z-10" />
-                  <img
+                  <Image
                     src={slide.image}
                     alt=""
+                    width={800}
+                    height={600}
                     className="w-full h-auto object-cover"
-                    loading="eager"
+                    priority
                   />
                 </div>
 

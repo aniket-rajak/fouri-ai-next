@@ -53,7 +53,7 @@ router.get("/:id", authenticate, async (req, res) => {
       },
     });
 
-    if (!test || test.sourceUpload?.userId !== req.user!.uid) {
+    if (!test || test.status !== "PUBLISHED") {
       res.status(404).json({ error: "Test not found" });
       return;
     }

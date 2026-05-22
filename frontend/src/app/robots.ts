@@ -6,7 +6,7 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow: "/",
-        disallow: ["/admin/", "/api/", "/test/", "/results/"],
+        disallow: ["/admin/", "/api/", "/fouri-root-console/"],
       },
     ],
     sitemap: "https://fouri.in/sitemap.xml",

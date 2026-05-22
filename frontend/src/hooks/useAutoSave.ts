@@ -8,11 +8,18 @@ interface Answer {
   selectedOption: string | null;
 }
 
+interface StoredData {
+  answers: Answer[];
+  markedIds: string[];
+  savedAt: number;
+}
+
 const STORAGE_KEY_PREFIX = "fouri_attempt_";
 
 export function useAutoSave(
   attemptId: string | null,
   answers: Answer[],
+  markedIds: Set<string>,
   isActive: boolean
 ) {
   const savedRef = useRef(false);
@@ -20,9 +27,14 @@ export function useAutoSave(
   const saveToLocal = () => {
     if (!attemptId) return;
     try {
+      const data: StoredData = {
+        answers,
+        markedIds: Array.from(markedIds),
+        savedAt: Date.now(),
+      };
       localStorage.setItem(
         `${STORAGE_KEY_PREFIX}${attemptId}`,
-        JSON.stringify({ answers, savedAt: Date.now() })
+        JSON.stringify(data)
       );
     } catch {
       // storage full
@@ -47,7 +59,7 @@ export function useAutoSave(
     };
 
     // Save immediately on first render with data
-    if (!savedRef.current && answers.length > 0) {
+    if (!savedRef.current && (answers.length > 0 || markedIds.size > 0)) {
       save();
       savedRef.current = true;
     }
@@ -57,15 +69,14 @@ export function useAutoSave(
       clearInterval(interval);
       save(); // flush on unmount
     };
-  }, [attemptId, answers, isActive]);
+  }, [attemptId, answers, markedIds, isActive]);
 
-  const restoreFromLocal = (): Answer[] | null => {
+  const restoreFromLocal = (): StoredData | null => {
     if (!attemptId) return null;
     try {
       const stored = localStorage.getItem(`${STORAGE_KEY_PREFIX}${attemptId}`);
       if (stored) {
-        const parsed = JSON.parse(stored);
-        return parsed.answers;
+        return JSON.parse(stored) as StoredData;
       }
     } catch {
       // ignore

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import Image from "next/image";
 import { Star, ChevronLeft, ChevronRight, Quote } from "lucide-react";
 
 const testimonials = [
@@ -104,9 +105,11 @@ export default function Testimonials() {
                 <div className="relative glass rounded-3xl p-8 md:p-10 border border-white/5 shadow-xl shadow-blue-500/5">
                   <Quote className="absolute top-6 right-8 w-10 h-10 text-blue-500/20" />
                   <div className="flex items-center gap-4 mb-6">
-                    <img
+                    <Image
                       src={testimonials[current].avatar}
                       alt={testimonials[current].name}
+                      width={56}
+                      height={56}
                       className="w-14 h-14 rounded-2xl object-cover border-2 border-blue-500/20"
                       loading="lazy"
                     />
