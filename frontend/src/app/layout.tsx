@@ -76,6 +76,9 @@ export const metadata: Metadata = {
   alternates: {
     canonical: "https://fouri.in",
   },
+  icons: {
+    icon: "/assets/images/favicon/fav-ai.png",
+  },
 };
 
 export default function RootLayout({

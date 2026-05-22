@@ -58,7 +58,7 @@ fouri-ai-mocktest/
 │   │   ├── contexts/            # AuthContext, OwnerAuthContext
 │   │   ├── hooks/               # useAuth, useTestTimer, useAutoSave
 │   │   └── lib/                 # firebase, api, utils, validations, owner-auth
-│   ├── public/assets/images/    # Local landing images
+│   ├── public/assets/images/    # Local landing images + favicon/
 │   ├── next.config.ts           # CSP, HSTS, caching, image config
 │   └── package.json
 │
