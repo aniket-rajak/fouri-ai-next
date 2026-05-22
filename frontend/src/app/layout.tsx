@@ -78,6 +78,8 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: "/assets/images/favicon/fav-ai.png",
+    shortcut: "/assets/images/favicon/fav-ai.png",
+    apple: "/assets/images/favicon/fav-ai.png",
   },
 };
 
