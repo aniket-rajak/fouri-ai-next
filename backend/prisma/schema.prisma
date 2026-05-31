@@ -56,14 +56,15 @@ model User {
 }
 
 model Upload {
-  id           String       @id @default(uuid())
-  userId       String
-  filename     String
-  fileType     String
-  fileSize     Int?
-  cloudinaryUrl String?
-  status       UploadStatus @default(PROCESSING)
-  createdAt    DateTime     @default(now())
+  id            String       @id @default(uuid())
+  userId        String
+  filename      String
+  fileType      String
+  fileSize      Int?
+  cloudinaryUrl  String?
+  status        UploadStatus @default(PROCESSING)
+  failureReason String?
+  createdAt     DateTime     @default(now())
 
   user      User       @relation(fields: [userId], references: [firebaseUid], onDelete: Cascade)
   mockTests MockTest[]

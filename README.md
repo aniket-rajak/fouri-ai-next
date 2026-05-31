@@ -3,7 +3,7 @@
 An AI-driven education platform where students upload question papers, AI analyzes them, generates mock tests automatically, and provides detailed performance analytics.
 
 **Production URL:** https://www.fouri.in  
-**Last Updated:** 2026-05-22
+**Last Updated:** 2026-05-31
 
 ---
 
@@ -302,6 +302,19 @@ Hidden `/fouri-root-console` admin panel, JWT owner auth, user CSV export, uploa
 - `backend/src/routes/owner.ts` — added 4 admin blog routes: GET `/blogs`, POST `/blogs`, PUT `/blogs/:id`, DELETE `/blogs/:id`
 - `backend/src/middleware/rateLimiter.ts` — added `blogAdminLimiter` export
 
+### Phase 22: AI Analysis Error Handling & User-Friendly Messages ✅
+- **Root cause:** AI returned `type`/`difficulty` with inconsistent casing (e.g., `"mcq"`, `"Multiple Choice"`, `"easy"`, `"Hard"`) which failed Prisma enum validation (`MCQ`/`SUBJECTIVE`, `EASY`/`MEDIUM`/`HARD`), crashing the entire analysis pipeline
+- **Fix:** Added `normalizeType()` and `normalizeDifficulty()` functions in `openai.ts` — map any AI output variant (lowercase, alternate names like "Objective", "Descriptive", "Advanced") to the exact Prisma enum values
+- **Error visibility:** Added `failureReason String?` field to `Upload` model — stores meaningful error context when analysis fails, surfaced via the status endpoint
+- **Better error messages:** Backend categorizes errors (OCR billing, AI unavailable, malformed response, network issues, database errors) into human-readable `failureReason` text instead of a generic failure
+- **Frontend:** `ProcessingStatus.tsx` now displays the `failureReason` in a styled two-line layout with the specific error detail instead of the old generic "Analysis failed. Please try uploading again."
+- **Improved logging:** Structured `[Analyze]` prefix logs with error message, HTTP status code, and stack trace — special handling for `SyntaxError` (malformed AI JSON)
+- `backend/src/services/openai.ts` — added `normalizeType()`, `normalizeDifficulty()`
+- `backend/src/routes/analyze.ts` — stores `failureReason` on failure, improved error categorization and logging, empty OCR text detection
+- `backend/prisma/schema.prisma` — added `failureReason String?` on Upload model
+- `backend/prisma/migrations/` — migration `add_failure_reason` added
+- `frontend/src/components/ProcessingStatus.tsx` — displays `failureReason` with clear two-line error layout
+
 ### What Is Working Now
 - User registration/login email/password + Google OAuth
 - Drag-and-drop file upload to Cloudinary (PDFs as raw)
@@ -330,6 +343,9 @@ Hidden `/fouri-root-console` admin panel, JWT owner auth, user CSV export, uploa
 - Footer: links to About, Privacy, Terms, Contact, Blog
 - Any student can attempt any published test from any creator
 - Blog admin: dedicated rate limiter (200/15min) under `/api/owner/blogs` — no more "Too many requests" errors
+- AI analysis error handling: AI type/difficulty values are normalized to match Prisma enums — no more crashes from casing mismatches
+- Failure reason tracking: when analysis fails, a detailed `failureReason` is stored and displayed — users see actual error context (OCR billing, AI unavailable, etc.) instead of a generic message
+- Enhanced server-side logging: structured `[Analyze]` logs with error message, HTTP status, and stack trace for debugging
 
 ### What Is Not Finished
 - Google AdSense real integration — replace `ca-pub-xxxxxxxxxxxxxxxx` with real publisher ID in `AdSlot.tsx`, load AdSense script, and place `<AdSlot>` components on pages
@@ -511,6 +527,9 @@ Bulk delete by status filter, individual owner delete, file download proxy with 
 ### Phase 19 — Cross-Student Test Access
 Any authenticated student can view/attempt any published test. Ownership check removed from GET endpoint, kept on DELETE.
 
+### Phase 20 — AI Analysis Error Handling & User-Friendly Messages
+AI enum value normalization (type/difficulty), `failureReason` tracking on Upload model, human-readable error messages in frontend, structured server-side logging for debugging analysis failures.
+
 ---
 
 ## Important Files
@@ -543,3 +562,7 @@ Any authenticated student can view/attempt any published test. Ownership check r
 | `frontend/src/app/(dashboard)/discover/discover-client.tsx` | Client component for discover tests UI |
 | `frontend/src/components/Analytics.tsx` | Firebase Analytics initialization component |
 | `backend/src/lib/cache.ts` | In-memory TTL cache for API response caching |
+| `backend/src/routes/analyze.ts` | Analyze route — triggers OCR + AI, stores `failureReason` on error |
+| `backend/src/services/openai.ts` | AI service — normalizes type/difficulty enums to match Prisma schema |
+| `backend/prisma/schema.prisma` | Schema includes `failureReason` field on Upload model |
+| `frontend/src/components/ProcessingStatus.tsx` | Displays `failureReason` in styled error layout |

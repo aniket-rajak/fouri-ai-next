@@ -46,6 +46,9 @@ async function processUpload(uploadId: string): Promise<void> {
     }
 
     const rawText = await extractText(upload.cloudinaryUrl, upload.fileType);
+    if (!rawText || rawText.trim().length === 0) {
+      throw new Error("OCR returned empty text - could not extract any content from the file");
+    }
 
     const questions = await analyzeQuestions(rawText);
 
@@ -112,11 +115,67 @@ async function processUpload(uploadId: string): Promise<void> {
       `Upload ${uploadId} processed: ${count} questions in test ${mockTest.id}`
     );
   } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorStack = error instanceof Error ? error.stack : "";
+    const statusCode = error && typeof error === "object" && "status" in error ? (error as { status: number }).status : 0;
+    console.error(`[Analyze] Upload ${uploadId} failed:`);
+    console.error(`[Analyze] Error: ${errorMessage}`);
+    if (statusCode) console.error(`[Analyze] HTTP Status: ${statusCode}`);
+    if (errorStack) console.error(`[Analyze] Stack: ${errorStack}`);
+
+    if (error instanceof SyntaxError) {
+      console.error(`[Analyze] JSON parse error - AI response may be malformed`);
+    }
+
+    const failureReason = (() => {
+      if (errorMessage.includes("PERMISSION_DENIED") || errorMessage.includes("billing") || errorMessage.includes("Billing")) {
+        return "Google Cloud Vision API billing is not enabled. Please enable billing at https://console.cloud.google.com/billing for your project, or the OCR text extraction cannot work.";
+      }
+      if (errorMessage.includes("OCR") || errorMessage.includes("extract text") || errorMessage.includes("Google Vision")) {
+        return "Could not read text from the file. Ensure the image is clear or the PDF is not scanned poorly.";
+      }
+      if (
+        errorMessage.includes("Empty response from OpenAI") ||
+        errorMessage.includes("OpenRouter") ||
+        errorMessage.includes("API key") ||
+        errorMessage.includes("Incorrect API key") ||
+        errorMessage.includes("Invalid Authentication") ||
+        errorMessage.includes("Insufficient Credits") ||
+        errorMessage.includes("Insufficient credits") ||
+        errorMessage.includes("Credit limit") ||
+        errorMessage.includes("quota") ||
+        errorMessage.includes("402") ||
+        errorMessage.includes("401") ||
+        errorMessage.includes("403") ||
+        errorMessage.includes("429") ||
+        errorMessage.includes("Rate limit") ||
+        errorMessage.includes("Too Many Requests") ||
+        statusCode === 401 ||
+        statusCode === 402 ||
+        statusCode === 403 ||
+        statusCode === 429
+      ) {
+        return "AI service is temporarily unavailable or your API key has exceeded its limit. Please try again later or check your OpenRouter API key.";
+      }
+      if (errorMessage.includes("JSON parse") || errorMessage.includes("Invalid response format") || errorMessage.includes("Unexpected token")) {
+        return "AI returned an unexpected response. This usually resolves on retry.";
+      }
+      if (errorMessage.includes("connect ECONNREFUSED") || errorMessage.includes("timeout") || errorMessage.includes("ETIMEDOUT") || errorMessage.includes("ENOTFOUND") || errorMessage.includes("EAI_AGAIN")) {
+        return "Network issue connecting to AI service. Please check your connection and try again.";
+      }
+      if (errorMessage.includes("Prisma") || errorMessage.includes("prisma") || errorMessage.includes("Database") || errorMessage.includes("Unique constraint")) {
+        return "Database error occurred. Please try again.";
+      }
+      if (errorMessage.includes("Cloudinary") || errorMessage.includes("upload")) {
+        return "File storage error. Please try uploading again.";
+      }
+      return `Analysis failed: ${errorMessage}`;
+    })();
+
     await prisma.upload.update({
       where: { id: uploadId },
-      data: { status: "FAILED" },
+      data: { status: "FAILED", failureReason },
     });
-    console.error(`Process upload ${uploadId} error:`, error);
   }
 }
 
@@ -143,6 +202,7 @@ router.get("/:uploadId/status", standardLimiter, authenticate, async (req, res) 
       status: upload.status,
       uploadId: upload.id,
       mockTest,
+      failureReason: upload.failureReason,
     });
   } catch {
     res.status(500).json({ error: "Failed to fetch status" });

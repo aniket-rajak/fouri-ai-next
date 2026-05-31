@@ -50,6 +50,20 @@ Output format:
   ]
 }`;
 
+function normalizeType(type: string): "MCQ" | "SUBJECTIVE" {
+  const t = (type || "").toUpperCase().trim();
+  if (["MCQ", "MULTIPLE CHOICE", "MULTIPLE_CHOICE", "OBJECTIVE", "CHOOSE", "SELECT"].includes(t)) return "MCQ";
+  if (["SUBJECTIVE", "DESCRIPTIVE", "ESSAY", "WRITTEN", "THEORY", "LONG ANSWER", "SHORT ANSWER"].includes(t)) return "SUBJECTIVE";
+  return "MCQ";
+}
+
+function normalizeDifficulty(difficulty: string): "EASY" | "MEDIUM" | "HARD" {
+  const d = (difficulty || "").toUpperCase().trim();
+  if (["EASY", "BEGINNER", "BASIC", "SIMPLE"].includes(d)) return "EASY";
+  if (["HARD", "DIFFICULT", "COMPLEX", "ADVANCED", "TOUGH"].includes(d)) return "HARD";
+  return "MEDIUM";
+}
+
 function shuffleArray<T>(arr: T[]): T[] {
   const shuffled = [...arr];
   for (let i = shuffled.length - 1; i > 0; i--) {
@@ -94,8 +108,8 @@ export async function analyzeQuestions(
       question: q.question,
       options,
       correctAnswer: q.correctAnswer || "",
-      type: q.type || "MCQ",
-      difficulty: q.difficulty || "MEDIUM",
+      type: normalizeType(q.type),
+      difficulty: normalizeDifficulty(q.difficulty),
       topic: q.topic,
       subject: q.subject,
     };

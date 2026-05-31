@@ -9,6 +9,7 @@ interface UploadStatus {
   status: string;
   uploadId: string;
   mockTest: { id: string; title: string; totalQuestions: number } | null;
+  failureReason?: string;
 }
 
 export function ProcessingStatus({ uploadId }: { uploadId: string }) {
@@ -83,9 +84,14 @@ export function ProcessingStatus({ uploadId }: { uploadId: string }) {
 
   if (status.status === "FAILED") {
     return (
-      <div className="flex items-center gap-2 text-sm text-red-600 bg-red-50 p-3 rounded-lg">
-        <XCircle size={16} />
-        Analysis failed. Please try uploading again.
+      <div className="space-y-2 p-3 rounded-lg bg-red-50 border border-red-200">
+        <div className="flex items-center gap-2 text-sm text-red-700">
+          <XCircle size={16} className="shrink-0 mt-0.5" />
+          <span className="font-medium">Analysis failed</span>
+        </div>
+        <p className="text-sm text-red-600 ml-7">
+          {status.failureReason || "Something went wrong. Please try uploading again."}
+        </p>
       </div>
     );
   }
