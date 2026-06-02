@@ -206,7 +206,9 @@ export default function EmailBroadcastPage() {
         body: JSON.stringify(payload),
       });
       console.log("[Email Debug] Response:", res);
-      setResult({ delivered: res.delivered, failed: res.failed, total: res.total });
+      // Use the smtpError from the backend response if available
+      const errorDetail = res.smtpError || (res.errors && res.errors.length > 0 ? res.errors.join("; ") : undefined);
+      setResult({ delivered: res.delivered, failed: res.failed, total: res.total, error: errorDetail });
 
       // Refresh history
       const campaignsRes = await api("/owner/email/history");
@@ -566,23 +568,38 @@ export default function EmailBroadcastPage() {
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className={`px-4 py-3 rounded-xl text-sm space-y-0.5 ${
+          className={`px-4 py-3 rounded-xl text-sm space-y-1 ${
             result.error
               ? "bg-red-500/10 text-red-300 border border-red-500/10"
               : result.failed > 0 && result.delivered === 0
               ? "bg-red-500/10 text-red-300 border border-red-500/10"
+              : result.failed > 0
+              ? "bg-amber-500/10 text-amber-300 border border-amber-500/10"
               : "bg-green-500/10 text-green-300 border border-green-500/10"
           }`}
         >
           {result.error ? (
-            <p className="flex items-center gap-1">✗ {result.error}</p>
+            <div className="space-y-1">
+              <p className="flex items-center gap-1 font-medium">✗ Error</p>
+              <p className="text-xs opacity-80">{result.error}</p>
+              <p className="text-xs opacity-60 mt-1">Check SMTP settings: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS</p>
+            </div>
           ) : (
-            <>
-              <p>Recipients Selected: {result.total}</p>
-              <p>Emails Sent: {result.total}</p>
-              <p>Delivered: {result.delivered}</p>
-              {result.failed > 0 && <p>Failed: {result.failed}</p>}
-            </>
+            <div className="space-y-1">
+              <p className="font-medium">
+                {result.delivered > 0
+                  ? `✓ Successfully sent to ${result.delivered} of ${result.total} recipient${result.total !== 1 ? "s" : ""}`
+                  : `✗ Failed to send. 0 delivered of ${result.total}`}
+              </p>
+              <div className="flex gap-4 text-xs opacity-80">
+                <span>Recipients: {result.total}</span>
+                <span>Delivered: {result.delivered}</span>
+                <span>Failed: {result.failed}</span>
+              </div>
+              {result.failed > 0 && (
+                <p className="text-xs mt-1">Some emails failed. Check SMTP settings and try again.</p>
+              )}
+            </div>
           )}
         </motion.div>
       )}

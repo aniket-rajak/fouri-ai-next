@@ -255,13 +255,17 @@ router.post("/send", async (req, res) => {
       return { to: email, subject: personalSubject, html: brandedHtml };
     });
 
-    const { delivered, failed } = await sendBroadcastEmail({
+    const { delivered, failed, errors } = await sendBroadcastEmail({
       emails: personalizedEmails,
     });
 
     console.log(
       `[Email] Broadcast result: ${delivered} delivered, ${failed} failed of ${recipients.length}`,
     );
+
+    if (errors.length > 0) {
+      console.error(`[Email] Errors:`, errors);
+    }
 
     const campaign = await prisma.emailCampaign.create({
       data: {
@@ -278,7 +282,9 @@ router.post("/send", async (req, res) => {
       },
     });
 
-    res.json({ campaign, delivered, failed, total: recipients.length });
+    // Return the first error detail to help frontend display the root cause
+    const smtpError = errors.length > 0 ? errors[0] : undefined;
+    res.json({ campaign, delivered, failed, total: recipients.length, errors, smtpError });
   } catch (error) {
     console.error("Send broadcast error:", error);
     res.status(500).json({

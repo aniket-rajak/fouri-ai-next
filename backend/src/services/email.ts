@@ -9,6 +9,10 @@ const transporter = nodemailer.createTransport({
     user: env.smtp.user,
     pass: env.smtp.pass,
   },
+  // Timeouts to fail fast instead of hanging
+  connectionTimeout: 10000,  // 10s to connect
+  greetingTimeout: 10000,    // 10s for SMTP greeting
+  socketTimeout: 15000,      // 15s for mail sending
 });
 
 /** Verify SMTP connection at startup */
@@ -140,9 +144,10 @@ function stripHtml(html: string): string {
 
 export async function sendBroadcastEmail(options: {
   emails: Array<{ to: string; subject: string; html: string }>;
-}): Promise<{ delivered: number; failed: number }> {
+}): Promise<{ delivered: number; failed: number; errors: string[] }> {
   let delivered = 0;
   let failed = 0;
+  const errors: string[] = [];
 
   for (const email of options.emails) {
     try {
@@ -158,10 +163,12 @@ export async function sendBroadcastEmail(options: {
       console.log(`[Email] ✅ Delivered to ${email.to}: ${info.messageId}`);
       delivered++;
     } catch (err: any) {
-      console.error(`[Email] ❌ Failed for ${email.to}: ${err?.message || err}`);
+      const errorMsg = err?.message || String(err);
+      console.error(`[Email] ❌ Failed for ${email.to}: ${errorMsg}`);
+      errors.push(`Failed for ${email.to}: ${errorMsg}`);
       failed++;
     }
   }
 
-  return { delivered, failed };
+  return { delivered, failed, errors };
 }
