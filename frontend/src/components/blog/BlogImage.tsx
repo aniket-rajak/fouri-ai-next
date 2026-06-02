@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { getFileUrl } from "@/lib/getFileUrl";
 
 interface BlogImageProps {
   src: string;
@@ -14,12 +15,14 @@ export function BlogImage({ src, alt, className }: BlogImageProps) {
   const [error, setError] = useState(false);
   const objectUrlRef = useRef("");
 
+  const resolvedSrc = getFileUrl(src);
+
   useEffect(() => {
-    if (!src) return;
+    if (!resolvedSrc) return;
 
     (async () => {
       try {
-        const res = await fetch(src);
+        const res = await fetch(resolvedSrc);
         if (!res.ok) { setError(true); return; }
         const blob = await res.blob();
         const url = URL.createObjectURL(blob);
@@ -33,7 +36,7 @@ export function BlogImage({ src, alt, className }: BlogImageProps) {
     return () => {
       if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
     };
-  }, [src]);
+  }, [resolvedSrc]);
 
   if (error) {
     return (

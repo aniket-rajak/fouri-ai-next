@@ -19,6 +19,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { BlogImage } from "@/components/blog/BlogImage";
+import { getFileUrl } from "@/lib/getFileUrl";
 import MultiSelect from "@/components/ui/MultiSelect";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
@@ -140,7 +141,7 @@ export default function BlogEditorPage() {
 
     (async () => {
       try {
-        const res = await fetch(thumbnailUrl);
+        const res = await fetch(getFileUrl(thumbnailUrl));
         if (!res.ok) {
           setImageLoading(false);
           setImageLoaded("error");
@@ -738,14 +739,14 @@ export default function BlogEditorPage() {
                   <button
                     key={f.id}
                     onClick={() => {
-                      setThumbnailUrl(f.url);
+                      setThumbnailUrl(getFileUrl(f.url));
                       setShowMediaPicker(false);
                     }}
                     className="bg-[#08080f] border border-white/5 rounded-xl overflow-hidden hover:border-blue-500/50 transition-all cursor-pointer text-left group"
                   >
                     <div className="aspect-square bg-[#0a0a14] flex items-center justify-center p-2">
                       <BlogImage
-                        src={f.url}
+                        src={getFileUrl(f.url)}
                         alt={f.originalName}
                         className="max-w-full max-h-full object-contain"
                       />

@@ -5,13 +5,21 @@ import { sendBroadcastEmail, wrapWithBranding } from "../services/email.js";
 import { generateEmailContent } from "../services/openai.js";
 import { uploadToTelegram } from "../services/telegramStorage.js";
 import { resolveVariables, userToVariableData } from "../lib/emailVariables.js";
+import { resolveFileUrl } from "../lib/resolveFileUrl.js";
 
 const storage = multer.memoryStorage();
 const upload = multer({
   storage,
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
-    const allowed = ["image/jpeg", "image/jpg", "image/png", "image/webp", "image/svg+xml", "image/gif"];
+    const allowed = [
+      "image/jpeg",
+      "image/jpg",
+      "image/png",
+      "image/webp",
+      "image/svg+xml",
+      "image/gif",
+    ];
     if (allowed.includes(file.mimetype)) {
       cb(null, true);
     } else {
@@ -22,6 +30,16 @@ const upload = multer({
 
 const router = Router();
 
+// Helper to sanitize template response URLs
+function sanitizeTemplate(template: any) {
+  return {
+    ...template,
+    logoUrl: template.logoUrl ? resolveFileUrl(template.logoUrl) : template.logoUrl,
+    headerImage: template.headerImage ? resolveFileUrl(template.headerImage) : template.headerImage,
+    footerLogo: template.footerLogo ? resolveFileUrl(template.footerLogo) : template.footerLogo,
+  };
+}
+
 // --- Upload branding image ---
 router.post("/upload-image", upload.single("image"), async (req, res) => {
   try {
@@ -30,7 +48,10 @@ router.post("/upload-image", upload.single("image"), async (req, res) => {
       res.status(400).json({ error: "No image file uploaded" });
       return;
     }
-    const { fileId, cdnUrl } = await uploadToTelegram(file.buffer, file.originalname);
+    const { fileId, cdnUrl } = await uploadToTelegram(
+      file.buffer,
+      file.originalname,
+    );
 
     // Store in media library
     await prisma.mediaFile.create({
@@ -63,7 +84,10 @@ router.post("/generate-ai", async (req, res) => {
       return;
     }
 
-    const result = await generateEmailContent(instructions, tone || "Professional");
+    const result = await generateEmailContent(
+      instructions,
+      tone || "Professional",
+    );
     res.json(result);
   } catch (error) {
     console.error("AI email generation error:", error);
@@ -74,7 +98,8 @@ router.post("/generate-ai", async (req, res) => {
 // --- Send broadcast ---
 router.post("/send", async (req, res) => {
   try {
-    const { subject, body, recipientType, userIds, customEmails, templateId } = req.body;
+    const { subject, body, recipientType, userIds, customEmails, templateId } =
+      req.body;
 
     if (!subject || !body) {
       res.status(400).json({ error: "subject and body are required" });
@@ -127,13 +152,18 @@ router.post("/send", async (req, res) => {
           where: { id: { in: userIds } },
           select: { id: true, email: true, name: true },
         });
-        console.log(`[Email] Found ${users.length} users by ID:`, users.map((u) => ({ id: u.id, email: u.email, name: u.name })));
+        console.log(
+          `[Email] Found ${users.length} users by ID:`,
+          users.map((u) => ({ id: u.id, email: u.email, name: u.name })),
+        );
         recipients = users.map((u) => u.email).filter(Boolean);
         break;
       }
       case "CUSTOM": {
         if (!Array.isArray(customEmails) || customEmails.length === 0) {
-          res.status(400).json({ error: "customEmails required for CUSTOM type" });
+          res
+            .status(400)
+            .json({ error: "customEmails required for CUSTOM type" });
           return;
         }
         recipients = customEmails.filter((e: string) => e.includes("@"));
@@ -145,7 +175,10 @@ router.post("/send", async (req, res) => {
       }
     }
 
-    console.log(`[Email] Recipients resolved: ${recipients.length}`, recipients);
+    console.log(
+      `[Email] Recipients resolved: ${recipients.length}`,
+      recipients,
+    );
 
     if (recipients.length === 0) {
       res.status(400).json({ error: "No recipients found" });
@@ -154,11 +187,23 @@ router.post("/send", async (req, res) => {
 
     // Load template branding if a template is selected
     const currentBase = `${req.protocol}://${req.get("host")}`;
-    let brandingOptions: { logoUrl?: string | null; headerImage?: string | null; footerLogo?: string | null; copyright?: string | null } | undefined;
+    let brandingOptions:
+      | {
+          logoUrl?: string | null;
+          headerImage?: string | null;
+          footerLogo?: string | null;
+          copyright?: string | null;
+        }
+      | undefined;
     if (templateId) {
       const template = await prisma.emailTemplate.findUnique({
         where: { id: templateId },
-        select: { logoUrl: true, headerImage: true, footerLogo: true, copyright: true },
+        select: {
+          logoUrl: true,
+          headerImage: true,
+          footerLogo: true,
+          copyright: true,
+        },
       });
       if (template) {
         // Rewrite image URLs to use the current server's base URL so they work
@@ -201,7 +246,9 @@ router.post("/send", async (req, res) => {
         const data = userToVariableData(user);
         personalSubject = resolveVariables(subject, data);
         personalBody = resolveVariables(body, data);
-        console.log(`[Email] Personalized for ${email}: subject="${personalSubject}"`);
+        console.log(
+          `[Email] Personalized for ${email}: subject="${personalSubject}"`,
+        );
       }
       // Wrap in branded HTML structure for reliable email client rendering
       const brandedHtml = wrapWithBranding(personalBody, brandingOptions);
@@ -212,7 +259,9 @@ router.post("/send", async (req, res) => {
       emails: personalizedEmails,
     });
 
-    console.log(`[Email] Broadcast result: ${delivered} delivered, ${failed} failed of ${recipients.length}`);
+    console.log(
+      `[Email] Broadcast result: ${delivered} delivered, ${failed} failed of ${recipients.length}`,
+    );
 
     const campaign = await prisma.emailCampaign.create({
       data: {
@@ -262,12 +311,21 @@ router.post("/preview", async (req, res) => {
       process.env.NODE_ENV === "production"
         ? "https://fouri.in"
         : "http://localhost:3000";
-    const withAppUrl = (text: string) => text.replace(/\{\{appUrl\}\}/g, appUrl);
-    const renderedSubject = subject ? withAppUrl(resolveVariables(subject, data)) : "";
+    const withAppUrl = (text: string) =>
+      text.replace(/\{\{appUrl\}\}/g, appUrl);
+    const renderedSubject = subject
+      ? withAppUrl(resolveVariables(subject, data))
+      : "";
     const renderedBody = body ? withAppUrl(resolveVariables(body, data)) : "";
 
-    console.log(`[Email] Preview for ${user.email}: subject="${renderedSubject}"`);
-    res.json({ renderedSubject, renderedBody, user: { name: user.name, email: user.email } });
+    console.log(
+      `[Email] Preview for ${user.email}: subject="${renderedSubject}"`,
+    );
+    res.json({
+      renderedSubject,
+      renderedBody,
+      user: { name: user.name, email: user.email },
+    });
   } catch (error) {
     console.error("Preview error:", error);
     res.status(500).json({ error: "Failed to render preview" });
@@ -281,7 +339,7 @@ router.get("/templates", async (_req, res) => {
     const templates = await prisma.emailTemplate.findMany({
       orderBy: { createdAt: "desc" },
     });
-    res.json({ templates });
+    res.json({ templates: templates.map(sanitizeTemplate) });
   } catch (error) {
     console.error("List templates error:", error);
     res.status(500).json({ error: "Failed to list templates" });
@@ -297,7 +355,7 @@ router.get("/templates/:id", async (req, res) => {
       res.status(404).json({ error: "Template not found" });
       return;
     }
-    res.json({ template });
+    res.json({ template: sanitizeTemplate(template) });
   } catch (error) {
     console.error("Get template error:", error);
     res.status(500).json({ error: "Failed to get template" });
@@ -306,16 +364,25 @@ router.get("/templates/:id", async (req, res) => {
 
 router.post("/templates", async (req, res) => {
   try {
-    const { name, subject, body, logoUrl, headerImage, footerLogo, copyright } = req.body;
+    const { name, subject, body, logoUrl, headerImage, footerLogo, copyright } =
+      req.body;
     if (!name || !subject || !body) {
       res.status(400).json({ error: "name, subject, and body are required" });
       return;
     }
 
     const template = await prisma.emailTemplate.create({
-      data: { name, subject, body, logoUrl, headerImage, footerLogo, copyright },
+      data: {
+        name,
+        subject,
+        body,
+        logoUrl,
+        headerImage,
+        footerLogo,
+        copyright,
+      },
     });
-    res.status(201).json({ template });
+    res.status(201).json({ template: sanitizeTemplate(template) });
   } catch (error) {
     console.error("Create template error:", error);
     res.status(500).json({ error: "Failed to create template" });
@@ -324,12 +391,21 @@ router.post("/templates", async (req, res) => {
 
 router.put("/templates/:id", async (req, res) => {
   try {
-    const { name, subject, body, logoUrl, headerImage, footerLogo, copyright } = req.body;
+    const { name, subject, body, logoUrl, headerImage, footerLogo, copyright } =
+      req.body;
     const template = await prisma.emailTemplate.update({
       where: { id: req.params.id },
-      data: { name, subject, body, logoUrl, headerImage, footerLogo, copyright },
+      data: {
+        name,
+        subject,
+        body,
+        logoUrl,
+        headerImage,
+        footerLogo,
+        copyright,
+      },
     });
-    res.json({ template });
+    res.json({ template: sanitizeTemplate(template) });
   } catch (error) {
     console.error("Update template error:", error);
     res.status(500).json({ error: "Failed to update template" });
@@ -366,7 +442,7 @@ router.post("/templates/:id/duplicate", async (req, res) => {
         copyright: original.copyright,
       },
     });
-    res.status(201).json({ template });
+    res.status(201).json({ template: sanitizeTemplate(template) });
   } catch (error) {
     console.error("Duplicate template error:", error);
     res.status(500).json({ error: "Failed to duplicate template" });

@@ -7,6 +7,7 @@ import {
   Plus, Loader2, Eye, Copy, Trash2, FileText,
   Upload, Link as LinkIcon, ImageIcon, AlertCircle, Images, ChevronDown,
 } from "lucide-react";
+import { getFileUrl } from "@/lib/getFileUrl";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 
@@ -92,11 +93,12 @@ export default function EmailTemplatesPage() {
       }
 
       // Fetch the image and create a blob URL
+      const resolvedVal = getFileUrl(val);
       (async () => {
         try {
-          const res = await fetch(val);
+          const res = await fetch(resolvedVal);
           if (!res.ok) {
-            console.error(`[Image Debug] ❌ ${key} fetch status ${res.status}:`, val);
+            console.error(`[Image Debug] ❌ ${key} fetch status ${res.status}:`, resolvedVal);
             setImageLoading((prev) => ({ ...prev, [key]: false }));
             setImageLoaded((prev) => ({ ...prev, [key]: "error" }));
             return;
@@ -378,10 +380,10 @@ export default function EmailTemplatesPage() {
 
   const previewHtml = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; padding: 24px;">
-      ${logoUrl ? `<div style="text-align: center; padding: 20px 0;"><img src="${logoUrl}" style="max-height: 60px;" /></div>` : ""}
-      ${headerImage ? `<div style="text-align: center;"><img src="${headerImage}" style="max-width: 100%; max-height: 200px;" /></div>` : ""}
+      ${logoUrl ? `<div style="text-align: center; padding: 20px 0;"><img src="${getFileUrl(logoUrl)}" style="max-height: 60px;" /></div>` : ""}
+      ${headerImage ? `<div style="text-align: center;"><img src="${getFileUrl(headerImage)}" style="max-width: 100%; max-height: 200px;" /></div>` : ""}
       <div>${body}</div>
-      ${footerLogo ? `<div style="text-align: center; padding: 10px 0;"><img src="${footerLogo}" style="max-height: 40px;" /></div>` : ""}
+      ${footerLogo ? `<div style="text-align: center; padding: 10px 0;"><img src="${getFileUrl(footerLogo)}" style="max-height: 40px;" /></div>` : ""}
       ${copyright ? `<p style="font-size: 11px; color: #888899; text-align: center;">${copyright}</p>` : ""}
     </div>
   `;
@@ -716,12 +718,12 @@ export default function EmailTemplatesPage() {
                         {mediaFiles.map((f) => (
                           <button
                             key={f.id}
-                            onClick={() => selectFromMedia(f.url)}
+                            onClick={() => selectFromMedia(getFileUrl(f.url))}
                             className="bg-[#08080f] border border-white/5 rounded-xl overflow-hidden hover:border-blue-500/50 transition-all cursor-pointer text-left group"
                           >
                             <div className="aspect-square bg-[#0a0a14] flex items-center justify-center p-2">
                               <img
-                                src={f.url}
+                                src={getFileUrl(f.url)}
                                 alt={f.originalName}
                                 className="max-w-full max-h-full object-contain"
                               />

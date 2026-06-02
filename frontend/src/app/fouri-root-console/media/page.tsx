@@ -9,6 +9,7 @@ import {
   Download, ExternalLink, Check, Search, ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { BlogImage } from "@/components/blog/BlogImage";
+import { getFileUrl } from "@/lib/getFileUrl";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 const ITEMS_PER_PAGE = 26;
@@ -62,7 +63,7 @@ function PreviewModal({ file, onClose }: { file: any; onClose: () => void }) {
         </button>
         <div className="flex-1 bg-black rounded-xl overflow-hidden flex items-center justify-center p-4">
           <BlogImage
-            src={file.url}
+            src={getFileUrl(file.url)}
             alt={file.originalName}
             className="max-w-full max-h-[70vh] object-contain"
           />
@@ -72,16 +73,16 @@ function PreviewModal({ file, onClose }: { file: any; onClose: () => void }) {
           <div className="flex items-center gap-3 shrink-0 ml-4">
             <button
               onClick={async () => {
-                try { await navigator.clipboard.writeText(file.url); } catch { /* */ }
+                try { await navigator.clipboard.writeText(getFileUrl(file.url)); } catch { /* */ }
               }}
               className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300 cursor-pointer"
             >
               <Copy size={14} /> Copy URL
             </button>
-            <a href={file.url} download={file.originalName} className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300">
+            <a href={getFileUrl(file.url)} download={file.originalName} className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300">
               <Download size={14} /> Download
             </a>
-            <a href={file.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300">
+            <a href={getFileUrl(file.url)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300">
               <ExternalLink size={14} /> Open
             </a>
           </div>
@@ -346,7 +347,7 @@ export default function MediaLibraryPage() {
                 >
                   {file.url ? (
                     <BlogImage
-                      src={file.url}
+                      src={getFileUrl(file.url)}
                       alt={file.originalName}
                       className="max-w-full max-h-full object-contain"
                     />
@@ -373,8 +374,8 @@ export default function MediaLibraryPage() {
 
                 {/* Hover actions */}
                 <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 rounded-xl">
-                  <button
-                    onClick={() => copyUrl(file.url, file.id)}
+                    <button
+                      onClick={() => copyUrl(getFileUrl(file.url), file.id)}
                     className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-all cursor-pointer"
                     title="Copy URL"
                   >
@@ -385,7 +386,7 @@ export default function MediaLibraryPage() {
                     )}
                   </button>
                   <a
-                    href={file.url}
+                    href={getFileUrl(file.url)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-all"
@@ -394,7 +395,7 @@ export default function MediaLibraryPage() {
                     <ExternalLink size={16} className="text-white" />
                   </a>
                   <a
-                    href={file.url}
+                    href={getFileUrl(file.url)}
                     download={file.originalName}
                     className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition-all"
                     title="Download"
