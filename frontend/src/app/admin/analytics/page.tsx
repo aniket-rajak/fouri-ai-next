@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
-import { Loader2, TrendingUp, Upload, Users, Brain, BarChart3 } from "lucide-react";
+import { Loader2, TrendingUp, Upload, Brain, BarChart3 } from "lucide-react";
 
 interface Analytics {
   recentSignups: number;
@@ -35,8 +35,6 @@ export default function AdminAnalyticsPage() {
   }
 
   if (!data) return null;
-
-  const totalUploads = data.uploadsByStatus.reduce((a, b) => a + b.count, 0);
 
   return (
     <div className="space-y-6">

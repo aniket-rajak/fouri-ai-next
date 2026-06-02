@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { useTestTimer } from "@/hooks/useTestTimer";
 import { useAutoSave } from "@/hooks/useAutoSave";
@@ -13,8 +13,10 @@ import {
   ChevronRight,
   Flag,
   AlertTriangle,
+  AlertCircle,
   PanelRightOpen,
   PanelRightClose,
+  PauseCircle,
 } from "lucide-react";
 
 interface Question {
@@ -41,6 +43,7 @@ interface Answer {
 export default function TestAttemptPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [test, setTest] = useState<TestData | null>(null);
   const [attemptId, setAttemptId] = useState<string | null>(null);
   const [startTime, setStartTime] = useState<string | null>(null);
@@ -50,14 +53,82 @@ export default function TestAttemptPage() {
   const [loading, setLoading] = useState(true);
   const [showConfirm, setShowConfirm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitCooldown, setSubmitCooldown] = useState(false);
   const [showTabWarning, setShowTabWarning] = useState(false);
+  const [showRapidWarning, setShowRapidWarning] = useState(false);
   const [showMobilePalette, setShowMobilePalette] = useState(false);
+  const [showPauseConfirm, setShowPauseConfirm] = useState(false);
+  const [pausing, setPausing] = useState(false);
   const fullscreenRef = useRef(false);
+  const answerTimestampsRef = useRef<number[]>([]);
 
-  // Load test and create attempt
+  // Load test and create/resume attempt
   useEffect(() => {
     const init = async () => {
       try {
+        const resumeId = searchParams.get("resume");
+
+        // If resuming, fetch the existing paused attempt
+        if (resumeId) {
+          const [testRes, attemptRes] = await Promise.all([
+            api.get(`/tests/${params.id}`),
+            api.get(`/attempts/${resumeId}`),
+          ]);
+
+          setTest(testRes.data.test);
+          const att = attemptRes.data.attempt;
+
+          if (att.status !== "PAUSED") {
+            router.push(`/test/${params.id}`);
+            return;
+          }
+
+          setAttemptId(att.id);
+          setStartTime(new Date().toISOString());
+
+          // Restore answers from the server
+          if (att.answers?.length) {
+            setAnswers(
+              att.answers.map((a: { questionId: string; selectedOption: string | null }) => ({
+                questionId: a.questionId,
+                selectedOption: a.selectedOption,
+              }))
+            );
+          }
+
+          // Restore markedIds from localStorage
+          const stored = localStorage.getItem(`fouri_attempt_${att.id}`);
+          if (stored) {
+            try {
+              const parsed = JSON.parse(stored);
+              if (parsed.markedIds?.length) {
+                setMarkedIds(new Set(parsed.markedIds));
+              }
+            } catch { /* ignore corrupt data */ }
+          }
+
+          // Restore current index and remaining time
+          if (typeof att.currentQuestionIndex === "number") {
+            setCurrentIndex(att.currentQuestionIndex);
+          }
+
+          // Mark as IN_PROGRESS again
+          await api.put(`/attempts/${att.id}/resume`);
+
+          // Request fullscreen
+          if (document.documentElement.requestFullscreen && !fullscreenRef.current) {
+            try {
+              await document.documentElement.requestFullscreen();
+              fullscreenRef.current = true;
+            } catch { /* fullscreen blocked */ }
+          }
+
+          setLoading(false);
+          return;
+        }
+
+        // Normal flow: create new attempt
         const [testRes, attemptRes] = await Promise.all([
           api.get(`/tests/${params.id}`),
           api.post("/attempts", { mockTestId: params.id }),
@@ -102,27 +173,102 @@ export default function TestAttemptPage() {
     init();
   }, [params.id, router]);
 
+  const handleSubmit = async (_isTimeout = false) => {
+    if (!attemptId || submitting || submitCooldown) return;
+    setSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      await api.put(`/attempts/${attemptId}/save`, { answers });
+    } catch {
+    }
+
+    const maxRetries = 2;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        await api.post(`/attempts/${attemptId}/submit`, {
+          timeTaken: test ? test.duration - timer.timeLeft : null,
+        });
+        localStorage.removeItem(`fouri_attempt_${attemptId}`);
+        router.push(`/results/${attemptId}`);
+        return;
+      } catch (error: any) {
+        const is429 = error?.response?.status === 429;
+        if (is429 && attempt < maxRetries) {
+          await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+          continue;
+        }
+        setSubmitting(false);
+        if (is429) {
+          setSubmitCooldown(true);
+          setTimeout(() => setSubmitCooldown(false), 5000);
+          setSubmitError("Too many requests. Please wait a few seconds and try again.");
+        } else {
+          setSubmitError("Failed to submit. Please try again.");
+        }
+        return;
+      }
+    }
+  };
+
   const handleTimeUp = useCallback(() => {
     handleSubmit(true);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleTabSwitch = useCallback(() => {
     setShowTabWarning(true);
-    setTimeout(() => setShowTabWarning(false), 3000);
   }, []);
+
+  // Clear tab warning when user returns to the tab
+  useEffect(() => {
+    const onShow = () => {
+      if (!document.hidden) setShowTabWarning(false);
+    };
+    document.addEventListener("visibilitychange", onShow);
+    return () => document.removeEventListener("visibilitychange", onShow);
+  }, []);
+
+  const handlePause = async () => {
+    if (!attemptId || pausing) return;
+    setPausing(true);
+    try {
+      await api.put(`/attempts/${attemptId}/save`, { answers });
+      await api.put(`/attempts/${attemptId}/pause`, {
+        remainingTime: timer.timeLeft,
+        currentQuestionIndex: currentIndex,
+      });
+      localStorage.setItem(`fouri_attempt_${attemptId}`, JSON.stringify({
+        answers,
+        markedIds: Array.from(markedIds),
+        savedAt: Date.now(),
+      }));
+      router.push("/dashboard");
+    } catch {
+      // pause failed — stay on page
+    } finally {
+      setPausing(false);
+      setShowPauseConfirm(false);
+    }
+  };
+
+  const durationParam = searchParams.get("duration");
+  const resumeRemaining = searchParams.get("resumeRemaining");
+  const resumeDuration = resumeRemaining ? Number(resumeRemaining) : null;
 
   const timer = useTestTimer({
     startTime: startTime || new Date().toISOString(),
-    duration: test?.duration || 1800,
+    duration: resumeDuration ?? (durationParam ? Number(durationParam) : test?.duration || 1800),
     onTimeUp: handleTimeUp,
     onTabSwitch: handleTabSwitch,
+    attemptId,
   });
 
-  const { restoreFromLocal } = useAutoSave(
+  useAutoSave(
     attemptId,
     answers,
     markedIds,
-    !loading && !!attemptId
+    !loading && !!attemptId,
+    submitting
   );
 
   const currentQuestion = test?.questions[currentIndex];
@@ -134,6 +280,18 @@ export default function TestAttemptPage() {
     answers.find((a) => a.questionId === questionId)?.selectedOption || null;
 
   const handleSelect = (questionId: string, option: string) => {
+    // Track answer change timestamps for rapid-activity detection
+    const now = Date.now();
+    answerTimestampsRef.current.push(now);
+    // Keep only timestamps from the last 10s
+    answerTimestampsRef.current = answerTimestampsRef.current.filter(
+      (t) => now - t < 10000
+    );
+    if (answerTimestampsRef.current.length > 10) {
+      setShowRapidWarning(true);
+      setTimeout(() => setShowRapidWarning(false), 4000);
+    }
+
     setAnswers((prev) => {
       const existing = prev.find((a) => a.questionId === questionId);
       if (existing) {
@@ -152,28 +310,6 @@ export default function TestAttemptPage() {
       else next.add(questionId);
       return next;
     });
-  };
-
-  const handleSubmit = async (isTimeout = false) => {
-    if (!attemptId || submitting) return;
-    setSubmitting(true);
-
-    // Flush answers first
-    try {
-      await api.put(`/attempts/${attemptId}/save`, { answers });
-    } catch {
-      // continue with submit
-    }
-
-    try {
-      await api.post(`/attempts/${attemptId}/submit`, {
-        timeTaken: test ? test.duration - timer.timeLeft : null,
-      });
-      localStorage.removeItem(`fouri_attempt_${attemptId}`);
-      router.push(`/results/${attemptId}`);
-    } catch {
-      setSubmitting(false);
-    }
   };
 
   // Keyboard navigation
@@ -200,7 +336,7 @@ export default function TestAttemptPage() {
 
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [currentIndex, currentQuestion, showConfirm, test]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [currentIndex, currentQuestion, showConfirm, test]);
 
   if (loading || !test || !attemptId) {
     return (
@@ -239,9 +375,15 @@ export default function TestAttemptPage() {
             >
               {timer.formatted}
             </span>
-            <Button size="sm" variant="danger" onClick={() => setShowConfirm(true)}>
-              Submit
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="secondary" onClick={() => setShowPauseConfirm(true)}>
+                <PauseCircle size={16} className="mr-1" />
+                <span className="hidden sm:inline">Pause</span>
+              </Button>
+              <Button size="sm" variant="danger" onClick={() => setShowConfirm(true)}>
+                Submit
+              </Button>
+            </div>
           </div>
         </div>
       </header>
@@ -249,7 +391,14 @@ export default function TestAttemptPage() {
       {/* Tab Switch Warning */}
       {showTabWarning && (
         <div className="bg-amber-50 border-b border-amber-200 px-4 py-2 text-sm text-amber-700 text-center">
-          Do not switch tabs. A second switch will auto-submit the test.
+          Do not switch tabs. A second switch will automatically submit the test.
+        </div>
+      )}
+
+      {/* Rapid Answering Warning */}
+      {showRapidWarning && (
+        <div className="bg-orange-50 border-b border-orange-200 px-4 py-2 text-sm text-orange-700 text-center">
+          You are answering questions too quickly. Please review each question carefully before proceeding.
         </div>
       )}
 
@@ -340,15 +489,60 @@ export default function TestAttemptPage() {
               markedIds={markedIds}
               onSelect={(i) => { setCurrentIndex(i); setShowMobilePalette(false); }}
             />
+        </div>
+      )}
+
+      {/* Pause Confirmation Modal */}
+      {showPauseConfirm && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-xl space-y-4">
+            <h3 className="text-lg font-semibold text-zinc-900">Pause Test?</h3>
+            <p className="text-sm text-zinc-600">
+              Your progress will be saved. You can resume from exactly where you left off.
+            </p>
+            <div className="text-sm text-zinc-500 space-y-1">
+              <p>Questions answered: {answeredIds.size}/{test.questions.length}</p>
+              <p>Time remaining: {timer.formatted}</p>
+            </div>
+            <div className="flex gap-3">
+              <Button
+                variant="secondary"
+                className="flex-1"
+                onClick={() => setShowPauseConfirm(false)}
+                disabled={pausing}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="flex-1"
+                loading={pausing}
+                onClick={handlePause}
+              >
+                Pause
+              </Button>
+            </div>
           </div>
-        )}
+        </div>
+      )}
       </div>
 
       {/* Submit Confirmation Modal */}
       {showConfirm && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-xl space-y-4 mx-4">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-xl space-y-4">
             <h3 className="text-lg font-semibold text-zinc-900">Submit Test?</h3>
+            {submitError && (
+              <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg border border-red-200 bg-red-50 text-red-700 text-sm">
+                <AlertCircle size={16} className="shrink-0" />
+                <span>{submitError}</span>
+                <button
+                  onClick={() => setSubmitError(null)}
+                  className="ml-auto font-medium underline cursor-pointer shrink-0"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
             <div className="text-sm text-zinc-600 space-y-1">
               <p>Questions answered: {answeredIds.size}/{test.questions.length}</p>
               <p>Marked for review: {markedIds.size}</p>

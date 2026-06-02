@@ -9,6 +9,8 @@ RUN npm run build
 
 FROM node:22-alpine AS runner
 
+RUN apk add --no-cache tesseract-ocr tesseract-ocr-eng tesseract-ocr-hin tesseract-ocr-ben leptonica-dev
+
 WORKDIR /app
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/node_modules ./node_modules

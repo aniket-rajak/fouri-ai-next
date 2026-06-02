@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import Link from "next/link";
 import { BarChart3 } from "lucide-react";
+import { AdSlot } from "@/components/AdSlot";
 
 interface TestAttempt {
   id: string;
@@ -54,11 +55,17 @@ export default function ResultsPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-zinc-900">Results</h1>
+
+      {/* In-content Ad */}
+      <div className="hidden sm:block my-4">
+        <AdSlot slot="in-content-results" format="horizontal" className="mx-auto max-w-[728px]" />
+      </div>
+
       <div className="grid gap-4">
         {attempts.map((attempt) => (
           <Link key={attempt.id} href={`/results/${attempt.id}`}>
             <Card className="hover:shadow-md transition-shadow cursor-pointer">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                 <div>
                   <h3 className="font-semibold text-zinc-900">
                     {attempt.mockTest.title}

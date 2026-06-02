@@ -1,10 +1,9 @@
-import { prisma } from "./prisma.js";
-
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 1000;
 
 function isConnectionTerminated(error: unknown): boolean {
   if (error && typeof error === "object") {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const msg = String((error as any).message || "");
     return msg.includes("terminating connection") || msg.includes("E57P01");
   }

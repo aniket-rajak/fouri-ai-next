@@ -3,7 +3,9 @@ import { Inter, JetBrains_Mono, Poppins } from "next/font/google";
 import { Toaster } from "sonner";
 import "./globals.css";
 import { JsonLd } from "@/components/JsonLd";
-import { Analytics } from "@/components/Analytics";
+import { GoogleAnalytics } from "@/components/GoogleAnalytics";
+import { CookieConsent } from "@/components/CookieConsent";
+import { AdSenseScript } from "@/components/AdSenseScript";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -97,6 +99,22 @@ export default function RootLayout({
         <JsonLd
           data={{
             "@context": "https://schema.org",
+            "@type": "WebSite",
+            name: "FOURI.IN",
+            url: "https://fouri.in",
+            potentialAction: {
+              "@type": "SearchAction",
+              target: {
+                "@type": "EntryPoint",
+                urlTemplate: "https://fouri.in/discover?q={search_term_string}",
+              },
+              "query-input": "required name=search_term_string",
+            },
+          }}
+        />
+        <JsonLd
+          data={{
+            "@context": "https://schema.org",
             "@type": "WebApplication",
             name: "FOURI.IN",
             url: "https://fouri.in",
@@ -110,8 +128,10 @@ export default function RootLayout({
       </head>
       <body className="min-h-full flex flex-col bg-[#08080f] text-[#f5f5f7] font-sans">
         {children}
-        <Analytics />
+        <AdSenseScript />
+        <GoogleAnalytics />
         <Toaster richColors position="top-center" />
+        <CookieConsent />
       </body>
     </html>
   );

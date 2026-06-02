@@ -45,20 +45,20 @@ export function QuestionCard({
 
   // Sync local state when question changes or selectedOption updates from outside
   useEffect(() => {
-    setTextValue(selectedOption || "");
+    queueMicrotask(() => setTextValue(selectedOption || ""));
   }, [question.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div className="space-y-1">
-          <span className="text-xs text-zinc-400 font-medium">
-            Question {question.order}
-          </span>
-          <h2 className="text-lg font-medium text-zinc-900 leading-relaxed">
-            {question.questionText}
-          </h2>
-        </div>
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1 space-y-1 p-4 rounded-xl bg-zinc-50 border border-zinc-100">
+            <span className="text-xs text-zinc-400 font-medium">
+              Question {question.order}
+            </span>
+            <h2 className="text-lg font-medium text-zinc-900 leading-relaxed">
+              {question.questionText}
+            </h2>
+          </div>
         <button
           onClick={() => onToggleMark(question.id)}
           className={cn(
@@ -73,7 +73,7 @@ export function QuestionCard({
         </button>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-4">
         {options.length === 0 && question.type !== "SUBJECTIVE" && (
           <div className="p-4 rounded-xl border-2 border-dashed border-zinc-300 text-center text-sm text-zinc-500">
             No options available for this question
@@ -97,7 +97,7 @@ export function QuestionCard({
               key={option}
               onClick={() => onSelect(question.id, option)}
               className={cn(
-                "w-full flex items-center gap-4 p-4 rounded-xl border-2 text-left transition-all cursor-pointer",
+                "w-full flex items-start gap-4 p-4 rounded-xl border-2 text-left transition-all cursor-pointer",
                 isSelected
                   ? "border-zinc-900 bg-zinc-50"
                   : "border-zinc-200 hover:border-zinc-300"
@@ -113,7 +113,7 @@ export function QuestionCard({
               >
                 {label}
               </span>
-              <span className="text-sm text-zinc-900">{option}</span>
+              <span className="text-sm text-zinc-900 leading-relaxed whitespace-normal break-words">{option}</span>
             </button>
           );
         })}

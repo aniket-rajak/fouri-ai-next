@@ -1,21 +1,25 @@
 "use client";
 
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { OwnerProvider, useOwner } from "@/lib/owner-auth";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   LayoutDashboard, Users, Upload, BarChart3, Image as ImageIcon,
-  LogOut, Menu, X, Sparkles, ChevronRight, FileText,
+  LogOut, Menu, X, Sparkles, ChevronRight, FileText, Send, Images, BookOpen,
 } from "lucide-react";
 
 const navItems = [
   { href: "/fouri-root-console/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/fouri-root-console/users", label: "Users", icon: Users },
   { href: "/fouri-root-console/uploads", label: "Uploads", icon: Upload },
-  { href: "/fouri-root-console/blogs", label: "Blog", icon: FileText },
   { href: "/fouri-root-console/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/fouri-root-console/ads", label: "Ad Manager", icon: ImageIcon },
+  { href: "/fouri-root-console/email-broadcast", label: "Email Broadcast", icon: Send },
+  { href: "/fouri-root-console/email-templates", label: "Email Templates", icon: FileText },
+  { href: "/fouri-root-console/media", label: "Media Library", icon: Images },
+  { href: "/fouri-root-console/blog", label: "Blog", icon: BookOpen },
 ];
 
 function ConsoleShell({ children }: { children: React.ReactNode }) {
@@ -75,7 +79,7 @@ function ConsoleShell({ children }: { children: React.ReactNode }) {
       </nav>
 
       <aside
-        className={`fixed top-16 left-0 bottom-0 w-64 bg-[#08080f] border-r border-white/5 z-40 transform transition-transform duration-300 lg:translate-x-0 ${
+        className={`fixed top-16 left-0 bottom-0 w-64 bg-[#08080f] border-r border-white/5 z-40 transform transition-transform duration-300 lg:translate-x-0 overflow-y-auto ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -118,10 +122,22 @@ function ConsoleShell({ children }: { children: React.ReactNode }) {
   );
 }
 
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5,       // 5 min — images rarely change
+      gcTime: 1000 * 60 * 30,          // keep in cache 30 min
+      refetchOnWindowFocus: false,
+    },
+  },
+});
+
 export default function RootConsoleLayout({ children }: { children: React.ReactNode }) {
   return (
-    <OwnerProvider>
-      <ConsoleShell>{children}</ConsoleShell>
-    </OwnerProvider>
+    <QueryClientProvider client={queryClient}>
+      <OwnerProvider>
+        <ConsoleShell>{children}</ConsoleShell>
+      </OwnerProvider>
+    </QueryClientProvider>
   );
 }

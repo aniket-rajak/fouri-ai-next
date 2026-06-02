@@ -1,26 +1,26 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useOwnerApi, useOwner } from "@/lib/owner-auth";
 import { motion } from "framer-motion";
 import {
   Upload, Search, Loader2, FileText, CheckCircle2, XCircle, Clock,
   Download, Trash2, RefreshCw, AlertTriangle,
 } from "lucide-react";
-import { api } from "@/lib/api";
-
 interface UploadRecord {
   id: string;
   filename: string;
   fileType: string;
   fileSize: number | null;
   cloudinaryUrl: string | null;
+  telegramFileId?: string;
   status: string;
   createdAt: string;
   user: { id: string; email: string; name: string | null };
   mockTests: { id: string; title: string }[];
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const statusConfig: Record<string, { icon: any; color: string }> = {
   PROCESSING: { icon: Clock, color: "text-amber-400 bg-amber-500/10 border-amber-500/20" },
   ANALYZING: { icon: RefreshCw, color: "text-blue-400 bg-blue-500/10 border-blue-500/20" },
@@ -50,7 +50,7 @@ export default function OwnerUploadsPage() {
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const [showBulkConfirm, setShowBulkConfirm] = useState(false);
 
-  const fetchUploads = useCallback(async () => {
+  const fetchUploads = async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -66,9 +66,24 @@ export default function OwnerUploadsPage() {
     } finally {
       setLoading(false);
     }
-  }, [ownerApi, search, typeFilter, statusFilter, subjectFilter]);
+  };
 
-  useEffect(() => { fetchUploads(); }, [fetchUploads]);
+  useEffect(() => {
+    queueMicrotask(() => setLoading(true));
+    const params = new URLSearchParams();
+    if (search) params.set("search", search);
+    if (typeFilter !== "all") params.set("type", typeFilter);
+    if (statusFilter !== "all") params.set("status", statusFilter);
+    if (subjectFilter !== "all") params.set("subject", subjectFilter);
+    ownerApi(`/owner/uploads?${params}`)
+      .then((data) => {
+        const d = data as { uploads: UploadRecord[]; subjects: string[] };
+        setUploads(d.uploads);
+        setSubjects(d.subjects);
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, [ownerApi, search, typeFilter, statusFilter, subjectFilter]);
 
   const handleDelete = async (id: string) => {
     if (!confirm("Delete this upload?")) return;
@@ -106,10 +121,10 @@ export default function OwnerUploadsPage() {
     if (selected.length === 0) return;
     setBulkDeleting(true);
     try {
-      const result = await ownerApi("/owner/uploads/bulk-delete", {
+      await ownerApi("/owner/uploads/bulk-delete", {
         method: "POST",
         body: JSON.stringify({ statuses: selected }),
-      }) as { deleted: number };
+      });
       await fetchUploads();
       setBulkStatuses([]);
     } catch {
@@ -313,14 +328,14 @@ export default function OwnerUploadsPage() {
                 transition={{ delay: i * 0.02 }}
                 className="bg-[#111118] rounded-xl border border-white/5 p-4 hover:border-blue-500/20 transition-all"
               >
-                <div className="flex items-center justify-between gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-3 min-w-0 flex-1">
                     <div className="w-9 h-9 rounded-lg bg-white/5 flex items-center justify-center shrink-0">
                       <FileText size={16} className="text-[#888899]" />
                     </div>
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium text-[#f5f5f7] truncate">{upload.filename}</p>
-                      <p className="text-xs text-[#888899]">
+                      <p className="text-xs text-[#888899] truncate">
                         {upload.user.name || upload.user.email}
                         <span className="mx-1.5">·</span>
                         {upload.fileType.split("/").pop()?.toUpperCase()}
@@ -329,19 +344,18 @@ export default function OwnerUploadsPage() {
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
                     <span className={`flex items-center gap-1 text-xs px-2.5 py-1 rounded-lg border ${config.color}`}>
                       <StatusIcon size={12} />
                       {upload.status.toLowerCase()}
                     </span>
-                    {upload.cloudinaryUrl && (
-                      <button
-                        onClick={() => handleDownload(upload)}
-                        className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-[#888899] hover:text-[#f5f5f7] hover:bg-white/10 transition-all cursor-pointer"
-                      >
-                        <Download size={13} />
-                      </button>
-                    )}
+                    <button
+                      onClick={() => handleDownload(upload)}
+                      title="Download question paper"
+                      className="w-9 h-9 rounded-lg bg-white/5 flex items-center justify-center text-[#888899] hover:text-emerald-400 hover:bg-emerald-500/10 transition-all cursor-pointer"
+                    >
+                      <Download size={15} />
+                    </button>
                     <button
                       onClick={() => handleDelete(upload.id)}
                       className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center text-[#888899] hover:text-rose-400 hover:bg-rose-500/10 transition-all cursor-pointer"

@@ -26,6 +26,28 @@ interface SubjectStat {
 
 const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#f97316", "#ec4899"];
 
+interface TooltipPayloadItem {
+  name: string;
+  value: number;
+  [key: string]: unknown;
+}
+
+function CustomTooltip({ active, payload, label }: { active?: boolean; payload?: TooltipPayloadItem[]; label?: string }) {
+  if (active && payload?.length) {
+    return (
+      <div className="bg-[#111118] border border-white/10 rounded-xl px-3 py-2 shadow-xl">
+        <p className="text-xs text-[#888899]">{label}</p>
+        {payload.map((p, i) => (
+          <p key={i} className="text-sm font-semibold text-[#f5f5f7]">
+            {p.name}: {p.value}
+          </p>
+        ))}
+      </div>
+    );
+  }
+  return null;
+}
+
 export default function OwnerAnalyticsPage() {
   type Period = "daily" | "weekly" | "monthly";
 
@@ -37,14 +59,14 @@ export default function OwnerAnalyticsPage() {
   const [attempts, setAttempts] = useState<DailyStat[]>([]);
   const [uploadsByType, setUploadsByType] = useState<UploadStat[]>([]);
   const [subjectsWithCounts, setSubjectsWithCounts] = useState<SubjectStat[]>([]);
-  const [uploadsByStatus, setUploadsByStatus] = useState<UploadStat[]>([]);
 
   useEffect(() => {
-    setLoading(true);
+    queueMicrotask(() => setLoading(true));
     const timeEndpoint = period === "daily" ? "daily-stats" : period === "weekly" ? "weekly-stats" : "monthly-stats";
     const key = period === "daily" ? "daily" : period === "weekly" ? "weekly" : "monthly";
 
     Promise.all([
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       api(`/owner/${timeEndpoint}`) as Promise<any>,
       api("/owner/upload-stats") as Promise<{ uploadsByType: UploadStat[]; uploadsByStatus: UploadStat[]; subjectsWithCounts: SubjectStat[] }>,
     ])
@@ -53,28 +75,11 @@ export default function OwnerAnalyticsPage() {
         setUploads(timeData[`${key}Uploads`] || []);
         setAttempts(timeData[`${key}Attempts`] || []);
         setUploadsByType(uploadStats.uploadsByType);
-        setUploadsByStatus(uploadStats.uploadsByStatus);
         setSubjectsWithCounts(uploadStats.subjectsWithCounts);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, [api, period]);
-
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload?.length) {
-      return (
-        <div className="bg-[#111118] border border-white/10 rounded-xl px-3 py-2 shadow-xl">
-          <p className="text-xs text-[#888899]">{label}</p>
-          {payload.map((p: any, i: number) => (
-            <p key={i} className="text-sm font-semibold text-[#f5f5f7]">
-              {p.name}: {p.value}
-            </p>
-          ))}
-        </div>
-      );
-    }
-    return null;
-  };
 
   if (loading) {
     return (

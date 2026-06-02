@@ -7,6 +7,7 @@ import "./services/sentry.js";
 dotenv.config();
 
 const app = express();
+app.set("trust proxy", 1);
 const port = process.env.PORT || 4000;
 
 // Security headers
@@ -51,7 +52,7 @@ app.use(express.json({ limit: "10mb" }));
 
 // Rate limiters
 import {
-  globalLimiter, authLimiter, uploadLimiter, analyzeLimiter,
+  globalLimiter, authLimiter, uploadLimiter,
   standardLimiter, ownerLimiter, contactLimiter,
 } from "./middleware/rateLimiter.js";
 app.use("/api", globalLimiter);
@@ -84,14 +85,25 @@ app.use("/api/search", standardLimiter, searchRoutes);
 import ownerRoutes from "./routes/owner.js";
 app.use("/api/owner", ownerLimiter, ownerRoutes);
 
+import emailRoutes from "./routes/email.js";
+import { ownerAuth } from "./middleware/ownerAuth.js";
+app.use("/api/owner/email", ownerAuth, emailRoutes);
+
 import adRoutes from "./routes/ads.js";
 app.use("/api/ads", standardLimiter, adRoutes);
 
-import blogRoutes from "./routes/blogs.js";
-app.use("/api/blogs", standardLimiter, blogRoutes);
-
 import imageUploadRoutes from "./routes/uploadImage.js";
 app.use("/api/upload-image", standardLimiter, imageUploadRoutes);
+
+import fileRoutes from "./routes/files.js";
+app.use("/api/files", fileRoutes);
+
+import mediaRoutes from "./routes/media.js";
+app.use("/api/owner/media", ownerAuth, mediaRoutes);
+
+import { blogRoutes, ownerBlogRoutes } from "./routes/blog.js";
+app.use("/api/blog", standardLimiter, blogRoutes);
+app.use("/api/owner/blog", ownerLimiter, ownerAuth, ownerBlogRoutes);
 
 import contactRoutes from "./routes/contact.js";
 app.use("/api/contact", contactLimiter, contactRoutes);
@@ -104,6 +116,10 @@ app.get("/", (_req, res) => {
 });
 
 import { prisma } from "./lib/prisma.js";
+import { verifySmtpConnection } from "./services/email.js";
+
+// Verify SMTP on startup (non-blocking)
+verifySmtpConnection();
 
 app.get("/api/health", async (_req, res) => {
   try {

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Sparkles, ArrowLeft } from "lucide-react";
+import { Sparkles, ArrowLeft, BookOpen, HelpCircle, Mail } from "lucide-react";
 
 export default function NotFoundPage() {
   return (
@@ -13,13 +13,30 @@ export default function NotFoundPage() {
         <p className="text-sm text-[#888899] mb-8 leading-relaxed">
           The page you&apos;re looking for doesn&apos;t exist or has been moved.
         </p>
-        <Link
-          href="/"
-          className="inline-flex items-center gap-2 h-11 px-6 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-500 transition-all"
-        >
-          <ArrowLeft size={16} />
-          Back to Home
-        </Link>
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-8">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 h-11 px-6 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-500 transition-all"
+          >
+            <ArrowLeft size={16} />
+            Back to Home
+          </Link>
+          <Link
+            href="/blog"
+            className="inline-flex items-center gap-2 h-11 px-6 rounded-xl bg-[#111118] border border-white/10 text-[#f5f5f7] text-sm font-semibold hover:bg-white/5 transition-all"
+          >
+            <BookOpen size={16} />
+            Browse Blog
+          </Link>
+        </div>
+        <div className="flex items-center justify-center gap-6 text-xs text-[#555566]">
+          <Link href="/faq" className="hover:text-blue-400 transition-colors flex items-center gap-1.5">
+            <HelpCircle size={12} /> FAQ
+          </Link>
+          <Link href="/contact" className="hover:text-blue-400 transition-colors flex items-center gap-1.5">
+            <Mail size={12} /> Contact Us
+          </Link>
+        </div>
       </div>
     </div>
   );

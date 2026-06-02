@@ -31,6 +31,7 @@ export default function RegisterPage() {
       const userCred = await signUpWithEmail(data.email, data.password);
       const token = await userCred.user.getIdToken();
       localStorage.setItem("firebaseToken", token);
+      localStorage.setItem("fouri_login_timestamp", String(new Date().getTime()));
       await api.post("/auth/sync");
       toast.success("Account created successfully");
       router.push("/dashboard");
@@ -55,6 +56,7 @@ export default function RegisterPage() {
       const result = await signInWithGoogle();
       const token = await result.user.getIdToken();
       localStorage.setItem("firebaseToken", token);
+      localStorage.setItem("fouri_login_timestamp", String(new Date().getTime()));
       await api.post("/auth/sync");
       toast.success("Account created successfully");
       router.push("/dashboard");
@@ -94,25 +96,25 @@ export default function RegisterPage() {
             {...register("email")}
             className="text-black placeholder:text-black"
           />
-          <div className="relative">
-            <Input
-              id="password"
-              label="Password"
-              type={showPassword ? "text" : "password"}
-              placeholder="At least 6 characters"
-              error={errors.password?.message}
-              {...register("password")}
-              className="text-black placeholder:text-black pr-10"
-            />
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-[38px] text-zinc-400 hover:text-zinc-600 cursor-pointer"
-              tabIndex={-1}
-            >
-              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-            </button>
-          </div>
+          <Input
+            id="password"
+            label="Password"
+            type={showPassword ? "text" : "password"}
+            placeholder="At least 6 characters"
+            error={errors.password?.message}
+            {...register("password")}
+            className="text-black placeholder:text-black"
+            rightIcon={
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="text-zinc-400 hover:text-zinc-600 cursor-pointer"
+                tabIndex={-1}
+              >
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
+            }
+          />
           <Button type="submit" loading={isSubmitting} className="w-full">
             Create Account
           </Button>

@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useOwnerApi } from "@/lib/owner-auth";
 import { motion } from "framer-motion";
 import {
   Users, Upload, FileText, BarChart3, Activity, Brain,
-  CheckCircle2, XCircle, Loader2, TrendingUp, RefreshCw,
+  CheckCircle2, Loader2, TrendingUp, RefreshCw,
 } from "lucide-react";
 
 interface Stats {
@@ -50,22 +50,29 @@ export default function RootDashboard() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchStats = useCallback(async () => {
+  const fetchStats = async () => {
     try {
       const data = await api("/owner/dashboard/stats") as Stats;
       setStats(data);
     } catch (err) {
-      console.error(err);
+      console.error("Dashboard stats error:", err);
     } finally {
       setLoading(false);
     }
-  }, [api]);
+  };
 
   useEffect(() => {
-    fetchStats();
-    const interval = setInterval(fetchStats, 30000);
+    queueMicrotask(() => setLoading(true));
+    const doFetch = () => {
+      api("/owner/dashboard/stats")
+        .then((data) => setStats(data as Stats))
+        .catch((err) => console.error("Dashboard stats error:", err))
+        .finally(() => setLoading(false));
+    };
+    doFetch();
+    const interval = setInterval(doFetch, 30000);
     return () => clearInterval(interval);
-  }, [fetchStats]);
+  }, [api]);
 
   if (loading) {
     return (
@@ -100,6 +107,7 @@ export default function RootDashboard() {
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {statCards.map((card, i) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const value = stats ? (stats as any)[card.key] : 0;
           const Icon = card.icon;
           return (

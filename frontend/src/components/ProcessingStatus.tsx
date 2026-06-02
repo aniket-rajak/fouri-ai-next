@@ -19,18 +19,32 @@ export function ProcessingStatus({ uploadId }: { uploadId: string }) {
 
   useEffect(() => {
     let cancelled = false;
+    let retries = 0;
+    const maxRetries = 5;
 
     const poll = async () => {
+      if (cancelled) return;
       try {
         const res = await api.get(`/analyze/${uploadId}/status`);
         if (cancelled) return;
+        retries = 0;
         setStatus(res.data);
 
         if (res.data.status === "PROCESSING" || res.data.status === "ANALYZING") {
-          setTimeout(poll, 2000);
+          setTimeout(poll, 3000);
         }
-      } catch {
-        if (!cancelled) setError(true);
+      } catch (err: unknown) {
+        if (cancelled) return;
+        const is429 =
+          err && typeof err === "object" && "response" in err &&
+          (err as { response?: { status?: number } }).response?.status === 429;
+        if (is429 && retries < maxRetries) {
+          retries++;
+          const delay = Math.min(1000 * Math.pow(2, retries), 30000);
+          setTimeout(poll, delay);
+        } else {
+          setError(true);
+        }
       }
     };
 

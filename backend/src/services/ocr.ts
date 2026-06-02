@@ -1,63 +1,87 @@
-import { ImageAnnotatorClient } from "@google-cloud/vision";
-import { env } from "../config/env.js";
+import { createWorker } from "tesseract.js";
+import { preprocessImage } from "./imageProcessor.js";
+import pdf from "pdf-parse";
+import sharp from "sharp";
 
-let client: ImageAnnotatorClient | null = null;
+let worker: Tesseract.Worker | null = null;
+let workerReady = false;
+let workerInitPromise: Promise<void> | null = null;
 
-function getClient(): ImageAnnotatorClient {
-  if (!client) {
-    const credentials = (() => {
-      try {
-        return JSON.parse(env.googleVision.credentials);
-      } catch {
-        return undefined;
-      }
-    })();
+async function initWorker(): Promise<void> {
+  if (workerReady) return;
+  if (workerInitPromise) return workerInitPromise;
 
-    if (credentials) {
-      client = new ImageAnnotatorClient({ credentials });
-    } else {
-      client = new ImageAnnotatorClient();
-    }
-  }
-  return client;
-}
-
-async function fetchImageBuffer(url: string): Promise<Buffer> {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`Failed to fetch image: ${response.status}`);
-  const arrayBuffer = await response.arrayBuffer();
-  return Buffer.from(arrayBuffer);
-}
-
-async function ocrWithRetry(
-  buffer: Buffer,
-  mimeType: string,
-  retries = 3
-): Promise<string> {
-  for (let attempt = 1; attempt <= retries; attempt++) {
+  workerInitPromise = (async () => {
     try {
-      const c = getClient();
-
-      if (mimeType === "application/pdf") {
-        const [result] = await c.annotateImage({
-          image: { content: buffer.toString("base64") },
-          features: [{ type: "DOCUMENT_TEXT_DETECTION" }],
-          imageContext: { languageHints: ["en", "hi"] },
-        });
-        return result.fullTextAnnotation?.text || "";
-      }
-
-      const [result] = await c.textDetection({
-        image: { content: buffer.toString("base64") },
-        imageContext: { languageHints: ["en", "hi"] },
-      });
-      return result.fullTextAnnotation?.text || "";
+      console.log("[OCR] Initializing Tesseract.js worker (eng+hin+ben)...");
+      worker = await createWorker("eng+hin+ben");
+      workerReady = true;
+      console.log("[OCR] Worker ready");
     } catch (error) {
-      if (attempt === retries) throw error;
+      workerInitPromise = null;
+      throw error;
+    }
+  })();
+
+  return workerInitPromise;
+}
+
+async function getWorker(): Promise<Tesseract.Worker> {
+  if (!workerReady || !worker) {
+    await initWorker();
+  }
+  return worker!;
+}
+
+async function ocrImage(buffer: Buffer, retries = 2): Promise<string> {
+  for (let attempt = 1; attempt <= retries + 1; attempt++) {
+    try {
+      const w = await getWorker();
+      const processed = await preprocessImage(buffer);
+      const { data } = await w.recognize(processed);
+      return data.text || "";
+    } catch (error) {
+      if (attempt > retries) throw error;
+      console.log(`[OCR] Attempt ${attempt} failed, retrying...`);
+      worker?.terminate().catch(() => {});
+      worker = null;
+      workerReady = false;
+      workerInitPromise = null;
       await new Promise((r) => setTimeout(r, 1000 * attempt));
     }
   }
   return "";
+}
+
+async function extractTextFromPDF(buffer: Buffer): Promise<string> {
+  try {
+    const data = await pdf(buffer);
+    const text = data.text?.trim();
+    if (text && text.length > 50) {
+      console.log(`[OCR] PDF text extracted via pdf-parse (${text.length} chars)`);
+      return cleanText(text);
+    }
+  } catch {
+    console.log("[OCR] pdf-parse failed, falling back to image-based OCR");
+  }
+
+  const metadata = await sharp(buffer, { pages: -1 }).metadata();
+  const pageCount = metadata.pages || 1;
+  console.log(`[OCR] Processing ${pageCount} PDF pages as images...`);
+
+  let fullText = "";
+  for (let i = 0; i < pageCount; i++) {
+    const pageBuffer = await sharp(buffer, { page: i })
+      .jpeg({ quality: 85 })
+      .toBuffer();
+
+    const text = await ocrImage(pageBuffer);
+    if (text.trim()) {
+      fullText += text + "\n\n";
+    }
+  }
+
+  return fullText.trim();
 }
 
 export function cleanText(text: string): string {
@@ -77,10 +101,25 @@ export function cleanText(text: string): string {
 }
 
 export async function extractText(
-  imageUrl: string,
+  buffer: Buffer,
   mimeType: string
 ): Promise<string> {
-  const buffer = await fetchImageBuffer(imageUrl);
-  const raw = await ocrWithRetry(buffer, mimeType);
+  if (mimeType === "application/pdf") {
+    return await extractTextFromPDF(buffer);
+  }
+
+  const raw = await ocrImage(buffer);
   return cleanText(raw);
 }
+
+process.on("SIGTERM", async () => {
+  if (worker) {
+    await worker.terminate().catch(() => {});
+  }
+});
+
+process.on("SIGINT", async () => {
+  if (worker) {
+    await worker.terminate().catch(() => {});
+  }
+});

@@ -46,35 +46,16 @@ export const schemas = {
     message: z.string().min(1, "Message is required").max(5000),
   }),
 
-  blogCreate: z.object({
-    title: z.string().min(1, "Title is required").max(500),
-    slug: z.string().min(1, "Slug is required").max(200)
-      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Slug must be lowercase with hyphens"),
-    content: z.string().min(1, "Content is required"),
-    excerpt: z.string().max(500).nullable().optional(),
-    imageUrl: z.string().url().nullable().optional().or(z.literal("")),
-    author: z.string().max(200).optional(),
-    published: z.boolean().optional(),
-  }),
-
-  blogUpdate: z.object({
-    title: z.string().min(1).max(500).optional(),
-    slug: z.string().min(1).max(200)
-      .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Slug must be lowercase with hyphens").optional(),
-    content: z.string().min(1).optional(),
-    excerpt: z.string().max(500).nullable().optional(),
-    imageUrl: z.string().url().nullable().optional().or(z.literal("")),
-    author: z.string().max(200).optional(),
-    published: z.boolean().optional(),
-  }),
-
   adCreate: z.object({
     title: z.string().min(1, "Title is required").max(200),
     description: z.string().max(500).nullable().optional(),
     imageUrl: z.string().url("Invalid image URL"),
     ctaText: z.string().max(100).optional(),
     ctaLink: z.string().url("Invalid CTA link"),
-    blogUrl: z.string().url().nullable().optional().or(z.literal("")),
+    blogUrl: z.string().url("Invalid blog URL").optional().nullable(),
+    referenceUrl: z.string().optional().nullable(),
+    status: z.enum(["ACTIVE", "INACTIVE", "SCHEDULED"]).optional(),
+    scheduledAt: z.string().datetime().optional().nullable(),
   }),
 
   adUpdate: z.object({
@@ -83,12 +64,46 @@ export const schemas = {
     imageUrl: z.string().url("Invalid image URL").optional(),
     ctaText: z.string().max(100).optional(),
     ctaLink: z.string().url("Invalid CTA link").optional(),
-    blogUrl: z.string().url().nullable().optional().or(z.literal("")),
-    active: z.boolean().optional(),
+    blogUrl: z.string().url("Invalid blog URL").optional().nullable(),
+    referenceUrl: z.string().optional().nullable(),
+    status: z.enum(["ACTIVE", "INACTIVE", "SCHEDULED"]).optional(),
+    scheduledAt: z.string().datetime().optional().nullable(),
+  }),
+
+  adGenerate: z.object({
+    instructions: z.string().min(1, "Instructions are required").max(2000),
   }),
 
   ownerLogin: z.object({
     email: z.string().email("Invalid email"),
     password: z.string().min(1, "Password is required"),
+  }),
+
+  blogCreate: z.object({
+    title: z.string().min(1, "Title is required").max(500),
+    content: z.string().min(1, "Content is required"),
+    excerpt: z.string().max(1000).optional(),
+    thumbnailUrl: z.string().max(2000).optional(),
+    authorName: z.string().max(200).optional(),
+    status: z.enum(["DRAFT", "SCHEDULED", "PUBLISHED"]).optional(),
+    scheduledAt: z.string().datetime().optional().nullable(),
+    categoryIds: z.array(z.string().uuid()).min(1, "At least one category is required"),
+    tagIds: z.array(z.string().uuid()).optional(),
+  }),
+
+  blogUpdate: z.object({
+    title: z.string().min(1).max(500).optional(),
+    content: z.string().min(1).optional(),
+    excerpt: z.string().max(1000).optional().nullable(),
+    thumbnailUrl: z.string().max(2000).optional().nullable(),
+    authorName: z.string().max(200).optional().nullable(),
+    status: z.enum(["DRAFT", "SCHEDULED", "PUBLISHED"]).optional(),
+    scheduledAt: z.string().datetime().optional().nullable(),
+    categoryIds: z.array(z.string().uuid()).optional(),
+    tagIds: z.array(z.string().uuid()).optional(),
+  }),
+
+  blogGenerate: z.object({
+    instructions: z.string().min(1, "Instructions are required").max(2000),
   }),
 };

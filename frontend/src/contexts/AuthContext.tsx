@@ -8,7 +8,13 @@ import {
   type ReactNode,
 } from "react";
 import type { User } from "firebase/auth";
-import { getAuth, onAuthStateChanged } from "firebase/auth";
+import {
+  getAuth,
+  onAuthStateChanged,
+  browserLocalPersistence,
+  setPersistence,
+  signOut,
+} from "firebase/auth";
 import { initializeApp, getApps } from "firebase/app";
 
 const firebaseConfig = {
@@ -46,11 +52,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const app = initFirebase();
     if (!app) {
-      setLoading(false);
+      queueMicrotask(() => setLoading(false));
       return;
     }
     const auth = getAuth(app);
+
+    setPersistence(auth, browserLocalPersistence);
+
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        const loginTimestamp = localStorage.getItem(
+          "fouri_login_timestamp"
+        );
+        const now = Date.now();
+        if (loginTimestamp) {
+          const elapsed = now - parseInt(loginTimestamp, 10);
+          if (elapsed > 7 * 24 * 60 * 60 * 1000) {
+            signOut(auth);
+            localStorage.removeItem("fouri_login_timestamp");
+            setUser(null);
+            setLoading(false);
+            return;
+          }
+        } else {
+          localStorage.setItem(
+            "fouri_login_timestamp",
+            String(now)
+          );
+        }
+      }
       setUser(firebaseUser);
       setLoading(false);
     });

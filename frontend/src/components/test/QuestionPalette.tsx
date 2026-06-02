@@ -25,7 +25,7 @@ export function QuestionPalette({
   return (
     <div>
       <h3 className="text-sm font-medium text-zinc-900 mb-3">Questions</h3>
-      <div className="grid grid-cols-5 gap-2">
+      <div className="grid grid-cols-4 sm:grid-cols-5 gap-1.5 sm:gap-2">
         {questions.map((q, i) => {
           const isCurrent = i === currentIndex;
           const isAnswered = answeredIds.has(q.id);

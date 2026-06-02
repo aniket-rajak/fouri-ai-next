@@ -2,8 +2,9 @@ import { Router } from "express";
 import { authenticate } from "../middleware/auth.js";
 import { prisma } from "../lib/prisma.js";
 import { extractText } from "../services/ocr.js";
+import { downloadTelegramFile } from "../services/telegramStorage.js";
 import { analyzeQuestions } from "../services/openai.js";
-import { analyzeLimiter, standardLimiter } from "../middleware/rateLimiter.js";
+import { analyzeLimiter, standardLimiter, analyzeStatusLimiter } from "../middleware/rateLimiter.js";
 
 const router = Router();
 
@@ -41,11 +42,12 @@ async function processUpload(uploadId: string): Promise<void> {
       where: { id: uploadId },
     });
 
-    if (!upload.cloudinaryUrl) {
-      throw new Error("Upload has no Cloudinary URL");
+    if (!upload.telegramFileId) {
+      throw new Error("Upload has no Telegram file reference");
     }
 
-    const rawText = await extractText(upload.cloudinaryUrl, upload.fileType);
+    const fileBuffer = await downloadTelegramFile(upload.telegramFileId);
+    const rawText = await extractText(fileBuffer, upload.fileType);
     if (!rawText || rawText.trim().length === 0) {
       throw new Error("OCR returned empty text - could not extract any content from the file");
     }
@@ -67,7 +69,7 @@ async function processUpload(uploadId: string): Promise<void> {
       }
     }
 
-    const filename = upload.filename
+    const _filename = upload.filename
       .replace(/\.(pdf|png|jpg|jpeg)$/i, "")
       .replace(/[-_]/g, " ")
       .replace(/\b\w/g, (c) => c.toUpperCase());
@@ -85,12 +87,15 @@ async function processUpload(uploadId: string): Promise<void> {
         ? "MEDIUM"
         : "HARD";
 
+    const calculatedDuration = Math.max(count * 120, 600);
+
     const mockTest = await prisma.mockTest.create({
       data: {
         title: `${subject} Mock Test`,
         subject,
         sourceUploadId: uploadId,
         status: "PUBLISHED",
+        duration: calculatedDuration,
         totalQuestions: count,
         difficulty: dominantDifficulty as "EASY" | "MEDIUM" | "HARD",
         questions: {
@@ -131,7 +136,7 @@ async function processUpload(uploadId: string): Promise<void> {
       if (errorMessage.includes("PERMISSION_DENIED") || errorMessage.includes("billing") || errorMessage.includes("Billing")) {
         return "Google Cloud Vision API billing is not enabled. Please enable billing at https://console.cloud.google.com/billing for your project, or the OCR text extraction cannot work.";
       }
-      if (errorMessage.includes("OCR") || errorMessage.includes("extract text") || errorMessage.includes("Google Vision")) {
+      if (errorMessage.includes("OCR") || errorMessage.includes("extract text") || errorMessage.includes("Tesseract")) {
         return "Could not read text from the file. Ensure the image is clear or the PDF is not scanned poorly.";
       }
       if (
@@ -166,7 +171,7 @@ async function processUpload(uploadId: string): Promise<void> {
       if (errorMessage.includes("Prisma") || errorMessage.includes("prisma") || errorMessage.includes("Database") || errorMessage.includes("Unique constraint")) {
         return "Database error occurred. Please try again.";
       }
-      if (errorMessage.includes("Cloudinary") || errorMessage.includes("upload")) {
+      if (errorMessage.includes("Telegram") || errorMessage.includes("upload")) {
         return "File storage error. Please try uploading again.";
       }
       return `Analysis failed: ${errorMessage}`;
@@ -179,7 +184,7 @@ async function processUpload(uploadId: string): Promise<void> {
   }
 }
 
-router.get("/:uploadId/status", standardLimiter, authenticate, async (req, res) => {
+router.get("/:uploadId/status", analyzeStatusLimiter, authenticate, async (req, res) => {
   try {
     const uploadId = req.params.uploadId as string;
     const upload = await prisma.upload.findUnique({

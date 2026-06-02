@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 
@@ -49,7 +49,7 @@ export function OwnerProvider({ children }: { children: ReactNode }) {
         })
         .finally(() => setLoading(false));
     } else {
-      setLoading(false);
+      queueMicrotask(() => setLoading(false));
     }
   }, []);
 
@@ -62,7 +62,7 @@ export function OwnerProvider({ children }: { children: ReactNode }) {
 
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
-      throw new Error((data as any).error || "Login failed");
+      throw new Error((data as { error?: string }).error || "Login failed");
     }
 
     const data = (await res.json()) as { token: string; email: string };
@@ -106,7 +106,7 @@ export function useOwnerApi() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error((data as any).error || `Request failed: ${res.status}`);
+        throw new Error((data as { error?: string }).error || `Request failed: ${res.status}`);
       }
       return res.json();
     },

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
-import { Loader2, FileText, Users, BarChart3 } from "lucide-react";
+import { Loader2, FileText, Users } from "lucide-react";
 
 interface AdminTest {
   id: string;

@@ -1,45 +1,44 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import Image from "next/image";
 import { Star, ChevronLeft, ChevronRight, Quote } from "lucide-react";
 
-const testimonials = [
+const EXAMPLES = [
   {
-    name: "Arjun Sharma",
-    exam: "JEE Advanced 2026 Aspirant",
-    avatar: "/assets/images/testimonials/avatar-1.jpg",
-    review: "I uploaded my old JEE question papers and FOURI generated mock tests instantly. The AI explanations are incredibly helpful for understanding where I went wrong.",
+    role: "JEE Advanced Aspirant",
+    review: "FOURI helped me practice previous year papers much faster than traditional methods. The AI analysis showed exactly where I was losing marks.",
     rating: 5,
+    initials: "J",
+    color: "from-[#3D81E3] to-[#00D2FF]",
   },
   {
-    name: "Priya Das",
-    exam: "NEET UG 2026 Aspirant",
-    avatar: "/assets/images/testimonials/avatar-2.jpg",
-    review: "This platform is a game-changer for NEET preparation. The OCR even read my handwritten biology notes! And it's completely free — I can't believe it.",
+    role: "NEET UG Aspirant",
+    review: "The instant test generation from uploaded papers saves hours of manual work. The AI identifies weak areas and helps focus study efforts effectively.",
     rating: 5,
+    initials: "N",
+    color: "from-[#00D2FF] to-[#A4F4FD]",
   },
   {
-    name: "Rahul Banerjee",
-    exam: "WBJEE 2026 Aspirant",
-    avatar: "/assets/images/testimonials/avatar-3.jpg",
-    review: "The chapter-wise analysis helped me identify my weak areas in Mathematics. I've improved my score by 30% in just 2 weeks of practice.",
+    role: "WBJEE Aspirant",
+    review: "Best free mock test platform I've used. The instant test generation from uploaded papers is a game changer for exam preparation.",
     rating: 5,
+    initials: "W",
+    color: "from-[#A4F4FD] to-[#3D81E3]",
   },
   {
-    name: "Sneha Patel",
-    exam: "CUET 2026 Aspirant",
-    avatar: "/assets/images/testimonials/avatar-4.jpg",
-    review: "I love how I can practice multiple subjects without switching platforms. The mock tests feel just like the real exam. Highly recommended!",
+    role: "CUET Aspirant",
+    review: "The subject-wise insights helped me focus on my weak areas. I could track my progress and see real improvement over time.",
     rating: 5,
+    initials: "C",
+    color: "from-[#3D81E3] to-[#A4F4FD]",
   },
   {
-    name: "Amit Kumar",
-    exam: "CBSE Class 12 Student",
-    avatar: "/assets/images/testimonials/avatar-5.jpg",
-    review: "My teachers recommended practicing with past papers. FOURI makes it so easy — just upload and start practicing. The performance insights are brilliant.",
+    role: "CBSE Class 12 Student",
+    review: "Uploading question papers and getting instant mock tests is incredibly helpful. It feels like having a personal tutor available 24/7.",
     rating: 4,
+    initials: "S",
+    color: "from-[#00D2FF] to-[#3D81E3]",
   },
 ];
 
@@ -47,51 +46,49 @@ export default function Testimonials() {
   const [current, setCurrent] = useState(0);
   const [direction, setDirection] = useState(0);
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setDirection(1);
-      setCurrent((prev) => (prev + 1) % testimonials.length);
-    }, 5000);
-    return () => clearInterval(interval);
+  const goTo = useCallback((index: number) => {
+    setDirection(index > current ? 1 : -1);
+    setCurrent(index);
+  }, [current]);
+
+  const goNext = useCallback(() => {
+    setDirection(1);
+    setCurrent((prev) => (prev + 1) % EXAMPLES.length);
   }, []);
 
-  const goTo = (idx: number) => {
-    setDirection(idx > current ? 1 : -1);
-    setCurrent(idx);
-  };
-
-  const goPrev = () => {
+  const goPrev = useCallback(() => {
     setDirection(-1);
-    setCurrent((prev) => (prev - 1 + testimonials.length) % testimonials.length);
-  };
+    setCurrent((prev) => (prev - 1 + EXAMPLES.length) % EXAMPLES.length);
+  }, []);
 
-  const goNext = () => {
-    setDirection(1);
-    setCurrent((prev) => (prev + 1) % testimonials.length);
-  };
+  useEffect(() => {
+    const timer = setInterval(goNext, 5000);
+    return () => clearInterval(timer);
+  }, [goNext]);
 
   return (
-    <section className="py-20 md:py-28 relative overflow-hidden bg-gradient-to-b from-[#0d0d15] to-[#08080f]">
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[800px] rounded-full bg-blue-500/5 blur-3xl pointer-events-none" />
+    <section className="py-16 md:py-24 lg:py-28 relative overflow-hidden bg-gradient-to-b from-[#0C0C0C] to-[#0d0d15]">
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[800px] rounded-full bg-[#3D81E3]/5 blur-3xl pointer-events-none" />
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          className="text-center mb-14"
+          className="text-center mb-12 md:mb-16"
         >
-          <span className="text-xs font-semibold tracking-widest uppercase text-blue-300 bg-blue-500/10 px-4 py-1.5 rounded-full border border-blue-500/10">
+          <span className="text-xs font-semibold tracking-widest uppercase text-[#00D2FF] bg-[#00D2FF]/10 px-4 py-1.5 rounded-full border border-[#00D2FF]/10">
             Testimonials
           </span>
           <h2 className="mt-4 text-3xl sm:text-4xl lg:text-5xl font-bold font-heading text-[#f5f5f7]">
-            What Students Say
-            <br />
-            <span className="text-gradient">About FOURI</span>
+            What Students Say <span className="text-gradient">About FOURI</span>
           </h2>
+          <p className="mt-3 text-xs text-[#555566] max-w-md mx-auto">
+            Illustrative examples based on common student experiences.
+          </p>
         </motion.div>
 
         <div className="relative max-w-3xl mx-auto">
-          <div className="min-h-[280px] flex items-center">
+          <div className="min-h-[260px] flex items-center">
             <AnimatePresence mode="wait" custom={direction}>
               <motion.div
                 key={current}
@@ -102,37 +99,22 @@ export default function Testimonials() {
                 transition={{ duration: 0.4, ease: "easeInOut" }}
                 className="w-full"
               >
-                <div className="relative glass rounded-3xl p-8 md:p-10 border border-white/5 shadow-xl shadow-blue-500/5">
-                  <Quote className="absolute top-6 right-8 w-10 h-10 text-blue-500/20" />
+                <div className="relative p-8 md:p-10 rounded-2xl bg-white/[0.02] border border-white/[0.06] hover:border-[#3D81E3]/20 hover:shadow-lg hover:shadow-[#3D81E3]/5 transition-all duration-500">
+                  <Quote className="absolute top-6 right-8 w-10 h-10 text-[#3D81E3]/20" />
                   <div className="flex items-center gap-4 mb-6">
-                    <Image
-                      src={testimonials[current].avatar}
-                      alt={testimonials[current].name}
-                      width={56}
-                      height={56}
-                      className="w-14 h-14 rounded-2xl object-cover border-2 border-blue-500/20"
-                      loading="lazy"
-                    />
+                    <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${EXAMPLES[current].color} flex items-center justify-center text-white font-bold text-lg shadow-lg shrink-0`}>
+                      {EXAMPLES[current].initials}
+                    </div>
                     <div>
-                      <p className="font-semibold text-[#f5f5f7]">{testimonials[current].name}</p>
-                      <p className="text-xs text-[#888899]">{testimonials[current].exam}</p>
+                      <p className="font-semibold text-[#f5f5f7]">{EXAMPLES[current].role}</p>
                     </div>
                     <div className="ml-auto flex gap-0.5">
                       {Array.from({ length: 5 }).map((_, i) => (
-                        <Star
-                          key={i}
-                          className={`w-4 h-4 ${
-                            i < testimonials[current].rating
-                              ? "text-amber-400 fill-amber-400"
-                              : "text-white/10"
-                          }`}
-                        />
+                        <Star key={i} className={`w-4 h-4 ${i < EXAMPLES[current].rating ? "text-amber-400 fill-amber-400" : "text-white/10"}`} />
                       ))}
                     </div>
                   </div>
-                  <p className="text-base text-[#888899] leading-relaxed italic">
-                    &ldquo;{testimonials[current].review}&rdquo;
-                  </p>
+                  <p className="text-base text-[#888899] leading-relaxed italic">&ldquo;{EXAMPLES[current].review}&rdquo;</p>
                 </div>
               </motion.div>
             </AnimatePresence>
@@ -141,20 +123,18 @@ export default function Testimonials() {
           <div className="flex items-center justify-center gap-4 mt-8">
             <button
               onClick={goPrev}
-              className="w-10 h-10 rounded-xl bg-[#111118] border border-white/5 flex items-center justify-center hover:bg-white/5 hover:border-blue-500/30 transition-colors cursor-pointer"
+              className="w-9 h-9 rounded-xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-center hover:bg-white/[0.06] hover:border-white/[0.10] transition-all cursor-pointer"
               aria-label="Previous testimonial"
             >
               <ChevronLeft className="w-4 h-4 text-[#888899]" />
             </button>
             <div className="flex gap-2">
-              {testimonials.map((_, i) => (
+              {EXAMPLES.map((_, i) => (
                 <button
                   key={i}
                   onClick={() => goTo(i)}
-                  className={`w-2.5 h-2.5 rounded-full transition-all duration-300 cursor-pointer ${
-                    i === current
-                      ? "bg-blue-500 w-6"
-                      : "bg-white/10 hover:bg-white/20"
+                  className={`h-2 rounded-full transition-all duration-300 cursor-pointer ${
+                    i === current ? "bg-gradient-to-r from-[#3D81E3] to-[#00D2FF] w-6" : "bg-white/10 hover:bg-white/20 w-2"
                   }`}
                   aria-label={`Go to testimonial ${i + 1}`}
                 />
@@ -162,7 +142,7 @@ export default function Testimonials() {
             </div>
             <button
               onClick={goNext}
-              className="w-10 h-10 rounded-xl bg-[#111118] border border-white/5 flex items-center justify-center hover:bg-white/5 hover:border-blue-500/30 transition-colors cursor-pointer"
+              className="w-9 h-9 rounded-xl bg-white/[0.03] border border-white/[0.06] flex items-center justify-center hover:bg-white/[0.06] hover:border-white/[0.10] transition-all cursor-pointer"
               aria-label="Next testimonial"
             >
               <ChevronRight className="w-4 h-4 text-[#888899]" />

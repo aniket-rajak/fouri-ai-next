@@ -1,24 +1,29 @@
 "use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
+import { api } from "@/lib/api";
 
 interface TimerOptions {
-  startTime: string; // ISO string from server
-  duration: number; // in seconds
+  startTime: string;
+  duration: number;
   onTimeUp: () => void;
   onTabSwitch?: () => void;
+  attemptId?: string | null;
 }
 
 export function useTestTimer({
   startTime,
   duration,
   onTimeUp,
+  onTabSwitch,
+  attemptId,
 }: TimerOptions) {
   const [timeLeft, setTimeLeft] = useState(duration);
   const [isWarning, setIsWarning] = useState(false);
   const [tabSwitches, setTabSwitches] = useState(0);
   const submittedRef = useRef(false);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastLogRef = useRef(0);
 
   const clearTimer = useCallback(() => {
     if (intervalRef.current) {
@@ -26,6 +31,24 @@ export function useTestTimer({
       intervalRef.current = null;
     }
   }, []);
+
+  const logSuspiciousActivity = useCallback(
+    async (activityType: string, metadata?: Record<string, unknown>) => {
+      if (!attemptId) return;
+      const now = Date.now();
+      if (now - lastLogRef.current < 2000) return;
+      lastLogRef.current = now;
+      try {
+        await api.post(`/attempts/${attemptId}/suspicious-activity`, {
+          activityType,
+          metadata: metadata || {},
+        });
+      } catch {
+        // silent fail
+      }
+    },
+    [attemptId]
+  );
 
   useEffect(() => {
     const start = new Date(startTime).getTime();
@@ -56,6 +79,8 @@ export function useTestTimer({
       if (document.hidden) {
         setTabSwitches((prev) => {
           const next = prev + 1;
+          logSuspiciousActivity("TAB_SWITCH", { count: next });
+          onTabSwitch?.();
           if (next >= 2 && !submittedRef.current) {
             submittedRef.current = true;
             clearTimer();
@@ -66,10 +91,17 @@ export function useTestTimer({
       }
     };
 
+    const handleBlur = () => {
+      logSuspiciousActivity("WINDOW_BLUR");
+    };
+
     document.addEventListener("visibilitychange", handleVisibility);
-    return () =>
+    window.addEventListener("blur", handleBlur);
+    return () => {
       document.removeEventListener("visibilitychange", handleVisibility);
-  }, [onTimeUp, clearTimer]);
+      window.removeEventListener("blur", handleBlur);
+    };
+  }, [onTimeUp, clearTimer, logSuspiciousActivity, onTabSwitch]);
 
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60);

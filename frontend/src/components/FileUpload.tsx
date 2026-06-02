@@ -64,7 +64,6 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
 
     try {
       const res = await api.post("/upload", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
         onUploadProgress: (e) => {
           if (e.total) {
             setProgress(Math.round((e.loaded * 100) / e.total));
@@ -95,7 +94,7 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
       <div
         {...getRootProps()}
         className={cn(
-          "border-2 border-dashed rounded-2xl p-12 text-center cursor-pointer transition-colors",
+          "border-2 border-dashed rounded-2xl p-6 sm:p-12 text-center cursor-pointer transition-colors",
           isDragActive
             ? "border-zinc-900 bg-zinc-50"
             : "border-zinc-300 hover:border-zinc-400"

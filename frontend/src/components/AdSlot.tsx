@@ -8,6 +8,17 @@ interface AdSlotProps {
   className?: string;
 }
 
+const CLIENT_ID = process.env.NEXT_PUBLIC_ADSENSE_CLIENT || "ca-pub-2512689434819222";
+
+function getMinHeight(format: string): string {
+  switch (format) {
+    case "horizontal": return "min-h-[90px]";
+    case "rectangle": return "min-h-[250px]";
+    case "vertical": return "min-h-[250px]";
+    default: return "min-h-[90px]";
+  }
+}
+
 export function AdSlot({ slot, format = "auto", className = "" }: AdSlotProps) {
   const adRef = useRef<HTMLDivElement>(null);
   const rendered = useRef(false);
@@ -17,6 +28,7 @@ export function AdSlot({ slot, format = "auto", className = "" }: AdSlotProps) {
 
     const timer = setTimeout(() => {
       try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const adsbygoogle = (window as any).adsbygoogle || [];
         adsbygoogle.push({});
         rendered.current = true;
@@ -30,13 +42,13 @@ export function AdSlot({ slot, format = "auto", className = "" }: AdSlotProps) {
 
   return (
     <div
-      className={`adsense-container min-h-[90px] flex items-center justify-center bg-zinc-50 rounded-lg overflow-hidden ${className}`}
+      className={`adsense-container ${getMinHeight(format)} flex items-center justify-center bg-zinc-50 rounded-lg overflow-hidden ${className}`}
       ref={adRef}
     >
       <ins
         className="adsbygoogle"
         style={{ display: "block" }}
-        data-ad-client="ca-pub-xxxxxxxxxxxxxxxx"
+        data-ad-client={CLIENT_ID}
         data-ad-slot={slot}
         data-ad-format={format}
         data-full-width-responsive="true"

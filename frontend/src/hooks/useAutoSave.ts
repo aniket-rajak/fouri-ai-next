@@ -20,56 +20,87 @@ export function useAutoSave(
   attemptId: string | null,
   answers: Answer[],
   markedIds: Set<string>,
-  isActive: boolean
+  isActive: boolean,
+  isSubmitting?: boolean
 ) {
   const savedRef = useRef(false);
+  const submittingRef = useRef(false);
+  submittingRef.current = isSubmitting ?? false;
 
-  const saveToLocal = () => {
-    if (!attemptId) return;
-    try {
-      const data: StoredData = {
-        answers,
-        markedIds: Array.from(markedIds),
-        savedAt: Date.now(),
-      };
-      localStorage.setItem(
-        `${STORAGE_KEY_PREFIX}${attemptId}`,
-        JSON.stringify(data)
-      );
-    } catch {
-      // storage full
-    }
-  };
-
-  const saveToServer = async () => {
-    if (!attemptId) return;
-    try {
-      await api.put(`/attempts/${attemptId}/save`, { answers });
-    } catch {
-      // will retry on next interval or final submit
-    }
-  };
+  const answersRef = useRef(answers);
+  answersRef.current = answers;
+  const markedRef = useRef(markedIds);
+  markedRef.current = markedIds;
 
   useEffect(() => {
     if (!isActive || !attemptId) return;
 
-    const save = () => {
-      saveToLocal();
-      saveToServer();
+    const saveToLocal = () => {
+      try {
+        const data: StoredData = {
+          answers: answersRef.current,
+          markedIds: Array.from(markedRef.current),
+          savedAt: Date.now(),
+        };
+        localStorage.setItem(
+          `${STORAGE_KEY_PREFIX}${attemptId}`,
+          JSON.stringify(data)
+        );
+      } catch {
+        // storage full
+      }
     };
 
-    // Save immediately on first render with data
-    if (!savedRef.current && (answers.length > 0 || markedIds.size > 0)) {
-      save();
+    const saveToServer = async () => {
+      if (submittingRef.current) return;
+      try {
+        await api.put(`/attempts/${attemptId}/save`, {
+          answers: answersRef.current,
+        });
+      } catch {
+        // will retry on next interval or final submit
+      }
+    };
+
+    // Initial save
+    if (
+      !savedRef.current &&
+      (answersRef.current.length > 0 || markedRef.current.size > 0)
+    ) {
+      saveToLocal();
+      saveToServer();
       savedRef.current = true;
     }
 
-    const interval = setInterval(save, 30000);
+    // Periodic save every 30s
+    const interval = setInterval(() => {
+      saveToLocal();
+      saveToServer();
+    }, 30000);
+
     return () => {
       clearInterval(interval);
-      save(); // flush on unmount
+      saveToLocal(); // cleanup: local backup only
     };
-  }, [attemptId, answers, markedIds, isActive]);
+  }, [attemptId, isActive]);
+
+  // Debounced server save: fires 3s after the last answer change
+  useEffect(() => {
+    if (!isActive || !attemptId) return;
+    if (submittingRef.current) return;
+
+    const timer = setTimeout(async () => {
+      try {
+        await api.put(`/attempts/${attemptId}/save`, {
+          answers: answersRef.current,
+        });
+      } catch {
+        // will retry on next interval or final submit
+      }
+    }, 3000);
+
+    return () => clearTimeout(timer);
+  }, [answers, attemptId, isActive]);
 
   const restoreFromLocal = (): StoredData | null => {
     if (!attemptId) return null;

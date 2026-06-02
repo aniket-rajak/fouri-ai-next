@@ -57,7 +57,7 @@ function AdminShell({ children }: { children: React.ReactNode }) {
       </nav>
 
       <aside
-        className={`fixed top-16 left-0 bottom-0 w-64 bg-zinc-900 z-30 transform transition-transform lg:translate-x-0 ${
+        className={`fixed top-16 left-0 bottom-0 w-64 bg-zinc-900 z-30 transform transition-transform lg:translate-x-0 overflow-y-auto ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -88,7 +88,7 @@ function AdminShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <main className="pt-16 lg:pl-64">
-        <div className="p-6 max-w-6xl mx-auto">{children}</div>
+        <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto">{children}</div>
       </main>
     </div>
   );

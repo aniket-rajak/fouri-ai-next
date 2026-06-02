@@ -3,7 +3,7 @@
 An AI-driven education platform where students upload question papers, AI analyzes them, generates mock tests automatically, and provides detailed performance analytics.
 
 **Production URL:** https://www.fouri.in  
-**Last Updated:** 2026-05-31
+**Last Updated:** 2026-06-02 (Phase 32)
 
 ---
 
@@ -11,13 +11,16 @@ An AI-driven education platform where students upload question papers, AI analyz
 
 | Dimension | Status |
 |-----------|--------|
-| Frontend | Next.js 16 (App Router, Turbopack), TypeScript, Tailwind CSS v4, Framer Motion |
+| Frontend | Next.js 16 (App Router, Turbopack), TypeScript, Tailwind CSS v4, Framer Motion, TanStack Query, Three.js, GSAP |
 | Backend | Node.js, Express, TypeScript, JWT, Helmet, express-rate-limit, Zod |
-| Database | PostgreSQL (Neon via Prisma ORM) — pooled, indexed |
+| Database | PostgreSQL (Neon via Prisma ORM) — 17 models, pooled, indexed |
 | Auth | Firebase Authentication (Google + Email/Password) + Firebase Admin SDK |
-| AI | OpenRouter (OpenAI-compatible, GPT-4o-mini), Google Vision OCR |
-| Storage | Cloudinary (images auto, PDFs raw) |
-| SMTP | Hostinger (smtp.hostinger.com:465, SSL/TLS) — contact form |
+| AI | OpenRouter (OpenAI-compatible, GPT-4o-mini, 65K tokens), Tesseract.js OCR |
+| AI Email Gen | GPT-4o-mini — generates branded, responsive HTML emails with CTA buttons |
+| Storage | Telegram Bot API (channels as file backend) |
+| Email (SMTP) | Hostinger (smtp.hostinger.com:465, SSL/TLS) — broadcast + contact form |
+| Email Templates | DB-backed templates with branding images, per-user variable personalization |
+| Media Library | File proxy with DB-based MIME resolution, paginated, TanStack Query caching |
 | Deployment | Vercel (FE) / Railway (BE) / Neon (DB) |
 | CI/CD | GitHub Actions (4 workflows) |
 | Error Tracking | Sentry (configured, DSN placeholder) |
@@ -38,8 +41,6 @@ fouri-ai-mocktest/
 │   │   │   ├── (test)/          # Test attempt interface
 │   │   │   ├── fouri-root-console/  # Hidden owner admin panel
 │   │   │   ├── admin/           # Student admin (legacy)
-│   │   │   ├── blog/            # Blog listing + detail pages
-│   │   │   ├── blog/[slug]/     # Blog detail by slug
 │   │   │   ├── about/           # About Us page
 │   │   │   ├── contact/         # Contact form with Google Map
 │   │   │   ├── privacy/         # Privacy Policy page
@@ -50,7 +51,9 @@ fouri-ai-mocktest/
 │   │   │   ├── robots.ts        # Dynamic robots.txt
 │   │   │   └── loading.tsx      # Root loading loader
 │   │   ├── components/
-│   │   │   ├── landing/         # Navbar, Hero, Features, Stats, Testimonials, FAQ, Footer
+│   │   │   ├── landing/         # Navbar, Hero (LightPillar + CardSwap), HowItWorks (GlassSurface),
+│   │   │   │                   # FeaturesSection, StudentBenefits, AIDashboardShowcase, AboutSection,
+│   │   │   │                   # Testimonials, FreeAccess, FinalCTA, FAQSection, Footer
 │   │   │   ├── ui/              # Button, Input, Card, Modal
 │   │   │   ├── test/            # QuestionCard, QuestionPalette, Timer
 │   │   │   ├── results/         # ScoreCard, AnswerReview, ExplanationPanel
@@ -67,12 +70,18 @@ fouri-ai-mocktest/
 │   │   ├── config/env.ts        # Centralized env config (all vars)
 │   │   ├── middleware/          # auth, adminAuth, ownerAuth, rateLimiter, validate (Zod)
 │   │   ├── routes/              # auth, upload, analyze, tests, attempts, results,
-│   │   │                       # search, admin, owner, ads, blogs, contact
-│   │   ├── services/            # firebaseAdmin, cloudinary, ocr, openai, email, sentry
-│   │   └── lib/prisma.ts        # Prisma client (pooled, logged)
-│   ├── prisma/schema.prisma     # 13 models: User, Upload, MockTest, Question,
-│   │                           # TestAttempt, Answer, Explanation, AnalyticsEvent,
-│   │                           # Ad, Blog, ContactMessage
+│   │   │                       # search, admin, owner, ads, contact,
+│   │   │                       # email (broadcast + templates), files (proxy),
+│   │   │                       # media (library)
+│   │   ├── services/            # firebaseAdmin, telegramStorage, ocr, openai,
+│   │   │                       # email (SMTP broadcast + branding), sentry
+│   │   ├── lib/                 # prisma (pooled), evaluationQueue (serialized AI),
+│   │   │                       # emailVariables (resolve per-user vars)
+│   │   └── config/env.ts        # Centralized env config (all vars)
+│   ├── prisma/schema.prisma     # 17 models: User, Upload, MockTest, Question,
+│   │                           # TestAttempt, Answer, Explanation, SuspiciousActivity,
+│   │                           # AnalyticsEvent, Ad, ContactMessage,
+│   │                           # MediaFile, EmailTemplate, EmailCampaign
 │   ├── Dockerfile               # Multi-stage build
 │   └── package.json
 │
@@ -88,16 +97,19 @@ fouri-ai-mocktest/
 | Model | Key Fields | Purpose |
 |-------|-----------|---------|
 | **User** | firebaseUid, email, name, role | Auth + profile |
-| **Upload** | userId, filename, cloudinaryUrl, status | Uploaded question papers |
-| **MockTest** | title, subject, duration, totalQuestions | Generated test |
-| **Question** | mockTestId, questionText, options[], correctAnswer | Test questions |
+| **Upload** | userId, filename, telegramFileId, status, failureReason | Uploaded question papers (Telegram storage) |
+| **MockTest** | title, subject, duration, totalQuestions, status | Generated test |
+| **Question** | mockTestId, questionText, options[], correctAnswer, type (MCQ/SUBJECTIVE) | Test questions |
 | **TestAttempt** | userId, mockTestId, score, accuracy, status | User's attempt |
-| **Answer** | testAttemptId, questionId, selectedOption | Individual answer |
+| **Answer** | testAttemptId, questionId, selectedOption, isCorrect | Individual answer |
 | **Explanation** | questionId, shortExplanation, detailedExplanation | AI explanations |
+| **SuspiciousActivity** | attemptId, userId, activityType, metadata | Tab switch / blur logging |
 | **AnalyticsEvent** | eventType, userId, metadata | Usage tracking |
 | **Ad** | title, description, imageUrl, ctaText, ctaLink, active, clicks, impressions | Owner-created advertisements |
-| **Blog** | title, slug, content, excerpt, imageUrl, author, published | Blog posts |
 | **ContactMessage** | name, email, subject, message | Contact form submissions |
+| **MediaFile** | originalName, mimeType, fileSize, fileId, category | Uploaded images (Telegram storage) |
+| **EmailTemplate** | name, subject, body, logoUrl, headerImage, footerLogo, copyright | Branded email templates |
+| **EmailCampaign** | subject, body, recipientType, recipientCount, status, deliveredCount, failedCount | Broadcast history |
 
 ### Indexes
 - `Upload.createdAt` — for upload listing/sorting
@@ -105,6 +117,7 @@ fouri-ai-mocktest/
 - `MockTest.status`, `MockTest.createdAt` — for published test queries
 - `TestAttempt.startedAt` — for attempt timeline queries
 - `TestAttempt.userId`, `TestAttempt.status` — for user attempt filtering
+- `MediaFile.category`, `MediaFile.createdAt` — for media library listing/filtering
 
 ---
 
@@ -115,8 +128,6 @@ fouri-ai-mocktest/
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/health` | Health check |
-| GET | `/api/blogs` | List published blogs |
-| GET | `/api/blogs/:slug` | Get single blog by slug |
 | GET | `/api/ads/active` | List active ads |
 | POST | `/api/ads/:id/click` | Track ad click |
 | POST | `/api/ads/:id/impression` | Track ad impression |
@@ -139,7 +150,9 @@ fouri-ai-mocktest/
 | DELETE | `/api/tests/:id` | Delete own test (cascade) |
 | POST | `/api/attempts` | Start a test attempt |
 | PUT | `/api/attempts/:id/save` | Save answers during test |
-| POST | `/api/attempts/:id/submit` | Submit completed test |
+| POST | `/api/attempts/:id/submit` | Submit completed test (subjective scoring with semantic matching) |
+| POST | `/api/attempts/:id/re-evaluate` | Re-evaluate subjective answers for existing attempts |
+| POST | `/api/attempts/:id/suspicious-activity` | Log tab switch / blur events |
 | GET | `/api/attempts/:id` | Get attempt with answers |
 | GET | `/api/search` | Full-text search across all published tests |
 | GET | `/api/search/trending` | Top 10 tests by attempt count |
@@ -161,14 +174,26 @@ fouri-ai-mocktest/
 | DELETE | `/api/owner/uploads/:id` | Delete any upload (owner) |
 | POST | `/api/owner/uploads/bulk-delete` | Bulk delete uploads by status array |
 | GET | `/api/owner/uploads/:id/download` | Download file (proxied from Cloudinary with attachment headers) |
-| POST | `/api/blogs` | Create blog |
-| PUT | `/api/blogs/:id` | Update blog |
-| DELETE | `/api/blogs/:id` | Delete blog |
 | GET | `/api/ads` | List all ads (admin view) |
 | POST | `/api/ads` | Create ad |
 | PUT | `/api/ads/:id` | Update ad |
 | DELETE | `/api/ads/:id` | Delete ad |
-| POST | `/api/owner/seed-blogs` | Seed 2 sample blog posts |
+| GET | `/api/owner/email/templates` | List email templates |
+| POST | `/api/owner/email/templates` | Create email template |
+| GET | `/api/owner/email/templates/:id` | Get single template |
+| PUT | `/api/owner/email/templates/:id` | Update template |
+| DELETE | `/api/owner/email/templates/:id` | Delete template |
+| POST | `/api/owner/email/templates/:id/duplicate` | Duplicate template |
+| POST | `/api/owner/email/upload-image` | Upload branding image (multer) |
+| POST | `/api/owner/email/generate-ai` | AI generate email subject + body |
+| POST | `/api/owner/email/send` | Send broadcast (resolves {{vars}} per user) |
+| POST | `/api/owner/email/preview` | Preview rendered email for a user |
+| GET | `/api/owner/email/history` | Campaign history |
+| DELETE | `/api/owner/email/history/:id` | Delete campaign |
+| GET | `/api/owner/media` | List media files (paginated, filterable) |
+| POST | `/api/owner/media/upload` | Upload image (multer) |
+| DELETE | `/api/owner/media/:id` | Delete media file |
+| GET | `/api/files/:fileId` | File proxy — fetches from Telegram CDN, serves with correct MIME type |
 
 ### Admin (Firebase Admin Role)
 
@@ -185,6 +210,8 @@ fouri-ai-mocktest/
 
 ## Development
 
+The dev scripts auto-kill stale processes on ports 3000/4000 before starting via `predev` (`npx kill-port`).
+
 ```bash
 # Terminal 1 — Backend (http://localhost:4000)
 cd backend
@@ -195,6 +222,15 @@ cd frontend
 npm run dev
 ```
 
+If you still get port-in-use errors, manually kill with:
+```bash
+# Windows
+taskkill /F /PID <PID>
+# Or find the PID:
+netstat -ano | findstr :3000
+netstat -ano | findstr :4000
+```
+
 ### Environment Variables
 
 Both repos require a `.env` file. See `.env.example` for full reference.
@@ -202,7 +238,7 @@ Both repos require a `.env` file. See `.env.example` for full reference.
 **Backend critical vars:**
 - `DATABASE_URL` — Neon PostgreSQL pooled connection string
 - `FIREBASE_PROJECT_ID` / `FIREBASE_PRIVATE_KEY` / `FIREBASE_CLIENT_EMAIL`
-- `CLOUDINARY_CLOUD_NAME` / `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET`
+- `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHANNEL_ID` — Telegram Bot API for file storage
 - `OPENAI_API_KEY` — OpenRouter API key (OpenAI-compatible)
 - `JWT_SECRET` — Owner JWT signing secret
 - `OWNER_EMAIL` / `OWNER_PASSWORD` — Owner console credentials
@@ -221,15 +257,6 @@ Premium black theme (`#08080f`), electric blue accents, glassmorphism, 6-slide a
 ### Phase 14: Owner Console & Ad System ✅
 Hidden `/fouri-root-console` admin panel, JWT owner auth, user CSV export, upload intelligence, Recharts analytics, ad CRUD manager, impression/click tracking.
 
-### Phase 15: Blog System ✅
-- `backend/prisma/schema.prisma` — Blog model with title, slug (unique), content, excerpt, imageUrl, author, published
-- `backend/src/routes/blogs.ts` — CRUD + public listing by slug
-- `frontend/src/app/blog/page.tsx` — Blog listing page (grid cards)
-- `frontend/src/app/blog/[slug]/page.tsx` — Blog detail with markdown rendering
-- `frontend/src/app/fouri-root-console/blogs/page.tsx` — Blog manager in admin panel
-- Seed script (`backend/prisma/seed.ts`) — 2 sample blog posts
-- Footer blog link added
-
 ### Phase 16: Contact, Legal Pages & SMTP ✅
 - `frontend/src/app/contact/page.tsx` — Contact form with Google Map embed
 - `frontend/src/app/about/page.tsx` — About Us page
@@ -237,7 +264,7 @@ Hidden `/fouri-root-console` admin panel, JWT owner auth, user CSV export, uploa
 - `frontend/src/app/terms/page.tsx` — Terms of Service page
 - `backend/src/routes/contact.ts` — POST endpoint with rate limiter (5/hr)
 - `backend/src/services/email.ts` — SMTP email service via Hostinger (nodemailer, SSL/TLS 465)
-- Footer links: About, Privacy, Terms, Contact, Blog
+- Footer links: About, Privacy, Terms, Contact
 
 ### Phase 17: Security Hardening ✅
 | Fix | Detail |
@@ -248,7 +275,7 @@ Hidden `/fouri-root-console` admin panel, JWT owner auth, user CSV export, uploa
 | CSP headers | Frontend (next.config.ts) + Backend (helmet) — `unsafe-eval` in dev only |
 | Rate limiting | All route groups: global (200/15min), auth (20/15min), upload (30/hr), analyze POST (15/hr), analyze GET status (100/15min), owner (50/15min), contact (5/hr) |
 | Body limit | Reduced from 50MB to 10MB |
-| Zod validation | Contact, ads, blogs, owner login — all validated server-side |
+| Zod validation | Contact, ads, owner login — all validated server-side |
 | `next/image` | 11 `<img>` tags migrated to `next/image` |
 | Dynamic imports | 9 landing components lazy-loaded via `next/dynamic` |
 | Error pages | `error.tsx` (error boundary) + `not-found.tsx` (404) created |
@@ -279,28 +306,15 @@ Hidden `/fouri-root-console` admin panel, JWT owner auth, user CSV export, uploa
 
 ### Phase 20: SEO & Analytics Foundation ✅
 - Google Search Console site verification moved to `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` env var (no more placeholder)
-- Sitemap expanded — added `/about`, `/privacy`, `/terms`, `/contact`, `/blog`, and dynamic blog post URLs fetched from backend
-- Blog pages converted from `"use client"` to **server components** with dynamic `generateMetadata()` for proper SEO metadata per post
-- `Article` JSON-LD schema added to blog detail pages
+- Sitemap expanded — added `/about`, `/privacy`, `/terms`, `/contact`
 - `Organization` JSON-LD schema added to Contact page
 - Contact page — metadata export added
 - Discover page — metadata export added
 - Firebase Analytics activated — `measurementId` added to Firebase config, `<Analytics />` component logs `page_view` events client-side
 - Sentry error tracking — code in place, ready for `SENTRY_DSN` in production env vars
-- `frontend/src/app/blog/blog-list.tsx` — client component for blog listing UI
-- `frontend/src/app/blog/[slug]/blog-detail.tsx` — client component for blog detail UI
 - `frontend/src/app/contact/contact-form.tsx` — client component for contact form UI
 - `frontend/src/app/(dashboard)/discover/discover-client.tsx` — client component for discover UI
 - `frontend/src/components/Analytics.tsx` — Firebase Analytics initialization component
-
-### Phase 21: Blog Admin Rate Limit Fix ✅
-- **Root cause:** Admin blog CRUD routes shared `standardLimiter` (100 req/15min) with public blog, tests, search — each mutation also triggered redundant `fetchBlogs()`, quickly exhausting the budget
-- **Fix:** Moved admin blog routes from `/api/blogs` to `/api/owner/blogs` — properly scoped under owner-auth middleware
-- Created dedicated `blogAdminLimiter` (200 req/15min) for admin blog operations in `rateLimiter.ts`
-- Updated frontend API calls in `fouri-root-console/blogs/page.tsx` from `/blogs/...` to `/owner/blogs/...`
-- `backend/src/routes/blogs.ts` — now only contains public routes (GET published blogs, GET by slug)
-- `backend/src/routes/owner.ts` — added 4 admin blog routes: GET `/blogs`, POST `/blogs`, PUT `/blogs/:id`, DELETE `/blogs/:id`
-- `backend/src/middleware/rateLimiter.ts` — added `blogAdminLimiter` export
 
 ### Phase 22: AI Analysis Error Handling & User-Friendly Messages ✅
 - **Root cause:** AI returned `type`/`difficulty` with inconsistent casing (e.g., `"mcq"`, `"Multiple Choice"`, `"easy"`, `"Hard"`) which failed Prisma enum validation (`MCQ`/`SUBJECTIVE`, `EASY`/`MEDIUM`/`HARD`), crashing the entire analysis pipeline
@@ -315,21 +329,119 @@ Hidden `/fouri-root-console` admin panel, JWT owner auth, user CSV export, uploa
 - `backend/prisma/migrations/` — migration `add_failure_reason` added
 - `frontend/src/components/ProcessingStatus.tsx` — displays `failureReason` with clear two-line error layout
 
+### Phase 23: Telegram Storage, AI Extraction Improvements & Tab Switch Detection ✅
+| Feature | Detail |
+|---------|--------|
+| Telegram file storage | Replaced Cloudinary with Telegram Bot API — uploads stored in Telegram channel (`TELEGRAM_CHANNEL_ID`) |
+| Tesseract.js OCR | Replaced Google Cloud Vision (no billing required) — supports eng/hin/ben |
+| AI extraction max_tokens | Increased from 4096 → 16384 → 65536 to extract ALL questions from large papers |
+| JSON parse fallback | Regex-based recovery for truncated AI responses (chunked JSON extraction) |
+| Custom test duration | **Start Test** (30min default) + **Edit Time** button → custom input → starts immediately |
+| 7-day login persistence | `browserLocalPersistence` + localStorage timestamp check auto-logs out after 7 days |
+| Subjective answer evaluation | Semantic matching (normalized text, punctuation stripping, word overlap ≥60%, contains check) |
+| Subjective results display | Shows "Your answer" + evaluation result (✓ Correct / ✗ Correct answer / Pending review) |
+| Re-evaluate endpoint | `POST /attempts/:id/re-evaluate` — recalculates subjective scores for incorrectly scored attempts |
+| SuspiciousActivity model | Logs `TAB_SWITCH`, `WINDOW_BLUR` events with metadata to database |
+| Tab switch + blur detection | `visibilitychange` + `window.blur` listeners; auto-submits after 2 switches |
+| Suspicious activity logging | `POST /attempts/:id/suspicious-activity` endpoint with 2s throttle |
+| Admin file download | Download button for every upload (removed `cloudinaryUrl` gating) |
+| QuestionCard formatting | Wrapped text, items-start alignment, better option spacing |
+| Port conflict fix | Added `predev` script (`npx kill-port`) to auto-kill stale processes before `npm run dev` |
+
+### Phase 24: Upload 500 Fix & Edit Time Enhancement ✅
+| Fix | Detail |
+|-----|--------|
+| Upload 500 error | Removed default `Content-Type: application/json` from Axios instance (`api.ts`) to prevent multipart boundary stripping |
+| Upload 500 error | Removed explicit `Content-Type: multipart/form-data` header from `FileUpload.tsx` — let Axios auto-detect FormData with proper boundary |
+| Telegram middleware | Added early validation in `telegramStorage.ts` — throws clear error if `TELEGRAM_BOT_TOKEN` or `TELEGRAM_CHANNEL_ID` is empty when `uploadToTelegram()` is called |
+| Edit Time UI rewrite | Replaced raw `<button>` with `Button` component for consistent styling |
+| Edit Time enhancement | Shows duration on default button: **"Start Test (30 minutes)"** |
+| Edit Time enhancement | Added **Cancel** button and Escape key support in edit mode |
+| Edit Time robustness | Added `parseMinutes()` with safe `parseInt` + NaN guard — falls back to 30 minutes on invalid input |
+
+### Phase 25: Per-Question Subjective AI Evaluation ✅
+| Feature | Detail |
+|---------|--------|
+| Per-question AI evaluation | `evaluateSubjectiveWithAI()` prompts GPT-4o-mini per question — generates model answer, evaluates correctness (true/false/null), returns feedback |
+| Evaluation endpoint | `POST /attempts/:id/evaluate-subjective-ai` accepts `{ questionId }`, updates `Answer.isCorrect`, creates/upserts `Explanation` with AI feedback |
+| Results page UI | Per-question auto-evaluation queue with loading spinner, assessment badge, AI model answer, AI feedback, error state with retry |
+| 429 retry + backoff | `callWithRetry()` in `openai.ts` — 3× with 2s/4s/8s backoff on rate-limit errors |
+| Global evaluation queue | `evaluationQueue.ts` — in-memory FIFO queue serializing all AI evaluations globally to prevent OpenAI rate limit bursts |
+| Auto-save refactor | `useAutoSave.ts` — answers/markedIds moved to refs, debounced save (3s after last change), no request bursts on rapid changes |
+| Rapid-answer detection | Warning banner when >10 answer changes in 10s window |
+| Submit 429 protection | Concurrent-submission lock (`submittingAttempts` Set), `withRetry` on DB ops, background AI evaluation fire-and-forget, 5s cooldown |
+
+### Phase 26: Email Broadcast & Templates ✅
+| Feature | Detail |
+|---------|--------|
+| EmailTemplate model | name, subject, body, logoUrl, headerImage, footerLogo, copyright — stored in PostgreSQL |
+| EmailCampaign model | subject, body, recipientType, recipientCount, status, delivered/failed counts, sentAt |
+| Broadcast endpoint | `POST /owner/email/send` — sends to ALL/FREE/PREMIUM/ACTIVE/INACTIVE/SELECTED/CUSTOM recipients |
+| Template CRUD | 7 endpoints: list, get, create, update, delete, duplicate + upload branding image |
+| AI email generator | `generateEmailContent()` — prompts GPT-4o-mini with tone selection, returns HTML subject + body + CTA text |
+| File proxy | `GET /api/files/:fileId` — fetches from Telegram CDN, serves with real Content-Type (no redirect) |
+| MediaFile model | Stores uploaded images with mimeType, fileId, category — used by both email templates and media library |
+| Dynamic image URLs | All upload endpoints return `{ url: "/api/files/<fileId>" }` — constructed with `req.protocol://req.get("host")` |
+| SMTP startup check | `verifySmtpConnection()` called on backend startup — logs success/failure |
+| Trust proxy | `app.set("trust proxy", 1)` — ensures Railway reverse-proxy headers are trusted for URL generation |
+
+### Phase 27: Email Personalization ✅
+| Feature | Detail |
+|---------|--------|
+| Variable system | `resolveVariables()`, `userToVariableData()`, `AVAILABLE_VARIABLES` — 8 user fields |
+| Per-user resolution | `/send` endpoint loads user by email, resolves {{vars}} per recipient before sending |
+| Preview endpoint | `POST /owner/email/preview` — renders subject + body with specified user's variables |
+| Variable picker UI | Dropdown in email-templates and email-broadcast pages — inserts `{{variable}}` at cursor position |
+| Preview As User | User search dropdown + "Render Preview" button in broadcast page |
+| `{{appUrl}}` variable | Auto-resolved — `https://fouri.in` (prod) or `http://localhost:3000` (dev) |
+| `{{name}}` alias | `name` → `fullName` resolver — supports `{{name}}` and `{{fullName}}` interchangeably |
+| CTA button fix | AI prompt generates `href="{{appUrl}}"` instead of hardcoded `#` |
+| Per-user array send | `sendBroadcastEmail()` accepts `{ emails: Array<{ to, subject, html }> }` for personalized content |
+| Debug logging | Each send logs recipient resolution count, found users, per-recipient outcome, error messages |
+
+### Phase 28: Media Library Overhaul ✅
+| Feature | Detail |
+|---------|--------|
+| MIME type fix | File proxy queries `MediaFile` table for stored `mimeType` — overrides Telegram CDN's `application/octet-stream` |
+| MIME priority | DB record → Telegram CDN headers → URL extension inference → fallback `image/png` |
+| Pagination | `GET /owner/media?page=1&limit=26` — server-side skip/take, returns total/page/totalPages |
+| TanStack Query | `useQuery` caching with 5min staleTime, 30min gcTime — `useMutation` auto-invalidates on upload/delete |
+| Loading skeletons | 10 pulsing skeleton cards matching grid dimensions during isLoading |
+| Image fallback | `onError` hides broken `<img>` and injects SVG placeholder via DOM with `data-fallback` guard |
+| Click-to-preview | Full-screen overlay with image at natural size, close on Escape/backdrop click |
+| Search by filename | Client-side `originalName.includes(query)` filter |
+| Category filter | Backend `?category=` filter + frontend dropdown |
+| Image count | Shows "N images" — updates with search results |
+
+### Phase 29: AI Email Formatting & UX ✅
+| Feature | Detail |
+|---------|--------|
+| Professional HTML prompt | `generateEmailContent` prompt rewritten — exact inline CSS for h1 (24px bold), h2 (18px), p (16px/1.6), lists, buttons |
+| Table-based CTA button | `<table role="presentation">` layout for email-client-safe buttons with background-color, border-radius, padding |
+| Email document wrapper | `wrapWithBranding()` outputs full `<!DOCTYPE html>` + `<html>` + `<head>` + `<body>` with tables layout |
+| Email client compatibility | Explicit `color`, `margin`, `padding` on every element — works in Gmail, Outlook, Yahoo, Apple Mail, mobile |
+| Responsive centering | `max-width: 560px` + `margin: 0 auto` + `<!--[if mso]>` conditional for Outlook |
+| Image URL rewriting | Branding image URLs rewritten to current server's base URL at send time (fixes localhost links in production) |
+| max_tokens increase | 2000 → 4000 for verbose formatted HTML output |
+| Viewport meta | `<meta name="viewport" content="width=device-width">` for mobile email rendering |
+
 ### What Is Working Now
 - User registration/login email/password + Google OAuth
-- Drag-and-drop file upload to Cloudinary (PDFs as raw)
-- Google Vision OCR — image and PDF text extraction (verified)
-- AI analysis via OpenRouter — question parsing, MCQ generation, explanations
-- Full-screen mock test with countdown timer, auto-submit, tab-switch detection
+- Drag-and-drop file upload to Telegram Bot API (channels as storage backend)
+- Tesseract.js OCR — image and PDF text extraction (eng/hin/ben, no billing required)
+- AI analysis via OpenRouter (GPT-4o-mini, 65K tokens) — question parsing, MCQ + subjective generation
+- Full-screen mock test with customizable countdown timer, auto-submit, tab-switch detection + logging
+- Custom test duration — **Start Test (30 minutes)** default + **Edit Time** button opens input with Cancel/Start, starts immediately
 - Auto-save (localStorage + server every 30s), keyboard navigation
-- Score calculation, accuracy, answer review (green/red indicators)
+- Score calculation with semantic subjective answer evaluation (word overlap, contains check)
+- Subjective answer review: shows "Your answer" + "Correct answer" + evaluation result per question
+- Re-evaluate endpoint (`POST /attempts/:id/re-evaluate`) to fix incorrectly scored attempts
+- Suspicious activity tracking: tab switches and window blur events logged to DB
 - Student dashboard, discover/search with filters
 - Owner console: 8 stat cards, user manager with CSV export, upload intelligence, Recharts analytics (5 charts, daily/weekly/monthly toggles), ad manager (CRUD, CTR, impression/click), bulk delete uploads, file download
-- Blog system: CRUD in owner panel, public listing + detail pages
 - Contact form: SMTP email delivery via Hostinger
 - Legal pages: About, Privacy, Terms
-- SEO: dynamic robots.txt, canonical URLs, sitemap (with dynamic blog URLs), JSON-LD (WebApplication, Course, Article, Organization), OpenGraph, exam landing pages
-- Blog SEO: server-side rendering with dynamic metadata and Article JSON-LD per post
+- SEO: dynamic robots.txt, canonical URLs, sitemap, JSON-LD (WebApplication, Course, Organization), OpenGraph, exam landing pages
 - Firebase Analytics: page_view event tracking via Firebase Analytics SDK
 - Google Search Console: env-var based verification code
 - Sentry error tracking: configured with env var DSN (backend)
@@ -337,21 +449,30 @@ Hidden `/fouri-root-console` admin panel, JWT owner auth, user CSV export, uploa
 - Responsive design (mobile/tablet/desktop)
 - Subjective questions with `<textarea>` support
 - Delete mock tests (cascade)
-- Landing page: 12 dark-themed components, 6-slide hero carousel
+- Landing page: 13 dark-themed components, Three.js LightPillar shader background, CardSwap animated cards, GlassSurface chromatic glass cards, premium AI-first redesign
 - Local landing images (no external deps)
 - Ad system: impression deduplication per session
-- Footer: links to About, Privacy, Terms, Contact, Blog
+- Footer: links to About, Privacy, Terms, Contact
 - Any student can attempt any published test from any creator
-- Blog admin: dedicated rate limiter (200/15min) under `/api/owner/blogs` — no more "Too many requests" errors
-- AI analysis error handling: AI type/difficulty values are normalized to match Prisma enums — no more crashes from casing mismatches
-- Failure reason tracking: when analysis fails, a detailed `failureReason` is stored and displayed — users see actual error context (OCR billing, AI unavailable, etc.) instead of a generic message
-- Enhanced server-side logging: structured `[Analyze]` logs with error message, HTTP status, and stack trace for debugging
+- AI analysis error handling: enum normalization + `failureReason` tracking
+- Auto-kill stale ports via `predev` script before `npm run dev`
+- Upload fix — removed default `Content-Type: application/json` from Axios instance preventing multipart boundary stripping
+- Upload fix — Telegram env var validation in `telegramStorage.ts` for clear error on missing config
+- Enhanced Edit Time UI — uses `Button` component, shows duration on default button, Cancel + Escape support, safe NaN-guarded parsing
+- AdSense integration — ad script in `<head>`, `AdSlot` component with CLS prevention, dashboard ads, in-content ads on tests/results/discover pages
+- Resume Tests page — dedicated `/resume-tests` route with search, sort, pagination, progress bars, delete
+- Telegram CDN URL caching — `uploadToTelegram()` returns `cdnUrl` stored in DB; file proxy uses cached URL (no `getFile` API call per request)
+- Blog multi-category support — admin posts can be tagged with multiple categories via searchable MultiSelect; public listing shows all category badges per card
+- Custom scheduled date-time picker — 12-hour AM/PM selector with 5-minute step intervals replacing native datetime-local
+- Hero section card images — landscape hero images with stacked card layout (image banner + content below), 420×400 card height
+- Dropdown arrow styling — all native `<select>` elements across the app use custom `ChevronDown` icon with `appearance-none` for consistent cross-browser alignment
+- Mobile responsive admin pages — Uploads and Blog admin pages use stacked `flex-col` on mobile; Tests page cards stack vertically on small screens
 
 ### What Is Not Finished
-- Google AdSense real integration — replace `ca-pub-xxxxxxxxxxxxxxxx` with real publisher ID in `AdSlot.tsx`, load AdSense script, and place `<AdSlot>` components on pages
+- Google AdSense real integration — replace `ca-pub-xxxxxxxxxxxxxxxx` with real publisher ID in `AdSlot.tsx`
 - Firebase GCIP upgrade — removes per-IP rate limits for production traffic
 - Google Maps API key — embedded map uses placeholder key, needs real key for production
-- `loading.tsx` for about, privacy, terms, blog detail routes
+- Re-running AI analysis on existing tests to populate `correctAnswer` for subjective questions
 
 ---
 
@@ -389,7 +510,7 @@ Hidden `/fouri-root-console` admin panel, JWT owner auth, user CSV export, uploa
 | Sitemap | ✅ | Auto-generated by Next.js |
 | Canonical URLs | ✅ | `alternates.canonical` in root layout |
 | OpenGraph | ✅ | Dynamic metadata per page |
-| JSON-LD | ✅ | Structured data on landing + blog pages |
+| JSON-LD | ✅ | Structured data on landing pages |
 | Meta Tags | ✅ | title, description per route |
 | Alt Text | ✅ | All `next/image` components have alt props |
 
@@ -465,6 +586,16 @@ Hidden `/fouri-root-console` admin panel, JWT owner auth, user CSV export, uploa
 | AI hallucinating options | Prompt instructed AI to "fix typos and generate options" | Rewrote prompt to extract exactly as written |
 | AI extracting wrong question count | `max_tokens: 4096` too small for large papers | Increased to `max_tokens: 16384` |
 | Wrong subject detection | Used first detected question's subject | Changed to majority vote across all questions |
+| Port in use (EADDRINUSE) | Previous `npm run dev` left stale process on port | Added `predev` script with `npx kill-port` — auto-clears ports before `npm run dev` |
+| Subjective answers all marked incorrect | Old scoring used strict `===` comparison with empty `correctAnswer` | New `evaluateSubjective()` normalizes text, strips punctuation, checks word overlap; re-evaluate existing attempts via `POST /attempts/:id/re-evaluate` |
+| `.next` cache corruption | Deleting `.next` while dev server is running leaves stale references | Always stop dev server first via `taskkill` or Ctrl+C, then `rm -rf .next` |
+| Email broadcast fails silently | Error caught in broadcast loop but not propagated to frontend | Return real error messages from catch block in `/send` endpoint |
+| SELECTED recipients bug | Route queried by `firebaseUid` but frontend sends UUIDs | Changed to `id: { in: userIds }` |
+| Blank email body in clients | `wrapWithBranding` didn't output full HTML document | Rewrote to output `<!DOCTYPE html>` with tables layout, explicit colors, `<!--[if mso]>` conditionals |
+| Media images not displaying | File proxy sent `Content-Type: application/octet-stream` from Telegram CDN | File proxy now queries `MediaFile` DB record for stored `mimeType` first |
+| Image CSP violation in email templates | `img-src` didn't allow blob URLs and backend origin | Pre-fetch via `fetch()` (uses `connect-src`), display as `blob:` URL; CSP updated for localhost:4000 |
+| Branding image URLs stale in production | Stored absolute URLs pointed to localhost | Rewrite branding image URLs to current server base URL at send-time |
+| AI email HTML too short/plain | 2000 max_tokens insufficient for formatted output | Increased to 4000 tokens; prompt rewritten for structured HTML |
 
 ---
 
@@ -512,9 +643,6 @@ Premium black theme, glassmorphism, 6-slide animated hero carousel with Framer M
 ### Phase 14 — Owner Console & Ad System
 Hidden admin panel with JWT auth, user CSV export, upload intelligence, Recharts analytics (5 chart types), ad CRUD with impression/click tracking.
 
-### Phase 15 — Blog System
-Blog model with slug-based routing, CRUD in owner panel, public listing + detail pages, seed data (2 blogs), markdown content, footer link.
-
 ### Phase 16 — Contact, Legal Pages & SMTP
 Contact form with Google Map, About/Privacy/Terms pages, SMTP email via Hostinger (nodemailer, SSL/TLS 465).
 
@@ -530,6 +658,69 @@ Any authenticated student can view/attempt any published test. Ownership check r
 ### Phase 20 — AI Analysis Error Handling & User-Friendly Messages
 AI enum value normalization (type/difficulty), `failureReason` tracking on Upload model, human-readable error messages in frontend, structured server-side logging for debugging analysis failures.
 
+### Phase 21 — Telegram File Storage
+Migrated from Cloudinary to Telegram Bot API for file storage (unlimited bandwidth, no API costs), `uploadToTelegram()` / `getTelegramFileUrl()`, all upload endpoints migrated.
+
+### Phase 22 — Subjective Answer Enhancement
+New `evaluateSubjective()` with text normalization (lowercase, punctuation stripped), word overlap scoring, per-question re-evaluation endpoint.
+
+### Phase 23 — Railway + Neon Hardening
+`withRetry()` wraps all DB calls, handles `E57P01` (Neon pause/resume), Prisma pgbouncer mode + connection limit 3 for pooled Neon connections, 3315 error handling for pool disconnects.
+
+### Phase 24 — Upload 500 Fix & Edit Time Enhancement
+Axios multipart boundary fix, Telegram validation, Edit Time button with duration display, Cancel + Escape in edit mode.
+
+### Phase 25 — Per-Question Subjective AI Evaluation
+Per-question GPT-4o-mini evaluation with auto queue, 429 retry + backoff, global serialized evaluation queue, auto-save refactored with refs + debounce, rapid-answer detection, submit 429 protection.
+
+### Phase 26 — Email Broadcast & Templates
+EmailTemplate/EmailCampaign/MediaFile models, broadcast endpoint, template CRUD, AI email generator, file proxy with correct MIME type, dynamic image URLs, SMTP startup check, trust proxy.
+
+### Phase 27 — Email Personalization
+Per-user variable resolution ({{firstName}}, {{name}}, {{email}}, {{appUrl}}), preview endpoint, variable picker UI, CTA button fix, per-user array send with delivery logging.
+
+### Phase 28 — Media Library Overhaul
+MIME type fix via DB lookup, server-side pagination, TanStack Query caching, loading skeletons, image fallback on error, click-to-preview modal, search by filename, category filter.
+
+### Phase 29 — AI Email Formatting & UX
+Professional HTML email prompt with inline CSS, table-based CTA buttons, full email document wrapper, image URL rewriting at send time, max_tokens 4000, mobile viewport meta.
+
+### Phase 30 — Responsive UI, AdSense & Resume Tests ✅
+- **Responsive UI fixes** — email broadcast row wraps on mobile, login eye icon uses `rightIcon` prop, results cards `flex-col sm:flex-row`
+- **Test UX improvements** — Tab switch warning "automatically submit", pause/resume restores `markedIds` from localStorage, test duration from DB (no hardcoded 30 min)
+- **AdSense integration** — Script in `<head>`, `AdSlot` component with `min-h` CLS prevention, dashboard header/sidebar/footer ads, in-content ads on key pages, `NEXT_PUBLIC_ADSENSE_CLIENT` env var
+- **Resume Tests page** — NEW dedicated `/resume-tests` route — search, sort by date, pagination (12/page), responsive card grid, progress bars, delete confirmation, empty state; backend `DELETE /attempts/:id`
+- **File proxy rewrite** — `uploadToTelegram()` now returns `{ fileId, cdnUrl }` cached in `MediaFile.cdnUrl` column; proxy reads cached CDN URL + DB mime type; removed transparent pixel fallback (returns `502` on error)
+
+### Phase 31 — Home Page AI-First Redesign ✅
+- **Blog Manager removed** — all 30+ blog references deleted from frontend, backend, README
+- **6 old landing components deleted** — FeatureBar, WhatFouriDoes, AIAnalysis, StatsSection, CTABanner, MockTestShowcase
+- **Unused deps removed** — `@appletosolutions/reactbits` and `gsap` uninstalled (GSAP later reinstated for CardSwap)
+- **Three.js LightPillar background** — `LightPillar.tsx` with GLSL shader-based procedural light column, auto-quality tiers (low/medium/high), WebGL context cleanup
+- **CardSwap animated cards** — `CardSwap.tsx` from React Bits with GSAP elastic swap animation, 3 glass cards (Questions Extracted, AI Analysis Accuracy, Mock Test Duration) with brand gradient accents
+- **GlassSurface chromatic cards** — `GlassSurface.tsx` with SVG displacement-map glass distortion, RGB channel offset chromatic aberration, graceful fallback to standard backdrop-filter
+- **13 landing components** — Navbar, HeroSection (LightPillar + CardSwap), HowItWorks (GlassSurface timeline), FeaturesSection (bento grid), StudentBenefits (counters), AIDashboardShowcase (3-panel mockup), AboutSection, Testimonials (auto-scroll carousel), FreeAccess, FinalCTA, FAQSection, Footer
+- **HowItWorks timeline** — Sequential scroll-triggered reveal with alternating left/right column layout, GlassSurface wrapped cards, vertical timeline line, responsive single-column on mobile
+- **Build verified** — 36 routes, 0 errors, 7.8s compile time
+
+### Phase 32 — Blog Categories, Multi-Category Support & Mobile Responsiveness ✅
+- **Multi-category blog support** — `BlogCategoryOnBlog` join table created, Prisma schema updated, backend `validate.ts` accepts `categoryIds[]` (required on create), blog create/update/list rewritten for many-to-many; public listing filters through `categories.some`; delete-category guard uses join table count
+- **Category management UI** — "+ Add Category" button on admin blog list linking to `/fouri-root-console/blog/categories`; category required validation (blocks save if empty, red error border + message, backend `.min(1)`); `MultiSelect.tsx` searchable multi-select dropdown replacing chip grid
+- **MultiSelect component** (`components/ui/MultiSelect.tsx`) — search filter, checkboxes, removable chips in trigger, click-outside close, error state — matches dark `#08080f` theme
+- **Date-time picker** — replaced native `datetime-local` with custom date input + hour select (01–12) + minute select (5-min steps) + AM/PM toggle switch; `buildScheduledIso()` helper for save/load
+- **Hero section card images** — `swapCards` reference `/assets/images/hero/hero-*.jpg`; card layout redesigned from horizontal to stacked (image banner top, content bottom); card height 420×400
+- **Blog caching** — module-level `Map` + `AbortController` in `BlogListingClient`; `ITEMS_PER_PAGE` set to 18
+- **Rate limiter** — `ownerLimiter` raised 50 → 200 req/15min to fix "Too many requests" on saves
+- **Stats endpoint** — wrapped in `withRetry({ retries: 3, delay: 2000 })` for Neon cold-start resilience
+- **Back button** — `ArrowLeft` added to categories management page navigating to `/fouri-root-console/blog`
+- **Console errors fixed** — nested `<button>` inside trigger `<button>` in MultiSelect replaced with `<span>`; hydration mismatch in GlassSurface CSS custom properties (cosmetic)
+- **Dropdown arrow alignment** — 12 native `<select>` elements across 4 pages (email-broadcast template + AI tone, media upload category + filter, blog status filter, public blog category filter, FilterPanel 4-way grid) wrapped in `relative` container with `appearance-none pr-10` and custom `ChevronDown` icon for consistent dark/light theme styling
+- **Mobile responsiveness — Uploads page** — upload row changed from `flex` to `flex-col sm:flex-row`, actions use `self-end sm:self-auto`, stats grid `grid-cols-2 sm:grid-cols-4`, filter row `flex-col sm:flex-row`
+- **Mobile responsiveness — Blog admin page** — header `flex-col sm:flex-row`, blog rows `flex-col sm:flex-row sm:items-center` with thumbnail+title grouped, pagination `flex-wrap`
+- **Mobile responsiveness — Tests page** — card layout `flex-col sm:flex-row sm:items-start`, actions `self-end sm:self-auto`, metadata uses `flex-wrap` only
+- **Blog back button** — `ArrowLeft` + `window.history.back()` added to public `/blog` listing page
+- **Build verified** — frontend TypeScript + Next.js build pass clean
+
 ---
 
 ## Important Files
@@ -537,7 +728,12 @@ AI enum value normalization (type/difficulty), `failureReason` tracking on Uploa
 | File | Purpose |
 |------|---------|
 | `frontend/next.config.ts` | CSP, HSTS, caching, image config, permissions policy |
-| `frontend/src/app/page.tsx` | Landing page (12 components, 9 dynamically imported) |
+| `frontend/src/app/page.tsx` | Landing page (13 components, 10 dynamically imported) |
+| `frontend/src/components/landing/LightPillar.tsx` | Three.js shader-based light column background |
+| `frontend/src/components/landing/HeroSection.tsx` | Hero with LightPillar background + CardSwap animated cards |
+| `frontend/src/components/landing/HowItWorks.tsx` | Timeline layout with GlassSurface wrapped step cards |
+| `frontend/src/components/ui/CardSwap.tsx` | React Bits CardSwap — GSAP elastic card swap animation |
+| `frontend/src/components/ui/GlassSurface.tsx` | React Bits GlassSurface — SVG chromatic glass distortion |
 | `frontend/src/app/layout.tsx` | Root layout with metadata, JSON-LD, canonical, fonts |
 | `frontend/src/app/error.tsx` | Error boundary with reset button |
 | `frontend/src/app/not-found.tsx` | 404 page |
@@ -545,24 +741,48 @@ AI enum value normalization (type/difficulty), `failureReason` tracking on Uploa
 | `backend/src/index.ts` | App entry — CORS, helmet, rate limiters, routes |
 | `backend/src/config/env.ts` | Centralized environment variable config |
 | `backend/src/middleware/validate.ts` | Zod validation schemas + middleware |
-| `backend/src/middleware/rateLimiter.ts` | Rate limiter definitions (analyze POST/GET separated, blogAdminLimiter) |
+| `backend/src/middleware/rateLimiter.ts` | Rate limiter definitions (analyze POST/GET separated) |
 | `backend/src/middleware/ownerAuth.ts` | JWT owner auth middleware |
-| `backend/prisma/schema.prisma` | Full database schema (13 models, indexes) |
-| `backend/src/services/email.ts` | SMTP email service (nodemailer) |
+| `backend/prisma/schema.prisma` | Full database schema (17 models, indexes) |
 | `backend/src/routes/contact.ts` | Contact form endpoint |
-| `backend/src/routes/blogs.ts` | Blog public routes (GET published, GET by slug) |
-| `backend/src/routes/owner.ts` | Owner routes including blog admin, upload delete, bulk delete, download |
+| `backend/src/routes/owner.ts` | Owner routes including upload delete, bulk delete, download |
 | `backend/src/routes/tests.ts` | Test routes (any student can view published tests) |
 | `backend/src/routes/upload.ts` | Upload routes incl. individual delete with cascade |
-| `frontend/src/app/fouri-root-console/blogs/page.tsx` | Blog manager in admin panel |
 | `frontend/src/app/fouri-root-console/uploads/page.tsx` | Upload manager with bulk delete UI + download |
-| `frontend/src/app/blog/blog-list.tsx` | Client component for blog listing UI |
-| `frontend/src/app/blog/[slug]/blog-detail.tsx` | Client component for blog detail UI |
 | `frontend/src/app/contact/contact-form.tsx` | Client component for contact form UI |
 | `frontend/src/app/(dashboard)/discover/discover-client.tsx` | Client component for discover tests UI |
 | `frontend/src/components/Analytics.tsx` | Firebase Analytics initialization component |
 | `backend/src/lib/cache.ts` | In-memory TTL cache for API response caching |
 | `backend/src/routes/analyze.ts` | Analyze route — triggers OCR + AI, stores `failureReason` on error |
-| `backend/src/services/openai.ts` | AI service — normalizes type/difficulty enums to match Prisma schema |
-| `backend/prisma/schema.prisma` | Schema includes `failureReason` field on Upload model |
 | `frontend/src/components/ProcessingStatus.tsx` | Displays `failureReason` in styled error layout |
+| `backend/src/routes/email.ts` | Email broadcast + template CRUD + AI generate + preview + image upload (12 endpoints) |
+| `backend/src/routes/files.ts` | File proxy — fetches from Telegram CDN, resolves MIME from DB, serves with correct Content-Type |
+| `backend/src/routes/media.ts` | Media library CRUD — paginated, category-filtered list + upload + delete |
+| `backend/src/lib/evaluationQueue.ts` | Serialized FIFO queue for global AI evaluation rate limiting |
+| `backend/src/lib/emailVariables.ts` | Per-user variable resolver (`resolveVariables`, `AVAILABLE_VARIABLES`) |
+| `backend/src/services/email.ts` | SMTP service — `sendBroadcastEmail()` + `wrapWithBranding()` + `verifySmtpConnection()` |
+| `backend/src/services/openai.ts` | AI service — `evaluateSubjectiveWithAI()` + `generateEmailContent()` + `callWithRetry()` |
+| `frontend/src/app/fouri-root-console/email-broadcast/page.tsx` | Email broadcast compose + preview + campaign history |
+| `frontend/src/app/fouri-root-console/email-templates/page.tsx` | Template CRUD + branding + variable picker + media library picker |
+| `frontend/src/app/fouri-root-console/media/page.tsx` | Media library with TanStack Query, pagination, search, filter, preview modal |
+| `frontend/src/hooks/useAutoSave.ts` | Debounced auto-save with refs (3s after last change), localStorage fallback |
+| `frontend/src/hooks/useTestTimer.ts` | Countdown timer + tab switch / blur detection + backend logging |
+| `frontend/src/app/(test)/test/[id]/page.tsx` | Test detail page — Start Test (30min) + Edit Time button → custom input → immediate start |
+| `frontend/src/components/AdSlot.tsx` | AdSense ad slot with min-h CLS prevention, env-var client ID |
+| `frontend/src/app/(dashboard)/resume-tests/page.tsx` | Resume paused tests page — search, sort, pagination, progress bars |
+| `frontend/src/app/layout.tsx` | Root layout with AdSense script in `<head>` |
+| `frontend/src/components/landing/Navbar.tsx` | Glassmorphism navbar with gradient CTA |
+| `frontend/src/components/landing/FeaturesSection.tsx` | 8-feature bento grid |
+| `frontend/src/components/landing/StudentBenefits.tsx` | 3 benefit cards + animated counters |
+| `frontend/src/components/landing/AIDashboardShowcase.tsx` | 3-panel dashboard mockup |
+| `frontend/src/components/landing/AboutSection.tsx` | Founder + mission + vision cards |
+| `frontend/src/components/landing/Testimonials.tsx` | Premium carousel with auto-scroll |
+| `frontend/src/components/landing/FreeAccess.tsx` | "Always Free" spotlight card |
+| `frontend/src/components/landing/FinalCTA.tsx` | Immersive closing CTA |
+| `frontend/src/components/landing/FAQSection.tsx` | Enhanced glass accordion |
+| `frontend/src/components/landing/Footer.tsx` | Premium dark footer with "Created By Aniket Rajak" |
+| `frontend/src/app/(dashboard)/layout.tsx` | Dashboard shell with nav, sidebar ads, header/footer ads |
+| `backend/src/services/telegramStorage.ts` | Telegram upload + CDN URL resolution — returns `{ fileId, cdnUrl }` |
+| `frontend/src/components/ui/MultiSelect.tsx` | Searchable multi-select dropdown with checkboxes, chips, click-outside close |
+| `frontend/src/components/FilterPanel.tsx` | 4-way filter grid (subject, exam, difficulty, sort) used on public test listing |
+

@@ -157,3 +157,59 @@ html {
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
+
+@keyframes orb {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.4; }
+  20% { transform: translate(40px, -30px) scale(1.1); opacity: 0.6; }
+  40% { transform: translate(-20px, 50px) scale(0.9); opacity: 0.3; }
+  60% { transform: translate(30px, 20px) scale(1.05); opacity: 0.5; }
+  80% { transform: translate(-40px, -20px) scale(0.95); opacity: 0.35; }
+}
+
+@keyframes border-rotate {
+  0% { --border-angle: 0deg; }
+  100% { --border-angle: 360deg; }
+}
+
+@property --border-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@keyframes dashboard-float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes counter-glow {
+  0%, 100% { text-shadow: 0 0 20px rgba(59, 130, 246, 0.3); }
+  50% { text-shadow: 0 0 40px rgba(59, 130, 246, 0.6), 0 0 80px rgba(59, 130, 246, 0.3); }
+}
+
+@keyframes pulse-ring {
+  0% { transform: scale(0.95); opacity: 0.7; }
+  50% { transform: scale(1.05); opacity: 0.3; }
+  100% { transform: scale(0.95); opacity: 0.7; }
+}
+
+.animate-orb {
+  animation: orb 12s ease-in-out infinite;
+}
+
+.animate-dashboard-float {
+  animation: dashboard-float 6s ease-in-out infinite;
+}
+
+.animate-counter-glow {
+  animation: counter-glow 3s ease-in-out infinite;
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 2s ease-in-out infinite;
+}
+
+.border-gradient {
+  border-image: conic-gradient(from var(--border-angle, 0deg), #3D81E3, #00D2FF, #A4F4FD, #3D81E3) 1;
+  animation: border-rotate 4s linear infinite;
+}

@@ -21,7 +21,15 @@ const sections = [
   },
   {
     title: "Third-Party Services",
-    content: "We use Firebase (authentication), Cloudinary (file storage), Google Vision API (OCR), and OpenAI (AI analysis). Each service has its own privacy policy and data handling practices. We only share the minimum data necessary for these services to function.",
+    content: "We use Firebase (authentication and analytics), Cloudinary (file storage), Google Vision API (OCR), and OpenAI (AI analysis). Each service has its own privacy policy and data handling practices. We only share the minimum data necessary for these services to function.",
+  },
+  {
+    title: "Advertising & Google AdSense",
+    content: "We use Google AdSense to display advertisements on our platform. Google AdSense uses cookies (including DoubleClick DART cookies) to serve ads based on your prior visits to our website or other sites across the internet. You can opt out of personalized advertising by visiting Google's Ads Settings (https://adssettings.google.com) or the Network Advertising Initiative opt-out page (https://optout.networkadvertising.org). By accepting non-essential cookies via our cookie consent banner, you consent to the use of cookies for ad personalization. If you reject non-essential cookies, you may still see non-personalized ads based on general location and content context.",
+  },
+  {
+    title: "Firebase Analytics",
+    content: "We use Google Firebase Analytics (measurement ID: G-2JKRMYVJQV) to understand how users interact with our platform. This service collects anonymized usage data such as page views, session duration, and feature interactions. This data helps us improve our services and user experience. Firebase Analytics data is governed by Google's Privacy Policy.",
   },
   {
     title: "Your Rights",
@@ -29,7 +37,7 @@ const sections = [
   },
   {
     title: "Cookies",
-    content: "We use essential cookies for authentication and session management. We do not use tracking cookies or third-party advertising cookies without your explicit consent. You can manage cookie preferences through your browser settings.",
+    content: "We use essential cookies for authentication and session management. For personalized advertising via Google AdSense, we use non-essential cookies (including DoubleClick DART cookies) only after you accept via our cookie consent banner. You can accept or reject non-essential cookies at any time. Essential cookies do not require consent. You can manage cookie preferences through our consent banner or your browser settings.",
   },
   {
     title: "Changes to This Policy",
@@ -37,7 +45,7 @@ const sections = [
   },
   {
     title: "Contact Us",
-    content: "For privacy-related inquiries, email us at office@fouri.in. We aim to respond within 48 business hours.",
+    content: "For privacy-related inquiries, including questions about our AdSense data practices, email us at office@fouri.in. We aim to respond within 48 business hours.",
   },
 ];
 

@@ -58,7 +58,7 @@ router.get("/:id", authenticate, async (req, res) => {
       return;
     }
 
-    const { sourceUpload, ...testData } = test;
+    const { sourceUpload: _sourceUpload, ...testData } = test;
     const normalized = JSON.parse(JSON.stringify(testData));
     for (const q of normalized.questions) {
       if (!Array.isArray(q.options)) {

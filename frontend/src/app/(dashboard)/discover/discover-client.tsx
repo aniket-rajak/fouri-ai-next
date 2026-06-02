@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
@@ -8,6 +8,7 @@ import { SearchBar } from "@/components/SearchBar";
 import { FilterPanel } from "@/components/FilterPanel";
 import Link from "next/link";
 import { FileText, Clock, Play, TrendingUp, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
+import { AdSlot } from "@/components/AdSlot";
 
 interface TestItem {
   id: string;
@@ -49,8 +50,9 @@ export function DiscoverClient() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalTests, setTotalTests] = useState(0);
 
-  const fetchTests = useCallback(async () => {
-    setLoading(true);
+  useEffect(() => {
+    queueMicrotask(() => setLoading(true));
+
     const params = new URLSearchParams();
     if (query) params.set("q", query);
     if (selectedSubject) params.set("subject", selectedSubject);
@@ -60,21 +62,18 @@ export function DiscoverClient() {
     params.set("page", String(page));
     params.set("limit", "20");
 
-    try {
-      const res = await api.get(`/search?${params}`);
-      setTests(res.data.tests);
-      setSubjects(res.data.filters.subjects || []);
-      setExamTypes(res.data.filters.examTypes || []);
-      setTotalPages(res.data.pagination.totalPages);
-      setTotalTests(res.data.pagination.total);
-    } catch {
-      // ignore
-    } finally {
-      setLoading(false);
-    }
+    api
+      .get(`/search?${params}`)
+      .then((res) => {
+        setTests(res.data.tests);
+        setSubjects(res.data.filters.subjects || []);
+        setExamTypes(res.data.filters.examTypes || []);
+        setTotalPages(res.data.pagination.totalPages);
+        setTotalTests(res.data.pagination.total);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, [query, selectedSubject, selectedExamType, selectedDifficulty, sort, page]);
-
-  useEffect(() => { fetchTests(); }, [fetchTests]);
 
   useEffect(() => {
     api
@@ -84,7 +83,7 @@ export function DiscoverClient() {
   }, []);
 
   useEffect(() => {
-    setPage(1);
+    queueMicrotask(() => setPage(1));
   }, [query, selectedSubject, selectedExamType, selectedDifficulty, sort]);
 
   const clearFilters = () => {
@@ -94,7 +93,7 @@ export function DiscoverClient() {
     setSort("newest");
   };
 
-  const handleSearch = (q: string) => {
+  const _handleSearch = (q: string) => {
     setQuery(q);
     router.replace(`/discover?q=${encodeURIComponent(q)}`);
   };
@@ -232,6 +231,11 @@ export function DiscoverClient() {
           )}
         </>
       )}
+
+      {/* In-content Ad */}
+      <div className="hidden sm:block my-6">
+        <AdSlot slot="in-content-discover" format="horizontal" className="mx-auto max-w-[728px]" />
+      </div>
 
       {!query && trending.length > 0 && (
         <section>

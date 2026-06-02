@@ -1,357 +1,223 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import Link from "next/link";
-import Image from "next/image";
 import {
-  Upload, Brain, FileCheck, BarChart3, Sparkles, ArrowRight,
-  ChevronLeft, ChevronRight, Zap, Target, Shield,
+  Sparkles,
+  Play,
+  ShieldCheck,
+  Zap,
+  Eye,
+  Brain,
+  Clock,
+  Target,
+  BarChart3,
 } from "lucide-react";
+import { LazyLightPillar } from "./LazyLightPillar";
+import CardSwap, { Card } from "@/components/ui/CardSwap";
 
-const slides = [
+const trustIndicators = [
+  { icon: ShieldCheck, label: "Completely Free" },
+  { icon: Zap, label: "AI Powered" },
+  { icon: Eye, label: "Student First" },
+];
+
+const swapCards = [
   {
-    tag: "AI-Powered Exam Prep",
-    headline: "Upload Question Papers.\nGet AI Mock Tests Instantly.",
-    body: "FOURI uses advanced AI to analyze your exam papers, extract questions, detect important topics, and generate personalized mock tests for smarter preparation.",
-    cta: "Upload Question Paper",
-    ctaLink: "/register",
-    ctaIcon: Upload,
-    secondaryCta: "Try Demo",
-    secondaryLink: "/discover",
+    icon: Brain,
     image: "/assets/images/hero/hero-1.jpg",
-    floatingCards: [
-      { icon: FileCheck, label: "125 Questions Extracted", color: "from-emerald-500 to-emerald-600", x: "8%", y: "20%", delay: 0.3 },
-      { icon: Brain, label: "AI Analysis Complete", color: "from-blue-500 to-blue-600", x: "58%", y: "8%", delay: 0.5 },
-      { icon: Sparkles, label: "Mock Test Generated", color: "from-amber-500 to-amber-600", x: "5%", y: "58%", delay: 0.7 },
-    ],
+    value: "100+",
+    label: "Questions Extracted",
+    sub: "from any uploaded paper",
+    gradient: "from-[#3D81E3]/20 to-[#00D2FF]/10",
+    iconColor: "#00D2FF",
   },
   {
-    tag: "Smart OCR Technology",
-    headline: "AI Reads Any Paper.\nHandwritten or Printed.",
-    body: "Advanced OCR extracts every question from your uploaded papers — even handwritten notes in Bengali, Hindi, and English. No typing required.",
-    cta: "Try OCR Now",
-    ctaLink: "/register",
-    ctaIcon: FileCheck,
-    secondaryCta: "See How It Works",
-    secondaryLink: "#how-it-works",
+    icon: BarChart3,
     image: "/assets/images/hero/hero-2.jpg",
-    floatingCards: [
-      { icon: Zap, label: "95% OCR Accuracy", color: "from-blue-500 to-cyan-600", x: "10%", y: "15%", delay: 0.3 },
-      { icon: Target, label: "Handwriting Detection", color: "from-violet-500 to-purple-600", x: "55%", y: "10%", delay: 0.5 },
-      { icon: Shield, label: "Multi-Language Support", color: "from-emerald-500 to-teal-600", x: "8%", y: "55%", delay: 0.7 },
-    ],
+    value: "AI",
+    label: "Powered Analysis",
+    sub: "intelligent evaluation",
+    gradient: "from-[#A4F4FD]/20 to-[#3D81E3]/10",
+    iconColor: "#A4F4FD",
   },
   {
-    tag: "Personalized Learning",
-    headline: "Every Test Adapts\nto Your Level.",
-    body: "AI analyzes your performance, identifies weak areas, and generates targeted practice tests. Focus on what matters most for your exam.",
-    cta: "Start Practice",
-    ctaLink: "/register",
-    ctaIcon: Target,
-    secondaryCta: "View Analytics",
-    secondaryLink: "#features",
+    icon: Target,
     image: "/assets/images/hero/hero-3.jpg",
-    floatingCards: [
-      { icon: BarChart3, label: "Performance Insights", color: "from-blue-500 to-indigo-600", x: "12%", y: "12%", delay: 0.3 },
-      { icon: Brain, label: "Weak Area Detection", color: "from-rose-500 to-pink-600", x: "52%", y: "15%", delay: 0.5 },
-      { icon: Sparkles, label: "Smart Recommendations", color: "from-amber-500 to-orange-600", x: "6%", y: "60%", delay: 0.7 },
-    ],
-  },
-  {
-    tag: "Comprehensive Exams",
-    headline: "JEE, NEET, WBJEE, CUET\n& Board Exams Covered.",
-    body: "Upload papers from any Indian exam. Our AI automatically detects the exam pattern, subject, and difficulty level to create the perfect practice test.",
-    cta: "Explore Exams",
-    ctaLink: "/discover",
-    ctaIcon: BarChart3,
-    secondaryCta: "Upload Paper",
-    secondaryLink: "/register",
-    image: "/assets/images/hero/hero-4.jpg",
-    floatingCards: [
-      { icon: FileCheck, label: "JEE Pattern Detected", color: "from-blue-500 to-blue-600", x: "8%", y: "18%", delay: 0.3 },
-      { icon: Brain, label: "NEET Questions Sorted", color: "from-emerald-500 to-green-600", x: "55%", y: "8%", delay: 0.5 },
-      { icon: Sparkles, label: "WBJEE Ready", color: "from-violet-500 to-purple-600", x: "10%", y: "55%", delay: 0.7 },
-    ],
-  },
-  {
-    tag: "Zero Cost Learning",
-    headline: "100% Free.\nNo Hidden Charges. Ever.",
-    body: "Education should be accessible to all. Upload unlimited papers, generate unlimited mock tests, and access all features — completely free for every Indian student.",
-    cta: "Get Started Free",
-    ctaLink: "/register",
-    ctaIcon: Sparkles,
-    secondaryCta: "Learn More",
-    secondaryLink: "#features",
-    image: "/assets/images/hero/hero-3.jpg",
-    floatingCards: [
-      { icon: Shield, label: "No Credit Card", color: "from-blue-500 to-cyan-600", x: "12%", y: "15%", delay: 0.3 },
-      { icon: Sparkles, label: "Unlimited Tests", color: "from-amber-500 to-orange-600", x: "52%", y: "12%", delay: 0.5 },
-      { icon: Brain, label: "All Features Free", color: "from-emerald-500 to-teal-600", x: "8%", y: "58%", delay: 0.7 },
-    ],
-  },
-  {
-    tag: "Instant Feedback",
-    headline: "Detailed Explanations\nfor Every Question.",
-    body: "AI generates step-by-step explanations for every answer. Understand concepts, learn from mistakes, and improve with each practice session.",
-    cta: "Start Learning",
-    ctaLink: "/register",
-    ctaIcon: Brain,
-    secondaryCta: "See Example",
-    secondaryLink: "#mock-tests",
-    image: "/assets/images/hero/hero-5.jpg",
-    floatingCards: [
-      { icon: FileCheck, label: "Step-by-Step Answers", color: "from-blue-500 to-indigo-600", x: "10%", y: "10%", delay: 0.3 },
-      { icon: BarChart3, label: "Performance Trends", color: "from-violet-500 to-purple-600", x: "55%", y: "15%", delay: 0.5 },
-      { icon: Brain, label: "Concept Explanations", color: "from-emerald-500 to-teal-600", x: "6%", y: "60%", delay: 0.7 },
-    ],
+    value: "45 min",
+    label: "Mock Test Duration",
+    sub: "timed & adaptive",
+    gradient: "from-emerald-500/20 to-emerald-600/10",
+    iconColor: "#4ade80",
   },
 ];
 
-const stagger = {
-  hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: { staggerChildren: 0.12, delayChildren: 0.2 },
-  },
-};
-
-const fadeUp = {
-  hidden: { opacity: 0, y: 30 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.6 } },
-};
-
-const scaleIn = {
-  hidden: { opacity: 0, scale: 0.9 },
-  show: { opacity: 1, scale: 1, transition: { duration: 0.6 } },
-};
-
 export default function HeroSection() {
-  const [current, setCurrent] = useState(0);
-  const [direction, setDirection] = useState(0);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const totalSlides = slides.length;
-
-  const startAutoPlay = useCallback(() => {
-    if (intervalRef.current) clearInterval(intervalRef.current);
-    intervalRef.current = setInterval(() => {
-      setDirection(1);
-      setCurrent((prev) => (prev + 1) % totalSlides);
-    }, 6000);
-  }, [totalSlides]);
-
-  const stopAutoPlay = useCallback(() => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-      intervalRef.current = null;
-    }
-  }, []);
-
-  useEffect(() => {
-    startAutoPlay();
-    return () => stopAutoPlay();
-  }, [startAutoPlay, stopAutoPlay]);
-
-  const goTo = (idx: number) => {
-    stopAutoPlay();
-    setDirection(idx > current ? 1 : -1);
-    setCurrent(idx);
-    setTimeout(() => startAutoPlay(), 8000);
-  };
-
-  const goNext = () => {
-    stopAutoPlay();
-    setDirection(1);
-    setCurrent((prev) => (prev + 1) % totalSlides);
-    setTimeout(() => startAutoPlay(), 8000);
-  };
-
-  const goPrev = () => {
-    stopAutoPlay();
-    setDirection(-1);
-    setCurrent((prev) => (prev - 1 + totalSlides) % totalSlides);
-    setTimeout(() => startAutoPlay(), 8000);
-  };
-
-  const easeCurve: [number, number, number, number] = [0.32, 0.72, 0, 1];
-  const slideVariants = {
-    enter: (dir: number) => ({
-      x: dir > 0 ? 300 : -300,
-      opacity: 0,
-      scale: 0.98,
-    }),
-    center: {
-      x: 0,
-      opacity: 1,
-      scale: 1,
-      transition: { duration: 0.7, ease: easeCurve },
-    },
-    exit: (dir: number) => ({
-      x: dir > 0 ? -200 : 200,
-      opacity: 0,
-      scale: 0.96,
-      transition: { duration: 0.5, ease: easeCurve },
-    }),
-  };
-
-  const slide = slides[current];
-
   return (
-    <section className="relative min-h-screen flex items-center overflow-hidden bg-[#08080f]">
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-[500px] h-[500px] rounded-full bg-blue-500/5 blur-[120px]" />
-        <div className="absolute -bottom-40 -left-40 w-[400px] h-[400px] rounded-full bg-blue-600/5 blur-[100px]" />
-        <div className="absolute top-1/3 left-1/3 w-[300px] h-[300px] rounded-full bg-blue-400/3 blur-[80px] animate-blob" />
-        <div className="absolute top-1/2 right-1/3 w-[250px] h-[250px] rounded-full bg-indigo-500/3 blur-[80px] animate-blob" style={{ animationDelay: "3s" }} />
+    <section className="relative min-h-screen flex items-center overflow-hidden bg-[#0C0C0C] pt-10 lg:pt-16">
+      <LazyLightPillar
+          topColor="#3D81E3"
+          bottomColor="#00D2FF"
+          intensity={0.5}
+          rotationSpeed={0.15}
+          glowAmount={0.003}
+          pillarWidth={5}
+          pillarHeight={0.3}
+          noiseIntensity={0.15}
+          pillarRotation={10}
+          interactive={false}
+          mixBlendMode="screen"
+          quality="high"
+        />
+
+      <div className="absolute inset-0 overflow-hidden pointer-events-none z-[1]">
+        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiMzRDgxRTMiIGZpbGwtb3BhY2l0eT0iMC4wMyI+PGc+PHBhdGggZD0iTTM2IDM0di00aC0ydjRoLTR2Mmg0djRoMnYtNGg0di0yaC00em0wLTMwVjBoLTJ2NGgtNHYyaDR2NGgyVjZoNFY0aC00ek02IDM0di00SDR2NEgwdjJoNHY0aDJ2LTRoNFYzMkg2ek02IDRWMEg0djRIMHYyaDR2NGgyVjZoNFY0SDZ6Ii8+PC9nPjwvZz48L3N2Zz4=')] opacity-30" />
       </div>
 
-      <div className="relative w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-28 pb-16 md:pt-36 md:pb-24">
-        <div className="relative overflow-hidden">
-          <AnimatePresence mode="wait" custom={direction}>
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
+        <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, ease: [0.32, 0.72, 0, 1] }}
+          >
             <motion.div
-              key={current}
-              custom={direction}
-              variants={slideVariants}
-              initial="enter"
-              animate="center"
-              exit="exit"
-              className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.1 }}
+              className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/[0.03] border border-white/[0.06] mb-6"
             >
-              <motion.div
-                variants={stagger}
-                initial="hidden"
-                animate="show"
-                className="relative z-10"
-              >
-                <motion.div
-                  variants={fadeUp}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass-light mb-6"
-                >
-                  <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
-                  <span className="text-xs sm:text-sm font-medium text-blue-300">
-                    {slide.tag}
-                  </span>
-                </motion.div>
-
-                <motion.h1
-                  variants={fadeUp}
-                  className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold font-heading tracking-tight leading-[1.1]"
-                >
-                  {slide.headline.split("\n").map((line, i) => (
-                    <span key={i}>
-                      {i === 1 ? (
-                        <span className="text-gradient">{line}</span>
-                      ) : (
-                        <span className="text-[#f5f5f7]">{line}</span>
-                      )}
-                      {i === 0 && <br />}
-                    </span>
-                  ))}
-                </motion.h1>
-
-                <motion.p
-                  variants={fadeUp}
-                  className="mt-6 text-base sm:text-lg text-[#888899] leading-relaxed max-w-lg"
-                >
-                  {slide.body}
-                </motion.p>
-
-                <motion.div
-                  variants={fadeUp}
-                  className="mt-8 flex flex-col sm:flex-row gap-4"
-                >
-                  <Link
-                    href={slide.ctaLink}
-                    className="group relative inline-flex items-center justify-center h-14 px-8 rounded-2xl font-semibold text-white overflow-hidden"
-                  >
-                    <span className="absolute inset-0 bg-blue-600 transition-all duration-500 group-hover:bg-blue-500" />
-                    <span className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-gradient-to-r from-blue-600 to-blue-400" />
-                    <span className="relative flex items-center gap-2 text-sm sm:text-base">
-                      {slide.cta}
-                      <slide.ctaIcon className="w-4 h-4 transition-transform group-hover:-translate-y-0.5" />
-                    </span>
-                  </Link>
-                  <Link
-                    href={slide.secondaryLink}
-                    className="group inline-flex items-center justify-center h-14 px-8 rounded-2xl font-semibold text-blue-300 glass-light hover:bg-white/5 hover:border-blue-500/30 transition-all border border-white/5"
-                  >
-                    {slide.secondaryCta}
-                    <ArrowRight className="w-4 h-4 ml-2 transition-transform group-hover:translate-x-1" />
-                  </Link>
-                </motion.div>
-              </motion.div>
-
-              <motion.div
-                variants={scaleIn}
-                className="relative"
-              >
-                <div className="relative rounded-3xl overflow-hidden shadow-2xl shadow-blue-500/5 border border-white/5">
-                  <div className="absolute inset-0 bg-gradient-to-t from-blue-500/10 to-transparent z-10" />
-                  <Image
-                    src={slide.image}
-                    alt=""
-                    width={800}
-                    height={600}
-                    className="w-full h-auto object-cover"
-                    priority
-                  />
-                </div>
-
-                {slide.floatingCards.map((card) => (
-                  <motion.div
-                    key={card.label}
-                    initial={{ opacity: 0, y: 20, scale: 0.9 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    transition={{ delay: 0.8 + card.delay, duration: 0.5, ease: "easeOut" }}
-                    className="absolute hidden lg:flex items-center gap-2.5 px-4 py-2.5 rounded-xl glass shadow-xl border border-white/5"
-                    style={{ left: card.x, top: card.y }}
-                  >
-                    <div className={`w-8 h-8 rounded-lg bg-gradient-to-br ${card.color} flex items-center justify-center`}>
-                      <card.icon className="w-4 h-4 text-white" />
-                    </div>
-                    <span className="text-xs font-semibold text-[#f5f5f7] whitespace-nowrap">
-                      {card.label}
-                    </span>
-                  </motion.div>
-                ))}
-              </motion.div>
+              <span className="w-1.5 h-1.5 rounded-full bg-[#00D2FF] animate-pulse-ring" />
+              <span className="text-xs font-medium text-[#888899] tracking-wide">
+                AI-Powered Exam Preparation
+              </span>
             </motion.div>
-          </AnimatePresence>
-        </div>
 
-        <div className="flex items-center justify-between mt-10 relative z-10">
-          <div className="flex items-center gap-3">
-            {slides.map((_, i) => (
-              <button
-                key={i}
-                onClick={() => goTo(i)}
-                className={`relative h-1.5 rounded-full transition-all duration-700 cursor-pointer ${
-                  i === current
-                    ? "w-10 bg-blue-500 shadow-lg shadow-blue-500/30"
-                    : "w-2 bg-white/10 hover:bg-white/20"
-                }`}
-                aria-label={`Go to slide ${i + 1}`}
-              />
-            ))}
-          </div>
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-bold font-heading tracking-tight leading-[1.1]">
+              <span className="text-[#f5f5f7]">
+                Transform Any Question Paper Into an
+              </span>{" "}
+              <span className="bg-gradient-to-r from-[#3D81E3] via-[#00D2FF] to-[#A4F4FD] bg-clip-text text-transparent bg-[length:200%_auto] animate-gradient-shift">
+                AI Mock Test
+              </span>
+            </h1>
 
-          <div className="flex items-center gap-3">
-            <button
-              onClick={goPrev}
-              className="w-10 h-10 rounded-xl glass-light flex items-center justify-center hover:bg-white/5 hover:border-blue-500/30 transition-all border border-white/5 cursor-pointer"
-              aria-label="Previous slide"
-            >
-              <ChevronLeft className="w-4 h-4 text-[#888899]" />
-            </button>
-            <button
-              onClick={goNext}
-              className="w-10 h-10 rounded-xl glass-light flex items-center justify-center hover:bg-white/5 hover:border-blue-500/30 transition-all border border-white/5 cursor-pointer"
-              aria-label="Next slide"
-            >
-              <ChevronRight className="w-4 h-4 text-[#888899]" />
-            </button>
-          </div>
+            <p className="mt-6 text-base sm:text-lg text-[#888899] leading-relaxed max-w-xl">
+              Upload your question paper and let FOURI AI instantly generate
+              mock tests, evaluate answers, and provide personalized performance
+              insights.
+            </p>
+
+            <div className="mt-8 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+              <Link
+                href="/register"
+                className="group relative inline-flex items-center gap-2 h-12 px-8 rounded-2xl text-sm font-semibold text-white overflow-hidden"
+              >
+                <span className="absolute inset-0 bg-gradient-to-r from-[#3D81E3] to-[#00D2FF] transition-transform duration-300 group-hover:scale-105" />
+                <span className="absolute inset-0 bg-gradient-to-r from-[#3D81E3] to-[#00D2FF] opacity-0 group-hover:opacity-100 blur-xl transition-opacity duration-300" />
+                <span className="relative flex items-center gap-2">
+                  Start Free <Sparkles className="w-4 h-4" />
+                </span>
+              </Link>
+              <Link
+                href="/discover"
+                className="group inline-flex items-center gap-2 h-12 px-8 rounded-2xl text-sm font-semibold text-[#f5f5f7] bg-white/[0.03] border border-white/[0.08] hover:bg-white/[0.06] hover:border-white/[0.12] transition-all duration-300"
+              >
+                <Play className="w-4 h-4 text-[#00D2FF]" />
+                Watch Demo
+              </Link>
+            </div>
+
+            <div className="mt-8 flex flex-wrap items-center gap-6">
+              {trustIndicators.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <div key={item.label} className="flex items-center gap-2">
+                    <Icon className="w-4 h-4 text-[#00D2FF]" />
+                    <span className="text-xs text-[#888899]">{item.label}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.8, delay: 0.3, ease: [0.32, 0.72, 0, 1] }}
+            className="relative hidden lg:block"
+            // style={{ height: 280 }}
+            style={{ height: 400 }}
+          >
+            <div className="relative w-full h-full">
+              <CardSwap
+                width={420}
+                height={400}
+                cardDistance={55}
+                verticalDistance={75}
+                delay={4500}
+                pauseOnHover={false}
+                skewAmount={5}
+                easing="elastic"
+              >
+                {swapCards.map((card, i) => {
+                  const Icon = card.icon;
+                  return (
+                    <Card
+                      key={i}
+                      customClass="!border-white/[0.08] !bg-gradient-to-br !from-[#0C0C0C]/95 !to-[#151515]/90 !backdrop-blur-2xl !shadow-2xl !overflow-hidden"
+                    >
+                      <div className="flex flex-col h-full">
+                        <div className="relative h-[45%] min-h-[140px] overflow-hidden">
+                          <img
+                            src={card.image}
+                            alt=""
+                            className="absolute inset-0 w-full h-full object-cover"
+                          />
+                          <div
+                            className="absolute inset-0"
+                            style={{
+                              background: `linear-gradient(180deg, transparent 50%, ${card.iconColor}15 100%)`,
+                            }}
+                          />
+                        </div>
+                        <div className="flex-1 p-5 flex flex-col justify-center">
+                          <div className="flex items-center gap-2.5 mb-2.5">
+                            <div
+                              className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0"
+                              style={{
+                                background: `linear-gradient(135deg, ${card.iconColor}20, ${card.iconColor}08)`,
+                              }}
+                            >
+                              <Icon
+                                className="w-4 h-4"
+                                style={{ color: card.iconColor }}
+                              />
+                            </div>
+                            <span className="text-[10px] uppercase tracking-widest text-[#666677] font-medium truncate">
+                              {card.label}
+                            </span>
+                          </div>
+                          <span className="text-3xl sm:text-4xl font-bold text-[#f5f5f7] leading-tight">
+                            {card.value}
+                          </span>
+                          <span className="text-xs text-[#888899] mt-1.5">
+                            {card.sub}
+                          </span>
+                        </div>
+                        <div
+                          className="absolute bottom-0 left-0 right-0 h-px"
+                          style={{
+                            background: `linear-gradient(90deg, transparent, ${card.iconColor}40, transparent)`,
+                          }}
+                        />
+                      </div>
+                    </Card>
+                  );
+                })}
+              </CardSwap>
+            </div>
+          </motion.div>
         </div>
       </div>
     </section>

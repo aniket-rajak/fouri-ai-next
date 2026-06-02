@@ -2,6 +2,7 @@ import { type Request, type Response, type NextFunction } from "express";
 import { auth } from "../services/firebaseAdmin.js";
 
 declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
       user?: {

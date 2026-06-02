@@ -11,16 +11,12 @@ export const env = {
     privateKey: process.env.FIREBASE_PRIVATE_KEY!,
     clientEmail: process.env.FIREBASE_CLIENT_EMAIL!,
   },
-  cloudinary: {
-    cloudName: process.env.CLOUDINARY_CLOUD_NAME!,
-    apiKey: process.env.CLOUDINARY_API_KEY!,
-    apiSecret: process.env.CLOUDINARY_API_SECRET!,
-  },
   openai: {
     apiKey: process.env.OPENAI_API_KEY!,
   },
-  googleVision: {
-    credentials: process.env.GOOGLE_VISION_CREDENTIALS || "{}",
+  telegram: {
+    botToken: process.env.TELEGRAM_BOT_TOKEN || "",
+    channelId: process.env.TELEGRAM_CHANNEL_ID || "",
   },
   sentryDsn: process.env.SENTRY_DSN || "",
   owner: {

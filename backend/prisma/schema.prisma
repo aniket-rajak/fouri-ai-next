@@ -26,6 +26,7 @@ enum TestStatus {
 
 enum AttemptStatus {
   IN_PROGRESS
+  PAUSED
   COMPLETED
   TIMEOUT
 }
@@ -56,15 +57,15 @@ model User {
 }
 
 model Upload {
-  id            String       @id @default(uuid())
-  userId        String
-  filename      String
-  fileType      String
-  fileSize      Int?
-  cloudinaryUrl  String?
-  status        UploadStatus @default(PROCESSING)
-  failureReason String?
-  createdAt     DateTime     @default(now())
+  id             String       @id @default(uuid())
+  userId         String
+  filename       String
+  fileType       String
+  fileSize       Int?
+  telegramFileId String?
+  status         UploadStatus @default(PROCESSING)
+  failureReason  String?
+  createdAt      DateTime     @default(now())
 
   user      User       @relation(fields: [userId], references: [firebaseUid], onDelete: Cascade)
   mockTests MockTest[]
@@ -99,6 +100,19 @@ model MockTest {
   @@index([status, createdAt])
 }
 
+model SuspiciousActivity {
+  id           String   @id @default(uuid())
+  attemptId    String?
+  userId       String
+  activityType String   // TAB_SWITCH, WINDOW_BLUR, FULLSCREEN_EXIT
+  metadata     Json?
+  createdAt    DateTime @default(now())
+
+  @@index([attemptId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
 model Question {
   id            String       @id @default(uuid())
   mockTestId    String
@@ -118,16 +132,18 @@ model Question {
 }
 
 model TestAttempt {
-  id         String        @id @default(uuid())
-  userId     String
-  mockTestId String
-  status     AttemptStatus @default(IN_PROGRESS)
-  score      Int?
-  totalMarks Int?
-  accuracy   Float?
-  timeTaken  Int?
-  startedAt  DateTime      @default(now())
-  completedAt DateTime?
+  id                  String        @id @default(uuid())
+  userId              String
+  mockTestId          String
+  status              AttemptStatus @default(IN_PROGRESS)
+  score               Int?
+  totalMarks          Int?
+  accuracy            Float?
+  timeTaken           Int?
+  remainingTime       Int?
+  currentQuestionIndex Int?
+  startedAt           DateTime      @default(now())
+  completedAt         DateTime?
 
   user     User       @relation(fields: [userId], references: [firebaseUid], onDelete: Cascade)
   mockTest MockTest   @relation(fields: [mockTestId], references: [id], onDelete: Cascade)
@@ -179,36 +195,136 @@ model AnalyticsEvent {
   @@index([createdAt])
 }
 
-model Blog {
-  id        String   @id @default(uuid())
-  title     String
-  slug      String   @unique
-  content   String
-  excerpt   String?
-  imageUrl  String?
-  author    String   @default("FOURI Team")
-  published Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model Ad {
+  id           String    @id @default(uuid())
+  title        String
+  description  String?
+  imageUrl     String
+  ctaText      String    @default("Learn More")
+  ctaLink      String
+  blogUrl      String?
+  referenceUrl String?
+  status       String    @default("ACTIVE")
+  scheduledAt  DateTime?
+  publishedAt  DateTime?
+  clicks       Int       @default(0)
+  impressions  Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
-  @@index([slug])
-  @@index([published])
+  @@index([status])
+}
+
+model MediaFile {
+  id           String   @id @default(uuid())
+  originalName String
+  mimeType     String
+  fileSize     Int
+  fileId       String
+  cdnUrl       String?
+  category     String   @default("general")
+  createdAt    DateTime @default(now())
+
+  @@index([category])
   @@index([createdAt])
 }
 
-model Ad {
+model EmailTemplate {
   id          String   @id @default(uuid())
-  title       String
-  description String?
-  imageUrl    String
-  ctaText     String   @default("Learn More")
-  ctaLink     String
-  blogUrl     String?
-  active      Boolean  @default(true)
-  clicks      Int      @default(0)
-  impressions Int      @default(0)
+  name        String
+  subject     String
+  body        String
+  logoUrl     String?
+  headerImage String?
+  footerLogo  String?
+  copyright   String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  @@index([active])
+  campaigns EmailCampaign[]
+
+  @@index([createdAt])
+}
+
+model EmailCampaign {
+  id             String   @id @default(uuid())
+  subject        String
+  body           String
+  recipientType  String   // ALL | FREE | PREMIUM | ACTIVE | INACTIVE | SELECTED | CUSTOM
+  recipientCount Int
+  status         String   // SENT | FAILED
+  sentAt         DateTime @default(now())
+  deliveredCount Int      @default(0)
+  failedCount    Int      @default(0)
+  templateId     String?
+  template       EmailTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  userIds        Json?
+  customEmails   Json?
+  createdAt      DateTime @default(now())
+
+  @@index([sentAt])
+  @@index([status])
+}
+
+model BlogCategory {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  slug      String   @unique
+  createdAt DateTime @default(now())
+
+  blogs BlogCategoryOnBlog[]
+
+  @@index([slug])
+}
+
+model BlogCategoryOnBlog {
+  blogId     String
+  categoryId String
+
+  blog     Blog         @relation(fields: [blogId], references: [id], onDelete: Cascade)
+  category BlogCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([blogId, categoryId])
+}
+
+model BlogTag {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  slug      String   @unique
+  createdAt DateTime @default(now())
+
+  blogs BlogTagOnBlog[]
+
+  @@index([slug])
+}
+
+model BlogTagOnBlog {
+  blogId String
+  tagId  String
+
+  blog Blog    @relation(fields: [blogId], references: [id], onDelete: Cascade)
+  tag  BlogTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([blogId, tagId])
+}
+
+model Blog {
+  id           String              @id @default(uuid())
+  title        String
+  slug         String              @unique
+  excerpt      String?
+  content      String
+  thumbnailUrl String?
+  authorName   String?
+  status       String              @default("DRAFT")
+  scheduledAt  DateTime?
+  publishedAt  DateTime?
+  tags         BlogTagOnBlog[]
+  categories   BlogCategoryOnBlog[]
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+
+  @@index([status, publishedAt])
+  @@index([slug])
+  @@index([createdAt])
 }

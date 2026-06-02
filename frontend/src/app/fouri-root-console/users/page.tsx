@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useOwnerApi } from "@/lib/owner-auth";
 import { motion } from "framer-motion";
 import {
-  Users, Search, Download, Loader2, ChevronLeft, ChevronRight,
-  ArrowUpDown, Mail, FileText,
+  Search, Download, Loader2, ChevronLeft, ChevronRight,
+  Mail,
 } from "lucide-react";
 
 interface User {
@@ -35,22 +35,19 @@ export default function OwnerUsersPage() {
   const [sort, setSort] = useState("newest");
   const [page, setPage] = useState(1);
 
-  const fetchUsers = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({ page: String(page), limit: "20", sort });
-      if (search) params.set("search", search);
-      const data = await api(`/owner/users?${params}`) as { users: User[]; pagination: Pagination };
-      setUsers(data.users);
-      setPagination(data.pagination);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
+  useEffect(() => {
+    queueMicrotask(() => setLoading(true));
+    const params = new URLSearchParams({ page: String(page), limit: "20", sort });
+    if (search) params.set("search", search);
+    api(`/owner/users?${params}`)
+      .then((data) => {
+        const d = data as { users: User[]; pagination: Pagination };
+        setUsers(d.users);
+        setPagination(d.pagination);
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
   }, [api, page, sort, search]);
-
-  useEffect(() => { fetchUsers(); }, [fetchUsers]);
 
   const exportCSV = (type: "all" | "emails" = "all") => {
     const headers = type === "emails"

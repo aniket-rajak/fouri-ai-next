@@ -1,7 +1,23 @@
 import { Router } from "express";
+import multer from "multer";
 import { prisma } from "../lib/prisma.js";
 import { ownerAuth } from "../middleware/ownerAuth.js";
 import { validate, schemas } from "../middleware/validate.js";
+import { generateAdContent } from "../services/openai.js";
+import { uploadToTelegram } from "../services/telegramStorage.js";
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+    if (allowed.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only JPG, PNG, and WebP images are allowed"));
+    }
+  },
+});
 
 const router = Router();
 
@@ -20,7 +36,12 @@ router.get("/", async (_req, res) => {
 router.get("/active", async (_req, res) => {
   try {
     const ads = await prisma.ad.findMany({
-      where: { active: true },
+      where: {
+        OR: [
+          { status: "ACTIVE" },
+          { status: "SCHEDULED", scheduledAt: { lte: new Date() } },
+        ],
+      },
       orderBy: { createdAt: "desc" },
     });
     res.json({ ads });
@@ -32,7 +53,10 @@ router.get("/active", async (_req, res) => {
 
 router.post("/", ownerAuth, validate(schemas.adCreate), async (req, res) => {
   try {
-    const { title, description, imageUrl, ctaText, ctaLink, blogUrl } = req.body;
+    const { title, description, imageUrl, ctaText, ctaLink, blogUrl, referenceUrl, status, scheduledAt } = req.body;
+
+    const adStatus = status || "ACTIVE";
+    const publishedAt = adStatus === "ACTIVE" ? new Date() : null;
 
     const ad = await prisma.ad.create({
       data: {
@@ -42,7 +66,10 @@ router.post("/", ownerAuth, validate(schemas.adCreate), async (req, res) => {
         ctaText: ctaText || "Learn More",
         ctaLink,
         blogUrl: blogUrl || null,
-        active: true,
+        referenceUrl: referenceUrl || null,
+        status: adStatus,
+        scheduledAt: adStatus === "SCHEDULED" && scheduledAt ? new Date(scheduledAt) : null,
+        publishedAt,
       },
     });
 
@@ -56,12 +83,17 @@ router.post("/", ownerAuth, validate(schemas.adCreate), async (req, res) => {
 router.put("/:id", ownerAuth, validate(schemas.adUpdate), async (req, res) => {
   try {
     const adId = req.params.id as string;
-    const { title, description, imageUrl, ctaText, ctaLink, blogUrl, active } = req.body;
+    const { title, description, imageUrl, ctaText, ctaLink, blogUrl, referenceUrl, status, scheduledAt } = req.body;
 
     const existing = await prisma.ad.findUnique({ where: { id: adId } });
     if (!existing) {
       res.status(404).json({ error: "Ad not found" });
       return;
+    }
+
+    let publishedAt = existing.publishedAt;
+    if (status === "ACTIVE" && existing.status !== "ACTIVE") {
+      publishedAt = new Date();
     }
 
     const ad = await prisma.ad.update({
@@ -73,7 +105,10 @@ router.put("/:id", ownerAuth, validate(schemas.adUpdate), async (req, res) => {
         ...(ctaText !== undefined && { ctaText }),
         ...(ctaLink !== undefined && { ctaLink }),
         ...(blogUrl !== undefined && { blogUrl }),
-        ...(active !== undefined && { active }),
+        ...(referenceUrl !== undefined && { referenceUrl }),
+        ...(status !== undefined && { status }),
+        ...(scheduledAt !== undefined && { scheduledAt: scheduledAt ? new Date(scheduledAt) : null }),
+        publishedAt,
       },
     });
 
@@ -99,6 +134,54 @@ router.delete("/:id", ownerAuth, async (req, res) => {
   } catch (error) {
     console.error("Delete ad error:", error);
     res.status(500).json({ error: "Failed to delete ad" });
+  }
+});
+
+router.post("/generate-ai", ownerAuth, validate(schemas.adGenerate), async (req, res) => {
+  try {
+    const generated = await generateAdContent(req.body.instructions);
+    res.json({ generated });
+  } catch (error) {
+    console.error("AI generate ad error:", error);
+    res.status(500).json({
+      error: error instanceof Error ? error.message : "Failed to generate ad content",
+    });
+  }
+});
+
+router.post("/upload-image", ownerAuth, upload.single("image"), async (req, res) => {
+  try {
+    const file = req.file;
+    if (!file) {
+      res.status(400).json({ error: "No image file uploaded" });
+      return;
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      res.status(400).json({ error: "Image too large. Maximum 2 MB." });
+      return;
+    }
+
+    const { fileId, cdnUrl } = await uploadToTelegram(file.buffer, file.originalname);
+
+    await prisma.mediaFile.create({
+      data: {
+        originalName: file.originalname,
+        mimeType: file.mimetype,
+        fileSize: file.size,
+        fileId,
+        cdnUrl,
+        category: "ad-images",
+      },
+    });
+
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    res.json({ url: `${baseUrl}/api/files/${encodeURIComponent(fileId)}` });
+  } catch (error) {
+    console.error("Ad image upload error:", error);
+    res.status(500).json({
+      error: error instanceof Error ? error.message : "Image upload failed",
+    });
   }
 });
 

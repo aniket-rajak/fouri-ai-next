@@ -42,14 +42,6 @@ export const standardLimiter = rateLimit({
 
 export const ownerLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 50,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: "Too many requests. Try again later." },
-});
-
-export const blogAdminLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
   max: 200,
   standardHeaders: true,
   legacyHeaders: false,
@@ -62,4 +54,12 @@ export const contactLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many messages sent. Try again later." },
+});
+
+export const analyzeStatusLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many status checks. Try again later." },
 });

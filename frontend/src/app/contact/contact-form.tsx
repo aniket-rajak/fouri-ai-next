@@ -9,7 +9,7 @@ const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 const contactInfo = [
   { icon: MapPin, label: "Address", value: "Tollygunge, Kolkata, West Bengal, India" },
   { icon: Mail, label: "Email", value: "office@fouri.in" },
-  { icon: Phone, label: "Phone", value: "+91 (033) 1234-5678" },
+  { icon: Phone, label: "Phone", value: "+91 6291250328" },
 ];
 
 export function ContactForm() {
@@ -62,6 +62,19 @@ export function ContactForm() {
 
         <div className="grid lg:grid-cols-5 gap-8">
           <div className="lg:col-span-2 space-y-6">
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="bg-[#111118] rounded-2xl border border-white/5 p-5"
+            >
+              <p className="text-sm text-[#888899] leading-relaxed">
+                We typically respond within 24 hours on business days. For the fastest response,
+                include your exam name and a brief description of your issue. You can also check our{" "}
+                <a href="/faq" className="text-blue-400 hover:text-blue-300 underline">FAQ page</a>{" "}
+                for immediate answers to common questions.
+              </p>
+            </motion.div>
+
             {contactInfo.map((info) => {
               const Icon = info.icon;
               return (
@@ -131,6 +144,7 @@ export function ContactForm() {
                     <div>
                       <label className="block text-xs text-[#888899] mb-1.5">Your Name *</label>
                       <input
+                        name="name"
                         value={form.name}
                         onChange={(e) => setForm({ ...form, name: e.target.value })}
                         placeholder="John Doe"
@@ -142,6 +156,7 @@ export function ContactForm() {
                       <label className="block text-xs text-[#888899] mb-1.5">Your Email *</label>
                       <input
                         type="email"
+                        name="email"
                         value={form.email}
                         onChange={(e) => setForm({ ...form, email: e.target.value })}
                         placeholder="john@example.com"
@@ -153,6 +168,7 @@ export function ContactForm() {
                   <div>
                     <label className="block text-xs text-[#888899] mb-1.5">Subject *</label>
                     <input
+                      name="subject"
                       value={form.subject}
                       onChange={(e) => setForm({ ...form, subject: e.target.value })}
                       placeholder="How can we help you?"
@@ -163,6 +179,7 @@ export function ContactForm() {
                   <div>
                     <label className="block text-xs text-[#888899] mb-1.5">Message *</label>
                     <textarea
+                      name="message"
                       value={form.message}
                       onChange={(e) => setForm({ ...form, message: e.target.value })}
                       placeholder="Write your message here..."

@@ -20,7 +20,7 @@ export default function ContactPage() {
     url: "https://fouri.in",
     contactPoint: {
       "@type": "ContactPoint",
-      telephone: "+91 (033) 1234-5678",
+      telephone: "+91 6291250328",
       contactType: "customer service",
       email: "office@fouri.in",
       areaServed: "IN",

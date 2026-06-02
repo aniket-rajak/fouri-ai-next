@@ -1,79 +1,73 @@
 import type { Metadata } from "next";
-import { BlogDetail } from "./blog-detail";
-import { JsonLd } from "@/components/JsonLd";
+import { notFound } from "next/navigation";
+import { BlogPostClient } from "./blog-post-client";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 
-interface PageProps {
+interface Props {
   params: Promise<{ slug: string }>;
 }
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const { slug } = await params;
-
+async function getBlog(slug: string) {
   try {
-    const res = await fetch(`${API}/blogs/${slug}`, { next: { revalidate: 3600 } });
-    if (!res.ok) throw new Error("Not found");
-    const { blog } = await res.json();
-
-    return {
-      title: blog.title,
-      description: blog.excerpt || `Read about ${blog.title} on FOURI.IN Blog`,
-      openGraph: {
-        title: `${blog.title} | FOURI.IN`,
-        description: blog.excerpt || `Read about ${blog.title}`,
-        type: "article",
-        publishedTime: blog.createdAt,
-        authors: [blog.author],
-        images: blog.imageUrl ? [{ url: blog.imageUrl }] : [],
-      },
-      twitter: {
-        card: "summary_large_image",
-        title: `${blog.title} | FOURI.IN`,
-        description: blog.excerpt || `Read about ${blog.title}`,
-        images: blog.imageUrl ? [blog.imageUrl] : [],
-      },
-    };
+    const res = await fetch(`${API}/blog/${slug}`, { next: { revalidate: 60 } });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.blog;
   } catch {
-    return {
-      title: "Blog Post | FOURI.IN",
-      description: "Blog post from FOURI.IN",
-    };
+    return null;
   }
 }
 
-export default async function BlogDetailPage({ params }: PageProps) {
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
-  let articleJsonLd = null;
+  const blog = await getBlog(slug);
+  if (!blog) return { title: "Blog Not Found" };
 
-  try {
-    const res = await fetch(`${API}/blogs/${slug}`, { next: { revalidate: 3600 } });
-    if (res.ok) {
-      const { blog } = await res.json();
-      articleJsonLd = {
-        "@context": "https://schema.org",
-        "@type": "Article",
-        headline: blog.title,
-        description: blog.excerpt || "",
-        author: { "@type": "Person", name: blog.author },
-        datePublished: blog.createdAt,
-        dateModified: blog.updatedAt || blog.createdAt,
-        image: blog.imageUrl || undefined,
-        publisher: {
-          "@type": "Organization",
-          name: "FOURI.IN",
-          url: "https://fouri.in",
-        },
-      };
-    }
-  } catch {
-    // backend unavailable
-  }
+  return {
+    title: blog.title,
+    description: blog.excerpt || `Read ${blog.title} on FOURI.IN`,
+    openGraph: {
+      title: blog.title,
+      description: blog.excerpt || "",
+      type: "article",
+      publishedTime: blog.publishedAt,
+      authors: blog.authorName ? [blog.authorName] : undefined,
+      images: blog.thumbnailUrl ? [{ url: blog.thumbnailUrl }] : undefined,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: blog.title,
+      description: blog.excerpt || "",
+      images: blog.thumbnailUrl ? [blog.thumbnailUrl] : undefined,
+    },
+  };
+}
+
+export default async function BlogPostPage({ params }: Props) {
+  const { slug } = await params;
+  const blog = await getBlog(slug);
+  if (!blog) notFound();
+
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    headline: blog.title,
+    description: blog.excerpt,
+    author: blog.authorName ? { "@type": "Person", name: blog.authorName } : { "@type": "Organization", name: "FOURI.IN" },
+    datePublished: blog.publishedAt,
+    dateModified: blog.updatedAt || blog.publishedAt,
+    image: blog.thumbnailUrl,
+    publisher: { "@type": "Organization", name: "FOURI.IN" },
+  };
 
   return (
-    <>
-      {articleJsonLd && <JsonLd data={articleJsonLd} />}
-      <BlogDetail slug={slug} />
-    </>
+    <main className="min-h-screen bg-[#08080f]">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <BlogPostClient blog={blog} />
+    </main>
   );
 }

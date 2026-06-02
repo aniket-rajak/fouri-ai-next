@@ -2,8 +2,8 @@
 
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
-import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
+import { BlogImage } from "@/components/blog/BlogImage";
 import { useEffect, useState, useRef } from "react";
 import { logout } from "@/lib/firebase";
 import {
@@ -15,7 +15,9 @@ import {
   Menu,
   X,
   Search,
+  RotateCcw,
 } from "lucide-react";
+import { AdSlot } from "@/components/AdSlot";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 
@@ -26,7 +28,6 @@ interface Ad {
   imageUrl: string;
   ctaText: string;
   ctaLink: string;
-  blogUrl: string | null;
   active: boolean;
   clicks: number;
   impressions: number;
@@ -34,6 +35,7 @@ interface Ad {
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/resume-tests", label: "Resume Tests", icon: RotateCcw },
   { href: "/upload", label: "Upload Paper", icon: Upload },
   { href: "/discover", label: "Discover", icon: Search },
   { href: "/tests", label: "My Tests", icon: FileText },
@@ -74,7 +76,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
   const handleAdClick = (ad: Ad) => {
     fetch(`${API}/ads/${ad.id}/click`, { method: "POST" }).catch(() => {});
-    const url = ad.blogUrl || ad.ctaLink;
+    const url = ad.ctaLink;
     window.open(url, "_blank", "noopener noreferrer");
   };
 
@@ -117,7 +119,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       </nav>
 
       <aside
-        className={`fixed top-16 left-0 bottom-0 w-64 bg-white border-r border-zinc-200 z-30 transform transition-transform lg:translate-x-0 ${
+        className={`fixed top-16 left-0 bottom-0 w-64 bg-white border-r border-zinc-200 z-30 transform transition-transform lg:translate-x-0 overflow-y-auto ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -144,24 +146,28 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
+      {/* Header Banner Ad (desktop) */}
+      <div className="hidden lg:block bg-zinc-50 border-b border-zinc-200">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
+          <AdSlot slot="header-banner" format="horizontal" className="mx-auto max-w-[728px]" />
+        </div>
+      </div>
+
       <main className="pt-16 lg:pl-64">
-        <div className="p-6 max-w-6xl mx-auto">
+        <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto">
           <div className="flex gap-6">
             <div className="flex-1 min-w-0">{children}</div>
-            {ads.length > 0 && (
-              <aside className="hidden xl:block w-72 shrink-0 space-y-4 sticky top-24 self-start max-h-[calc(100vh-8rem)] overflow-y-auto">
-                {ads.map((ad) => (
+            <aside className="hidden xl:block w-72 shrink-0 space-y-4 sticky top-24 self-start max-h-[calc(100vh-8rem)] overflow-y-auto">
+              {ads.map((ad) => (
                   <div
                     key={ad.id}
                     onClick={() => handleAdClick(ad)}
                     className="group bg-white rounded-2xl border border-zinc-200 overflow-hidden cursor-pointer hover:shadow-lg hover:border-blue-200 transition-all duration-300"
                   >
                     <div className="relative h-32 overflow-hidden">
-                      <Image
+                      <BlogImage
                         src={ad.imageUrl}
                         alt={ad.title}
-                        width={300}
-                        height={200}
                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
@@ -177,9 +183,13 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
                     </div>
                   </div>
                 ))}
+              <AdSlot slot="sidebar" format="vertical" className="min-h-[250px]" />
               </aside>
-            )}
           </div>
+        </div>
+        {/* Footer Ad */}
+        <div className="border-t border-zinc-200 pt-4 mt-4 px-4 sm:px-6 lg:px-8">
+          <AdSlot slot="footer" format="horizontal" className="mx-auto max-w-[728px]" />
         </div>
       </main>
     </div>

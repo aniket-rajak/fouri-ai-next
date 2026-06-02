@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "powershell -Command \"try { $p = (Get-NetTCPConnection -LocalPort 4000 -ErrorAction Stop).OwningProcess; Stop-Process -Id $p -Force } catch {}; exit 0\"",
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
@@ -13,10 +14,8 @@
     "db:studio": "prisma studio"
   },
   "dependencies": {
-    "@google-cloud/vision": "^4",
     "@prisma/client": "^6",
     "@sentry/node": "^10.53.1",
-    "cloudinary": "^2",
     "cors": "^2",
     "dotenv": "^16",
     "express": "^4",
@@ -28,7 +27,9 @@
     "nodemailer": "^8.0.7",
     "openai": "^4",
     "pdf-parse": "^1",
+    "pdfjs-dist": "^6.0.227",
     "sharp": "^0.33",
+    "tesseract.js": "^7.0.0",
     "zod": "^3"
   },
   "devDependencies": {
@@ -41,6 +42,7 @@
     "eslint": "^9",
     "prisma": "^6",
     "tsx": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "typescript-eslint": "^8.60.0"
   }
 }

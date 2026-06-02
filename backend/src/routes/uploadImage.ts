@@ -1,7 +1,8 @@
 import { Router } from "express";
 import multer from "multer";
+import { prisma } from "../lib/prisma.js";
 import { ownerAuth } from "../middleware/ownerAuth.js";
-import { uploadFile } from "../services/cloudinary.js";
+import { uploadToTelegram } from "../services/telegramStorage.js";
 
 const storage = multer.memoryStorage();
 const upload = multer({
@@ -27,8 +28,21 @@ router.post("/", ownerAuth, upload.single("image"), async (req, res) => {
       return;
     }
 
-    const { url } = await uploadFile(file.buffer, file.originalname);
-    res.json({ url });
+    const { fileId, cdnUrl } = await uploadToTelegram(file.buffer, file.originalname);
+
+    await prisma.mediaFile.create({
+      data: {
+        originalName: file.originalname,
+        mimeType: file.mimetype,
+        fileSize: file.size,
+        fileId,
+        cdnUrl,
+        category: "general",
+      },
+    });
+
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    res.json({ url: `${baseUrl}/api/files/${encodeURIComponent(fileId)}` });
   } catch (error) {
     console.error("Image upload error:", error);
     res.status(500).json({

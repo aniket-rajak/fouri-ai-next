@@ -38,6 +38,12 @@ router.get("/:id", authenticate, async (req, res) => {
                 options: true,
                 correctAnswer: true,
                 type: true,
+                explanations: {
+                  select: {
+                    shortExplanation: true,
+                    detailedExplanation: true,
+                  },
+                },
               },
             },
           },

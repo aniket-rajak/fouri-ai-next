@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { examPages, generateCourseJsonLd, generateWebsiteJsonLd } from "@/lib/seo";
+import { examPages, generateCourseJsonLd, generateWebsiteJsonLd, generateBreadcrumbJsonLd } from "@/lib/seo";
 import { JsonLd } from "@/components/JsonLd";
 import type { Metadata } from "next";
 
@@ -47,10 +47,16 @@ export default async function ExamPage({ params }: Props) {
       <JsonLd
         data={generateCourseJsonLd(page.title, page.description, page.examFullName)}
       />
+      <JsonLd
+        data={generateBreadcrumbJsonLd([
+          { name: "Home", url: "https://fouri.in" },
+          { name: page.examFullName, url: `https://fouri.in/${examSlug}` },
+        ])}
+      />
 
       <div className="min-h-screen flex flex-col">
         <header className="border-b border-zinc-200">
-          <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+            <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
             <Link href="/" className="text-xl font-bold tracking-tight">
               FOURI.IN
             </Link>
@@ -72,7 +78,7 @@ export default async function ExamPage({ params }: Props) {
         </header>
 
         <main className="flex-1">
-          <section className="max-w-6xl mx-auto px-4 py-24 text-center">
+          <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-24 text-center">
             <h1 className="text-4xl font-bold tracking-tight text-zinc-900 sm:text-5xl">
               {page.title}
             </h1>
@@ -95,7 +101,7 @@ export default async function ExamPage({ params }: Props) {
             </div>
           </section>
 
-          <section className="max-w-6xl mx-auto px-4 py-20">
+          <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
             <div className="grid sm:grid-cols-3 gap-8">
               <div className="p-6 rounded-2xl border border-zinc-200">
                 <h3 className="font-semibold text-lg text-zinc-900">
@@ -128,7 +134,56 @@ export default async function ExamPage({ params }: Props) {
           </section>
 
           <section className="bg-zinc-50 py-20">
-            <div className="max-w-6xl mx-auto px-4 text-center">
+            <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+              <h2 className="text-2xl font-bold text-zinc-900 text-center">
+                How It Works for {page.examFullName}
+              </h2>
+              <div className="mt-10 max-w-3xl mx-auto space-y-6">
+                {[
+                  { step: "1", title: "Find or upload your question paper", desc: "Upload any {exam} question paper in PDF, JPG, or PNG format. You can also browse existing tests uploaded by other students.".replace("{exam}", page.examFullName) },
+                  { step: "2", title: "AI analyzes and extracts questions", desc: "Our AI (powered by OpenAI and Google Vision) reads every question from your paper, identifies MCQs and subjective questions, and extracts correct answers where available." },
+                  { step: "3", title: "Instant mock test is generated", desc: "Within minutes, you get a fully interactive mock test with a timer, question palette, and answer submission system exactly like the real {exam} exam.".replace("{exam}", page.examFullName) },
+                  { step: "4", title: "Practice, review, and improve", desc: "Attempt the test under timed conditions, review detailed explanations for each question, and track your accuracy and score over multiple attempts." },
+                ].map((item) => (
+                  <div key={item.step} className="flex gap-4 items-start">
+                    <div className="w-8 h-8 rounded-full bg-zinc-900 text-white flex items-center justify-center text-sm font-bold shrink-0">
+                      {item.step}
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-zinc-900">{item.title}</h3>
+                      <p className="mt-1 text-sm text-zinc-600">{item.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          <section className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-20">
+            <h2 className="text-2xl font-bold text-zinc-900 text-center">
+              What You Can Practice
+            </h2>
+            <div className="mt-8 grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[
+                "Physics - Mechanics, Thermodynamics, Optics, Electromagnetism",
+                "Chemistry - Physical, Organic, Inorganic Chemistry",
+                "Mathematics - Algebra, Calculus, Geometry, Trigonometry",
+                "Biology - Botany, Zoology, Genetics, Ecology",
+                "English Comprehension & Grammar",
+                "General Knowledge & Current Affairs",
+                "Logical Reasoning & Analytical Ability",
+                "Subject-specific numerical and theoretical problems",
+                "Previous year question papers with AI analysis",
+              ].map((topic) => (
+                <div key={topic} className="p-4 rounded-xl border border-zinc-200 bg-white">
+                  <p className="text-sm text-zinc-700">{topic}</p>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="bg-zinc-50 py-20">
+            <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
               <h2 className="text-2xl font-bold text-zinc-900">
                 Why Choose FOURI.IN?
               </h2>
@@ -150,7 +205,7 @@ export default async function ExamPage({ params }: Props) {
         </main>
 
         <footer className="border-t border-zinc-200 py-8">
-          <div className="max-w-6xl mx-auto px-4 text-center text-sm text-zinc-500">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 text-center text-sm text-zinc-500">
             &copy; {new Date().getFullYear()} FOURI.IN. All rights reserved.
           </div>
         </footer>

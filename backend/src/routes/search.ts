@@ -41,6 +41,7 @@ router.get("/", authenticate, async (req, res) => {
 
     const [tests, total] = await Promise.all([
       prisma.mockTest.findMany({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         where: where as any,
         orderBy,
         skip: (page - 1) * limit,
@@ -57,6 +58,7 @@ router.get("/", authenticate, async (req, res) => {
           createdAt: true,
         },
       }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       prisma.mockTest.count({ where: where as any }),
     ]);
 

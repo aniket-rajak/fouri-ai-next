@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { Card, CardHeader, CardTitle } from "@/components/ui/Card";
+import { Card } from "@/components/ui/Card";
 import Link from "next/link";
 import { FileText, Clock, Play, Trash2 } from "lucide-react";
+import { AdSlot } from "@/components/AdSlot";
 
 interface MockTest {
   id: string;
@@ -74,19 +75,25 @@ export default function TestsPage() {
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-zinc-900">My Tests</h1>
+
+      {/* In-content Ad */}
+      <div className="hidden sm:block my-4">
+        <AdSlot slot="in-content-tests" format="horizontal" className="mx-auto max-w-[728px]" />
+      </div>
+
       <div className="grid gap-4">
         {tests.map((test) => (
           <Card key={test.id}>
-            <div className="flex items-start justify-between gap-4">
-              <div className="space-y-1 min-w-0">
-                <h3 className="font-semibold text-zinc-900 truncate">{test.title}</h3>
-                <div className="flex items-center gap-4 text-sm text-zinc-500 flex-wrap">
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4">
+              <div className="space-y-2 min-w-0 flex-1">
+                <h3 className="font-semibold text-zinc-900">{test.title}</h3>
+                <div className="flex items-center gap-3 text-sm text-zinc-500 flex-wrap">
                   <span className="capitalize">{test.subject || "General"}</span>
-                  <span className="flex items-center gap-1 shrink-0">
+                  <span className="flex items-center gap-1">
                     <FileText size={14} />
                     {test.totalQuestions} questions
                   </span>
-                  <span className="flex items-center gap-1 shrink-0">
+                  <span className="flex items-center gap-1">
                     <Clock size={14} />
                     {Math.floor(test.duration / 60)} min
                   </span>
@@ -99,7 +106,7 @@ export default function TestsPage() {
                   </span>
                 </div>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center gap-2 self-end sm:self-auto">
                 <button
                   onClick={() => setConfirmDelete(test.id)}
                   className="p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
@@ -121,7 +128,7 @@ export default function TestsPage() {
       </div>
       {confirmDelete && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-xl space-y-4 mx-4">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full shadow-xl space-y-4">
             <h3 className="text-lg font-semibold text-zinc-900">Delete Test?</h3>
             <p className="text-sm text-zinc-600">
               This will permanently delete this test and all associated data (questions, attempts, and explanations). This action cannot be undone.
