@@ -3,7 +3,7 @@
 An AI-driven education platform where students upload question papers, AI analyzes them, generates mock tests automatically, and provides detailed performance analytics.
 
 **Production URL:** https://www.fouri.in  
-**Last Updated:** 2026-06-02 (Phase 32)
+**Last Updated:** 2026-06-02 (Phase 33)
 
 ---
 
@@ -54,13 +54,14 @@ fouri-ai-mocktest/
 │   │   │   ├── landing/         # Navbar, Hero (LightPillar + CardSwap), HowItWorks (GlassSurface),
 │   │   │   │                   # FeaturesSection, StudentBenefits, AIDashboardShowcase, AboutSection,
 │   │   │   │                   # Testimonials, FreeAccess, FinalCTA, FAQSection, Footer
-│   │   │   ├── ui/              # Button, Input, Card, Modal
+│   │   │   ├── ui/              # Button, Input, Card, MultiSelect, CardSwap, GlassSurface
 │   │   │   ├── test/            # QuestionCard, QuestionPalette, Timer
 │   │   │   ├── results/         # ScoreCard, AnswerReview, ExplanationPanel
-│   │   │   └── ads/             # AdCard (student dashboard ad display)
+│   │   │   ├── ads/             # AdCard (student dashboard ad display)
+│   │   │   └── blog/            # BlogImage component with CSP-safe blob URL loading
 │   │   ├── contexts/            # AuthContext, OwnerAuthContext
 │   │   ├── hooks/               # useAuth, useTestTimer, useAutoSave
-│   │   └── lib/                 # firebase, api, utils, validations, owner-auth
+│   │   └── lib/                 # firebase, api, utils, validations, owner-auth, getFileUrl
 │   ├── public/assets/images/    # Local landing images + favicon/
 │   ├── next.config.ts           # CSP, HSTS, caching, image config
 │   └── package.json
@@ -76,7 +77,7 @@ fouri-ai-mocktest/
 │   │   ├── services/            # firebaseAdmin, telegramStorage, ocr, openai,
 │   │   │                       # email (SMTP broadcast + branding), sentry
 │   │   ├── lib/                 # prisma (pooled), evaluationQueue (serialized AI),
-│   │   │                       # emailVariables (resolve per-user vars)
+│   │   │                       # emailVariables (resolve per-user vars), resolveFileUrl
 │   │   └── config/env.ts        # Centralized env config (all vars)
 │   ├── prisma/schema.prisma     # 17 models: User, Upload, MockTest, Question,
 │   │                           # TestAttempt, Answer, Explanation, SuspiciousActivity,
@@ -107,7 +108,7 @@ fouri-ai-mocktest/
 | **AnalyticsEvent** | eventType, userId, metadata | Usage tracking |
 | **Ad** | title, description, imageUrl, ctaText, ctaLink, active, clicks, impressions | Owner-created advertisements |
 | **ContactMessage** | name, email, subject, message | Contact form submissions |
-| **MediaFile** | originalName, mimeType, fileSize, fileId, category | Uploaded images (Telegram storage) |
+| **MediaFile** | originalName, mimeType, fileSize, fileId, category, cdnUrl | Uploaded images (Telegram storage) |
 | **EmailTemplate** | name, subject, body, logoUrl, headerImage, footerLogo, copyright | Branded email templates |
 | **EmailCampaign** | subject, body, recipientType, recipientCount, status, deliveredCount, failedCount | Broadcast history |
 
@@ -178,7 +179,7 @@ fouri-ai-mocktest/
 | POST | `/api/ads` | Create ad |
 | PUT | `/api/ads/:id` | Update ad |
 | DELETE | `/api/ads/:id` | Delete ad |
-| GET | `/api/owner/email/templates` | List email templates |
+| GET | `/api/owner/email/templates` | List email templates (URLs sanitized server-side) |
 | POST | `/api/owner/email/templates` | Create email template |
 | GET | `/api/owner/email/templates/:id` | Get single template |
 | PUT | `/api/owner/email/templates/:id` | Update template |
@@ -467,12 +468,14 @@ Hidden `/fouri-root-console` admin panel, JWT owner auth, user CSV export, uploa
 - Hero section card images — landscape hero images with stacked card layout (image banner + content below), 420×400 card height
 - Dropdown arrow styling — all native `<select>` elements across the app use custom `ChevronDown` icon with `appearance-none` for consistent cross-browser alignment
 - Mobile responsive admin pages — Uploads and Blog admin pages use stacked `flex-col` on mobile; Tests page cards stack vertically on small screens
+- Image URL sanitization — `getFileUrl()` helper replaces hardcoded localhost URLs with production base on all stored image references
+- Backend URL rewriting — `resolveFileUrl()` sanitizes stored template branding URLs (logoUrl, headerImage, footerLogo) on all CRUD responses
+- SMTP error propagation — `sendBroadcastEmail()` returns detailed error messages with connection timeouts (10s connect, 10s greeting, 15s socket)
 
 ### What Is Not Finished
-- Google AdSense real integration — replace `ca-pub-xxxxxxxxxxxxxxxx` with real publisher ID in `AdSlot.tsx`
-- Firebase GCIP upgrade — removes per-IP rate limits for production traffic
 - Google Maps API key — embedded map uses placeholder key, needs real key for production
 - Re-running AI analysis on existing tests to populate `correctAnswer` for subjective questions
+- SMTP email delivery — backend SMTP configuration needs valid credentials to send emails
 
 ---
 
@@ -492,8 +495,9 @@ Hidden `/fouri-root-console` admin panel, JWT owner auth, user CSV export, uploa
 ### Security
 | Check | Status | Detail |
 |-------|--------|--------|
-| CSP Headers | ✅ | `script-src` with unsafe-inline, `connect-src` restricted, `unsafe-eval` only in dev |
+| CSP Headers | ✅ | `script-src` with unsafe-inline, `connect-src` restricted, `unsafe-eval` only in dev; includes AdSense domains (ep2.adtrafficquality.google, adservice.google.com) |
 | Google Sign-In CSP | ✅ | `apis.google.com`, `accounts.google.com`, `firebaseapp.com` in script/connect/frame-src |
+| AdSense CSP | ✅ | AdSense measurement domains (ep2.adtrafficquality.google, adservice.google.com) in script-src, connect-src, frame-src; AdSense ad-serving domains in img-src |
 | HSTS | ✅ | max-age=63072000, includeSubDomains, preload |
 | CORS | ✅ | Whitelist-only (localhost in dev, fouri.in in prod), maxAge=0 |
 | Rate Limiting | ✅ | All routes protected, tiered limits, analyze POST/GET separate |
@@ -596,6 +600,9 @@ Hidden `/fouri-root-console` admin panel, JWT owner auth, user CSV export, uploa
 | Image CSP violation in email templates | `img-src` didn't allow blob URLs and backend origin | Pre-fetch via `fetch()` (uses `connect-src`), display as `blob:` URL; CSP updated for localhost:4000 |
 | Branding image URLs stale in production | Stored absolute URLs pointed to localhost | Rewrite branding image URLs to current server base URL at send-time |
 | AI email HTML too short/plain | 2000 max_tokens insufficient for formatted output | Increased to 4000 tokens; prompt rewritten for structured HTML |
+| AdSense CSP sodar2.js blocked | `ep2.adtrafficquality.google` missing from script-src/connect-src | Added AdSense measurement/quality domains to all CSP directives |
+| Stored localhost image URLs in production | Old uploads saved URLs with `localhost:4000` during dev | Created `getFileUrl()` frontend helper and `resolveFileUrl()` backend helper to sanitize URLs |
+| Email template branding URLs contain localhost | Templates saved during dev stored absolute localhost URLs | Backend `resolveFileUrl()` sanitizes logoUrl/headerImage/footerLogo on all template CRUD responses |
 
 ---
 
@@ -721,13 +728,23 @@ Professional HTML email prompt with inline CSS, table-based CTA buttons, full em
 - **Blog back button** — `ArrowLeft` + `window.history.back()` added to public `/blog` listing page
 - **Build verified** — frontend TypeScript + Next.js build pass clean
 
+### Phase 33 — AdSense CSP, Image URL Sanitization & SMTP Error Propagation ✅
+- **AdSense CSP fix** — Added `ep2.adtrafficquality.google`, `adservice.google.com` and other AdSense measurement domains to `script-src`, `connect-src`, `img-src`, and `frame-src` in `next.config.ts` to fix `sodar2.js` CSP violations
+- **Smelly image URL fix** — Created `frontend/src/lib/getFileUrl.ts` — centralized helper that replaces `http://localhost:4000` in stored image URLs with the production base URL derived from `NEXT_PUBLIC_API_URL`
+- **Backend URL sanitizer** — Created `backend/src/lib/resolveFileUrl.ts` — backend counterpart that replaces localhost URLs with production base for email template branding images
+- **Email template URL sanitation** — `backend/src/routes/email.ts` — added `sanitizeTemplate()` helper to resolve `logoUrl`, `headerImage`, `footerLogo` on all CRUD responses (list, get, create, update, duplicate)
+- **BlogImage component fix** — `BlogImage.tsx` now resolves stored URLs via `getFileUrl()` before fetching via blob URL
+- **Media library fix** — All `file.url` references in media library, email templates, and blog editor pages wrapped with `getFileUrl()`
+- **SMTP error propagation** — `sendBroadcastEmail()` now returns detailed `errors: string[]` array; `/send` endpoint includes `smtpError` field in response; frontend displays the actual SMTP error message
+- **SMTP timeouts** — Added connection/greeting/socket timeouts (10s/10s/15s) to nodemailer transport to fail fast instead of hanging
+
 ---
 
 ## Important Files
 
 | File | Purpose |
 |------|---------|
-| `frontend/next.config.ts` | CSP, HSTS, caching, image config, permissions policy |
+| `frontend/next.config.ts` | CSP (incl. AdSense domains), HSTS, caching, image config, permissions policy |
 | `frontend/src/app/page.tsx` | Landing page (13 components, 10 dynamically imported) |
 | `frontend/src/components/landing/LightPillar.tsx` | Three.js shader-based light column background |
 | `frontend/src/components/landing/HeroSection.tsx` | Hero with LightPillar background + CardSwap animated cards |
@@ -771,6 +788,7 @@ Professional HTML email prompt with inline CSS, table-based CTA buttons, full em
 | `frontend/src/components/AdSlot.tsx` | AdSense ad slot with min-h CLS prevention, env-var client ID |
 | `frontend/src/app/(dashboard)/resume-tests/page.tsx` | Resume paused tests page — search, sort, pagination, progress bars |
 | `frontend/src/app/layout.tsx` | Root layout with AdSense script in `<head>` |
+| `frontend/src/components/AdSenseScript.tsx` | Cookie-consent-gated AdSense script injection |
 | `frontend/src/components/landing/Navbar.tsx` | Glassmorphism navbar with gradient CTA |
 | `frontend/src/components/landing/FeaturesSection.tsx` | 8-feature bento grid |
 | `frontend/src/components/landing/StudentBenefits.tsx` | 3 benefit cards + animated counters |
@@ -785,4 +803,6 @@ Professional HTML email prompt with inline CSS, table-based CTA buttons, full em
 | `backend/src/services/telegramStorage.ts` | Telegram upload + CDN URL resolution — returns `{ fileId, cdnUrl }` |
 | `frontend/src/components/ui/MultiSelect.tsx` | Searchable multi-select dropdown with checkboxes, chips, click-outside close |
 | `frontend/src/components/FilterPanel.tsx` | 4-way filter grid (subject, exam, difficulty, sort) used on public test listing |
-
+| `frontend/src/lib/getFileUrl.ts` | URL sanitizer — replaces localhost with production base in stored image URLs |
+| `backend/src/lib/resolveFileUrl.ts` | Backend URL sanitizer — replaces localhost with production base in stored template URLs |
+| `frontend/src/components/blog/BlogImage.tsx` | CSP-safe image loader — fetches via blob URL to bypass `img-src` restrictions |

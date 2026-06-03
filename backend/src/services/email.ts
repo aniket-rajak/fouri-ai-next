@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import * as dns from "dns";
 import { env } from "../config/env.js";
 
 const transporter = nodemailer.createTransport({
@@ -9,11 +10,16 @@ const transporter = nodemailer.createTransport({
     user: env.smtp.user,
     pass: env.smtp.pass,
   },
+  // Force IPv4 to avoid ENETUNREACH on hosts without IPv6 routing (Render/Railway)
+  // "lookup" is passed through to net.connect() but missing from nodemailer's TS types
+  lookup: (hostname: string, opts: dns.LookupOptions, cb: (err: NodeJS.ErrnoException | null, address: string | dns.LookupAddress[], family: number) => void) => {
+    dns.lookup(hostname, { ...opts, family: 4 }, cb);
+  },
   // Timeouts to fail fast instead of hanging
   connectionTimeout: 10000,  // 10s to connect
   greetingTimeout: 10000,    // 10s for SMTP greeting
   socketTimeout: 15000,      // 15s for mail sending
-});
+} as any);
 
 /** Verify SMTP connection at startup */
 export async function verifySmtpConnection(): Promise<boolean> {
