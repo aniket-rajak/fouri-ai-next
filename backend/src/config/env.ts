@@ -14,6 +14,9 @@ export const env = {
   openai: {
     apiKey: process.env.OPENAI_API_KEY!,
   },
+  brevo: {
+    apiKey: process.env.BREVO_API_KEY || "",
+  },
   telegram: {
     botToken: process.env.TELEGRAM_BOT_TOKEN || "",
     channelId: process.env.TELEGRAM_CHANNEL_ID || "",

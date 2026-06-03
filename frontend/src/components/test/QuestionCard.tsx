@@ -50,27 +50,13 @@ export function QuestionCard({
 
   return (
     <div className="space-y-6">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex-1 space-y-1 p-4 rounded-xl bg-zinc-50 border border-zinc-100">
-            <span className="text-xs text-zinc-400 font-medium">
-              Question {question.order}
-            </span>
-            <h2 className="text-lg font-medium text-zinc-900 leading-relaxed">
-              {question.questionText}
-            </h2>
-          </div>
-        <button
-          onClick={() => onToggleMark(question.id)}
-          className={cn(
-            "shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg border text-sm font-medium transition-all cursor-pointer",
-            isMarked
-              ? "bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100"
-              : "border-zinc-200 text-zinc-500 hover:border-amber-300 hover:text-amber-600 hover:bg-amber-50"
-          )}
-        >
-          <Bookmark size={15} fill={isMarked ? "currentColor" : "none"} />
-          {isMarked ? "Marked" : "Mark for Review"}
-        </button>
+      <div className="space-y-1 p-4 rounded-xl bg-zinc-50 border border-zinc-100">
+        <span className="text-xs text-zinc-400 font-medium">
+          Question {question.order}
+        </span>
+        <h2 className="text-lg font-medium text-zinc-900 leading-relaxed break-words">
+          {question.questionText}
+        </h2>
       </div>
 
       <div className="space-y-4">
@@ -118,6 +104,20 @@ export function QuestionCard({
           );
         })}
       </div>
+
+      {/* Mark for Review — full width bottom bar */}
+      <button
+        onClick={() => onToggleMark(question.id)}
+        className={cn(
+          "w-full flex items-center justify-center gap-2 py-3 sm:py-2.5 px-4 rounded-xl border-2 text-sm font-medium transition-all cursor-pointer",
+          isMarked
+            ? "bg-amber-50 border-amber-300 text-amber-700 hover:bg-amber-100"
+            : "border-zinc-200 text-zinc-500 hover:border-amber-300 hover:text-amber-600 hover:bg-amber-50"
+        )}
+      >
+        <Bookmark size={16} fill={isMarked ? "currentColor" : "none"} />
+        {isMarked ? "Marked for Review" : "Mark for Review"}
+      </button>
     </div>
   );
 }

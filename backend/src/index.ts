@@ -116,10 +116,6 @@ app.get("/", (_req, res) => {
 });
 
 import { prisma } from "./lib/prisma.js";
-import { verifySmtpConnection } from "./services/email.js";
-
-// Verify SMTP on startup (non-blocking)
-verifySmtpConnection();
 
 app.get("/api/health", async (_req, res) => {
   try {

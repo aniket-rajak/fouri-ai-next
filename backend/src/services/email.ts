@@ -1,35 +1,40 @@
-import nodemailer from "nodemailer";
-import * as dns from "dns";
 import { env } from "../config/env.js";
 
-const transporter = nodemailer.createTransport({
-  host: env.smtp.host,
-  port: env.smtp.port,
-  secure: env.smtp.port === 465,
-  auth: {
-    user: env.smtp.user,
-    pass: env.smtp.pass,
-  },
-  // Force IPv4 to avoid ENETUNREACH on hosts without IPv6 routing (Render/Railway)
-  // "lookup" is passed through to net.connect() but missing from nodemailer's TS types
-  lookup: (hostname: string, opts: dns.LookupOptions, cb: (err: NodeJS.ErrnoException | null, address: string | dns.LookupAddress[], family: number) => void) => {
-    dns.lookup(hostname, { ...opts, family: 4 }, cb);
-  },
-  // Timeouts to fail fast instead of hanging
-  connectionTimeout: 10000,  // 10s to connect
-  greetingTimeout: 10000,    // 10s for SMTP greeting
-  socketTimeout: 15000,      // 15s for mail sending
-} as any);
+const BREVO_API = "https://api.brevo.com/v3/smtp/email";
 
-/** Verify SMTP connection at startup */
-export async function verifySmtpConnection(): Promise<boolean> {
-  try {
-    await transporter.verify();
-    console.log("✓ SMTP Connected Successfully");
-    return true;
-  } catch (err: any) {
-    console.error("✗ SMTP Authentication Failed:", err?.message || err);
-    return false;
+function getApiKey(): string {
+  if (!env.brevo.apiKey) {
+    throw new Error("BREVO_API_KEY is not configured");
+  }
+  return env.brevo.apiKey;
+}
+
+async function sendViaBrevo(
+  to: string,
+  subject: string,
+  html: string,
+  text?: string
+): Promise<void> {
+  const apiKey = getApiKey();
+  const res = await fetch(BREVO_API, {
+    method: "POST",
+    headers: {
+      accept: "application/json",
+      "api-key": apiKey,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      sender: { email: env.smtp.from, name: "FOURI" },
+      to: [{ email: to }],
+      subject,
+      htmlContent: html,
+      textContent: text || stripHtml(html),
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Brevo API error (${res.status}): ${body}`);
   }
 }
 
@@ -71,13 +76,11 @@ export async function sendContactEmail(data: {
     </div>
   `;
 
-  await transporter.sendMail({
-    from: `"FOURI Contact" <${env.smtp.from}>`,
-    to: env.smtp.from,
-    replyTo: data.email,
-    subject: `Contact Form: ${data.subject}`,
-    html,
-  });
+  await sendViaBrevo(
+    env.smtp.from,
+    `Contact Form: ${data.subject}`,
+    html
+  );
 }
 
 export function wrapWithBranding(
@@ -148,6 +151,14 @@ function stripHtml(html: string): string {
     .trim();
 }
 
+async function delay(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
 export async function sendBroadcastEmail(options: {
   emails: Array<{ to: string; subject: string; html: string }>;
 }): Promise<{ delivered: number; failed: number; errors: string[] }> {
@@ -155,24 +166,38 @@ export async function sendBroadcastEmail(options: {
   let failed = 0;
   const errors: string[] = [];
 
-  for (const email of options.emails) {
-    try {
-      const text = stripHtml(email.html);
-      console.log(`[Email] Sending to: ${email.to}`);
-      const info = await transporter.sendMail({
-        from: `"FOURI" <${env.smtp.from}>`,
-        to: email.to,
-        subject: email.subject,
-        html: email.html,
-        text,
-      });
-      console.log(`[Email] ✅ Delivered to ${email.to}: ${info.messageId}`);
-      delivered++;
-    } catch (err: any) {
-      const errorMsg = err?.message || String(err);
-      console.error(`[Email] ❌ Failed for ${email.to}: ${errorMsg}`);
-      errors.push(`Failed for ${email.to}: ${errorMsg}`);
-      failed++;
+  const BATCH_SIZE = 10;
+  const BATCH_DELAY_MS = 600;
+
+  for (let i = 0; i < options.emails.length; i += BATCH_SIZE) {
+    const batch = options.emails.slice(i, i + BATCH_SIZE);
+
+    const results = await Promise.allSettled(
+      batch.map(async (email) => {
+        if (!isValidEmail(email.to)) {
+          throw new Error(`Invalid email address: ${email.to}`);
+        }
+        console.log(`[Email] Sending to: ${email.to}`);
+        await sendViaBrevo(email.to, email.subject, email.html);
+        console.log(`[Email] ✅ Delivered to ${email.to}`);
+      })
+    );
+
+    for (let j = 0; j < results.length; j++) {
+      const result = results[j];
+      const emailTo = batch[j].to;
+      if (result.status === "fulfilled") {
+        delivered++;
+      } else {
+        const errorMsg = result.reason?.message || String(result.reason);
+        console.error(`[Email] ❌ Failed for ${emailTo}: ${errorMsg}`);
+        errors.push(`Failed for ${emailTo}: ${errorMsg}`);
+        failed++;
+      }
+    }
+
+    if (i + BATCH_SIZE < options.emails.length) {
+      await delay(BATCH_DELAY_MS);
     }
   }
 

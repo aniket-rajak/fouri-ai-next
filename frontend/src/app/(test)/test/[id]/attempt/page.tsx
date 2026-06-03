@@ -17,6 +17,10 @@ import {
   PanelRightOpen,
   PanelRightClose,
   PauseCircle,
+  CheckCircle2,
+  Bookmark,
+  List,
+  X,
 } from "lucide-react";
 
 interface Question {
@@ -62,6 +66,9 @@ export default function TestAttemptPage() {
   const [pausing, setPausing] = useState(false);
   const fullscreenRef = useRef(false);
   const answerTimestampsRef = useRef<number[]>([]);
+  const [showThankYou, setShowThankYou] = useState(false);
+  const [thankYouCountdown, setThankYouCountdown] = useState(6);
+  const [markedFilter, setMarkedFilter] = useState(false);
 
   // Load test and create/resume attempt
   useEffect(() => {
@@ -190,7 +197,9 @@ export default function TestAttemptPage() {
           timeTaken: test ? test.duration - timer.timeLeft : null,
         });
         localStorage.removeItem(`fouri_attempt_${attemptId}`);
-        router.push(`/results/${attemptId}`);
+        setSubmitting(false);
+        setShowThankYou(true);
+        setThankYouCountdown(6);
         return;
       } catch (error: any) {
         const is429 = error?.response?.status === 429;
@@ -227,6 +236,17 @@ export default function TestAttemptPage() {
     document.addEventListener("visibilitychange", onShow);
     return () => document.removeEventListener("visibilitychange", onShow);
   }, []);
+
+  // Thank You countdown — redirect to results after 6s
+  useEffect(() => {
+    if (!showThankYou) return;
+    if (thankYouCountdown <= 0) {
+      router.push(`/results/${attemptId}`);
+      return;
+    }
+    const id = setTimeout(() => setThankYouCountdown((c) => c - 1), 1000);
+    return () => clearTimeout(id);
+  }, [showThankYou, thankYouCountdown, attemptId, router]);
 
   const handlePause = async () => {
     if (!attemptId || pausing) return;
@@ -405,58 +425,95 @@ export default function TestAttemptPage() {
       {/* Main Content */}
       <div className="flex-1 flex">
         {/* Question Area */}
-        <main className="flex-1 p-3 sm:p-4 md:p-6 lg:p-8 max-w-3xl mx-auto w-full pb-24 lg:pb-8">
-          {currentQuestion && (
-            <QuestionCard
-              question={currentQuestion}
-              selectedOption={getSelected(currentQuestion.id)}
-              onSelect={handleSelect}
-              isMarked={markedIds.has(currentQuestion.id)}
-              onToggleMark={handleToggleMark}
-            />
+        <main className="flex-1 p-3 sm:p-4 md:p-6 lg:p-8 w-full pb-24 lg:pb-8 overflow-visible">
+          {/* Marked Filter Toggle */}
+          {markedIds.size > 0 && (
+            <button
+              onClick={() => setMarkedFilter((p) => !p)}
+              className={`mb-4 flex items-center gap-2 px-4 py-2 rounded-xl border-2 text-sm font-medium transition-all cursor-pointer ${
+                markedFilter
+                  ? "bg-amber-50 border-amber-300 text-amber-700"
+                  : "border-zinc-200 text-zinc-600 hover:border-amber-200 hover:text-amber-600"
+              }`}
+            >
+              <Bookmark size={15} fill={markedFilter ? "currentColor" : "none"} />
+              {markedFilter ? "Showing Marked Questions" : `Show Marked (${markedIds.size})`}
+              {markedFilter && <X size={15} className="ml-1" onClick={(e) => { e.stopPropagation(); setMarkedFilter(false); }} />}
+            </button>
           )}
 
-          {/* Navigation */}
-          <div className="mt-6 sm:mt-8 flex items-center justify-between">
-            <Button
-              variant="secondary"
-              onClick={() =>
-                setCurrentIndex((prev) => Math.max(0, prev - 1))
-              }
-              disabled={currentIndex === 0}
-              size="sm"
-            >
-              <ChevronLeft size={16} className="mr-1" />
-              <span className="hidden sm:inline">Previous</span>
-              <span className="sm:hidden">Prev</span>
-            </Button>
+          {/* Filtered marked questions */}
+          {markedFilter ? (
+            <div className="space-y-4">
+              {test.questions
+                .filter((q) => markedIds.has(q.id))
+                .map((q, idx) => (
+                  <div key={q.id} className="border border-amber-200 rounded-xl p-1">
+                    <QuestionCard
+                      question={q}
+                      selectedOption={getSelected(q.id)}
+                      onSelect={handleSelect}
+                      isMarked={true}
+                      onToggleMark={handleToggleMark}
+                    />
+                  </div>
+                ))}
+            </div>
+          ) : (
+            currentQuestion && (
+              <QuestionCard
+                question={currentQuestion}
+                selectedOption={getSelected(currentQuestion.id)}
+                onSelect={handleSelect}
+                isMarked={markedIds.has(currentQuestion.id)}
+                onToggleMark={handleToggleMark}
+              />
+            )
+          )}
 
-            <span className="text-sm text-zinc-500">
-              {currentIndex + 1} / {test.questions.length}
-            </span>
-
-            {currentIndex < test.questions.length - 1 ? (
+          {/* Navigation (hidden when marked filter is on) */}
+          {!markedFilter && (
+            <div className="mt-6 sm:mt-8 flex items-center justify-between gap-2">
               <Button
                 variant="secondary"
                 onClick={() =>
-                  setCurrentIndex((prev) =>
-                    Math.min(test.questions.length - 1, prev + 1)
-                  )
+                  setCurrentIndex((prev) => Math.max(0, prev - 1))
                 }
-                size="sm"
+                disabled={currentIndex === 0}
+                className="flex-1 sm:flex-none"
               >
-                <span className="hidden sm:inline">Next</span>
-                <span className="sm:hidden">Next</span>
-                <ChevronRight size={16} className="ml-1" />
+                <ChevronLeft size={16} className="mr-1" />
+                <span className="hidden sm:inline">Previous</span>
+                <span className="sm:hidden">Prev</span>
               </Button>
-            ) : (
-              <Button size="sm" onClick={() => setShowConfirm(true)}>
-                <Flag size={16} className="mr-1" />
-                <span className="hidden sm:inline">Finish Test</span>
-                <span className="sm:hidden">Finish</span>
-              </Button>
-            )}
-          </div>
+
+              <span className="text-sm text-zinc-500 shrink-0">
+                {currentIndex + 1} / {test.questions.length}
+              </span>
+
+              {currentIndex < test.questions.length - 1 ? (
+                <Button
+                  variant="secondary"
+                  onClick={() =>
+                    setCurrentIndex((prev) =>
+                      Math.min(test.questions.length - 1, prev + 1)
+                    )
+                  }
+                  className="flex-1 sm:flex-none"
+                >
+                  <span className="hidden sm:inline">Next</span>
+                  <span className="sm:hidden">Next</span>
+                  <ChevronRight size={16} className="ml-1" />
+                </Button>
+              ) : (
+                <Button className="flex-1 sm:flex-none" onClick={() => setShowConfirm(true)}>
+                  <Flag size={16} className="mr-1" />
+                  <span className="hidden sm:inline">Finish Test</span>
+                  <span className="sm:hidden">Finish</span>
+                </Button>
+              )}
+            </div>
+          )}
         </main>
 
         {/* Sidebar — Question Palette (desktop) */}
@@ -471,17 +528,23 @@ export default function TestAttemptPage() {
         </aside>
       </div>
 
-      {/* Mobile palette toggle */}
+      {/* Mobile palette - slide-over drawer */}
       <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40">
         <button
           onClick={() => setShowMobilePalette(!showMobilePalette)}
-          className="w-full flex items-center justify-between px-4 py-2.5 bg-white border-t border-zinc-200 text-sm font-medium text-zinc-700 cursor-pointer"
+          className="w-full flex items-center justify-between px-4 py-3 bg-white border-t border-zinc-200 text-sm font-medium text-zinc-700 cursor-pointer"
         >
-          <span>Question Palette ({currentIndex + 1}/{test.questions.length})</span>
+          <span className="flex items-center gap-2">
+            <List size={16} />
+            Palette ({currentIndex + 1}/{test.questions.length})
+            {markedIds.size > 0 && (
+              <span className="text-amber-600 text-xs font-semibold">● {markedIds.size}</span>
+            )}
+          </span>
           {showMobilePalette ? <PanelRightClose size={18} /> : <PanelRightOpen size={18} />}
         </button>
         {showMobilePalette && (
-          <div className="max-h-[40vh] overflow-y-auto bg-white border-t border-zinc-100 px-4 py-3 shadow-lg">
+          <div className="max-h-[50vh] overflow-y-auto bg-white border-t border-zinc-100 px-4 py-3 shadow-lg">
             <QuestionPalette
               questions={test.questions}
               currentIndex={currentIndex}
@@ -489,8 +552,9 @@ export default function TestAttemptPage() {
               markedIds={markedIds}
               onSelect={(i) => { setCurrentIndex(i); setShowMobilePalette(false); }}
             />
-        </div>
-      )}
+          </div>
+        )}
+      </div>
 
       {/* Pause Confirmation Modal */}
       {showPauseConfirm && (
@@ -524,7 +588,6 @@ export default function TestAttemptPage() {
           </div>
         </div>
       )}
-      </div>
 
       {/* Submit Confirmation Modal */}
       {showConfirm && (
@@ -564,6 +627,34 @@ export default function TestAttemptPage() {
                 Submit
               </Button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Thank You Overlay */}
+      {showThankYou && (
+        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl text-center space-y-5">
+            <div className="mx-auto w-16 h-16 rounded-full bg-green-100 flex items-center justify-center">
+              <CheckCircle2 size={36} className="text-green-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-zinc-900">Test Submitted!</h2>
+            <p className="text-zinc-600 text-sm leading-relaxed">
+              Thank you for completing the test. Your responses have been recorded successfully.
+            </p>
+            <div className="bg-zinc-50 rounded-xl p-4 space-y-2 text-sm text-zinc-600">
+              <p>Questions answered: <span className="font-semibold text-zinc-900">{answeredIds.size}/{test.questions.length}</span></p>
+              <p>Time taken: <span className="font-semibold text-zinc-900">{timer.formatted}</span></p>
+            </div>
+            <p className="text-xs text-zinc-400">
+              Redirecting to answer analysis in <span className="font-semibold text-zinc-700">{thankYouCountdown}</span> seconds...
+            </p>
+            <Button
+              className="w-full"
+              onClick={() => router.push(`/results/${attemptId}`)}
+            >
+              View Results Now
+            </Button>
           </div>
         </div>
       )}
