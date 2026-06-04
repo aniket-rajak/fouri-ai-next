@@ -2,12 +2,8 @@ import OpenAI from "openai";
 import { env } from "../config/env.js";
 
 const client = new OpenAI({
-  apiKey: env.openai.apiKey,
-  baseURL: "https://openrouter.ai/api/v1",
-  defaultHeaders: {
-    "HTTP-Referer": "https://fouri.in",
-    "X-Title": "FOURI.IN",
-  },
+  apiKey: env.groq.apiKey,
+  baseURL: "https://api.groq.com/openai/v1",
 });
 
 export interface ParsedQuestion {
@@ -80,7 +76,7 @@ export async function analyzeQuestions(
   text: string
 ): Promise<ParsedQuestion[]> {
   const response = await client.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: "llama3-70b-8192",
     messages: [
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: text },
@@ -159,7 +155,7 @@ export async function generateExplanation(
       : `Provide a detailed step-by-step explanation for this answer. Use simple language. Include the concept and reasoning.\nQuestion: ${question}\nAnswer: ${correctAnswer}`;
 
   const response = await client.chat.completions.create({
-    model: "gpt-4o-mini",
+    model: "llama3-70b-8192",
     messages: [{ role: "user", content: prompt }],
     temperature: 0.3,
     max_tokens: type === "short" ? 200 : 800,
@@ -215,7 +211,7 @@ FORMATTING REQUIREMENTS FOR body:
 
   const response = await callWithRetry(() =>
     client.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "llama3-70b-8192",
       messages: [{ role: "user", content: prompt }],
       temperature: 0.7,
       max_tokens: 4000,
@@ -305,7 +301,7 @@ FORMATTING RULES FOR content:
 
   const response = await callWithRetry(() =>
     client.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "llama3-70b-8192",
       messages: [{ role: "user", content: prompt }],
       temperature: 0.7,
       max_tokens: 4000,
@@ -358,7 +354,7 @@ Rules:
 
   const response = await callWithRetry(() =>
     client.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "llama3-70b-8192",
       messages: [{ role: "user", content: prompt }],
       temperature: 0.7,
       max_tokens: 1000,
@@ -410,7 +406,7 @@ Rules:
 
   const response = await callWithRetry(() =>
     client.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "llama3-70b-8192",
       messages: [{ role: "user", content: prompt }],
       temperature: 0.2,
       max_tokens: 1000,

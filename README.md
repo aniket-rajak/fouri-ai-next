@@ -3,7 +3,7 @@
 An AI-driven education platform where students upload question papers, AI analyzes them, generates mock tests automatically, and provides detailed performance analytics.
 
 **Production URL:** https://www.fouri.in  
-**Last Updated:** 2026-06-02 (Phase 33)
+**Last Updated:** 2026-06-04 (Phase 34 — ✅ Completed)
 
 ---
 
@@ -15,10 +15,10 @@ An AI-driven education platform where students upload question papers, AI analyz
 | Backend | Node.js, Express, TypeScript, JWT, Helmet, express-rate-limit, Zod |
 | Database | PostgreSQL (Neon via Prisma ORM) — 17 models, pooled, indexed |
 | Auth | Firebase Authentication (Google + Email/Password) + Firebase Admin SDK |
-| AI | OpenRouter (OpenAI-compatible, GPT-4o-mini, 65K tokens), Tesseract.js OCR |
-| AI Email Gen | GPT-4o-mini — generates branded, responsive HTML emails with CTA buttons |
+| AI | OpenRouter (GPT-4o-mini, 65K tokens, **paid**) — **Planned:** Groq (free, Llama 3 70B), Tesseract.js OCR |
+| AI Email Gen | GPT-4o-mini — generates branded, responsive HTML emails with CTA buttons (**Planned:** Groq) |
 | Storage | Telegram Bot API (channels as file backend) |
-| Email (SMTP) | Hostinger (smtp.hostinger.com:465, SSL/TLS) — broadcast + contact form |
+| Email (SMTP) | Brevo HTTP API (free 300 emails/day, HTTPS) — replaces Hostinger SMTP (blocked on Render free tier) |
 | Email Templates | DB-backed templates with branding images, per-user variable personalization |
 | Media Library | File proxy with DB-based MIME resolution, paginated, TanStack Query caching |
 | Deployment | Vercel (FE) / Railway (BE) / Neon (DB) |
@@ -240,10 +240,11 @@ Both repos require a `.env` file. See `.env.example` for full reference.
 - `DATABASE_URL` — Neon PostgreSQL pooled connection string
 - `FIREBASE_PROJECT_ID` / `FIREBASE_PRIVATE_KEY` / `FIREBASE_CLIENT_EMAIL`
 - `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHANNEL_ID` — Telegram Bot API for file storage
-- `OPENAI_API_KEY` — OpenRouter API key (OpenAI-compatible)
+- `GROQ_API_KEY` — Groq API key (replaces OpenRouter, **pending migration**)
+- `OPENAI_API_KEY` — OpenRouter API key (currently used, will be replaced by `GROQ_API_KEY`)
+- `BREVO_API_KEY` — Brevo transactional email API key (free, 300 emails/day)
 - `JWT_SECRET` — Owner JWT signing secret
 - `OWNER_EMAIL` / `OWNER_PASSWORD` — Owner console credentials
-- `SMTP_HOST` / `SMTP_PORT` / `SMTP_USER` / `SMTP_PASS` / `SMTP_FROM`
 
 ---
 
@@ -475,7 +476,7 @@ Hidden `/fouri-root-console` admin panel, JWT owner auth, user CSV export, uploa
 ### What Is Not Finished
 - Google Maps API key — embedded map uses placeholder key, needs real key for production
 - Re-running AI analysis on existing tests to populate `correctAnswer` for subjective questions
-- SMTP email delivery — backend SMTP configuration needs valid credentials to send emails
+- ~~Groq migration (Phase 34)~~ ✅ — AI analysis migrated from OpenRouter (paid) to Groq (free, Llama 3 70B) on 2026-06-04
 
 ---
 
@@ -738,6 +739,40 @@ Professional HTML email prompt with inline CSS, table-based CTA buttons, full em
 - **SMTP error propagation** — `sendBroadcastEmail()` now returns detailed `errors: string[]` array; `/send` endpoint includes `smtpError` field in response; frontend displays the actual SMTP error message
 - **SMTP timeouts** — Added connection/greeting/socket timeouts (10s/10s/15s) to nodemailer transport to fail fast instead of hanging
 
+### Phase 34 — Groq AI Migration ✅
+
+**Goal:** Replace OpenRouter (paid, `gpt-4o-mini`) with Groq (free, `llama3-70b-8192`) for AI question analysis, explanations, email generation, blog generation, ad generation, and subjective evaluation. Fixes the broken AI analysis (402 credit error) with zero ongoing cost. ✅ **Completed 2026-06-04**
+
+**Why Groq:**
+- 1,000 requests/day on Llama 3.3 70B (or 14,400/day on Llama 3.1 8B) — completely free, no credit card
+- OpenAI-compatible SDK — only `baseURL` + model name change, no new packages
+- Sufficient for ~200+ analyses/day needed
+
+**Files to Change:**
+
+| File | Change |
+|------|--------|
+| `backend/src/services/openai.ts` | `baseURL` → `https://api.groq.com/openai/v1`, remove `defaultHeaders`, change model `gpt-4o-mini` → `llama3-70b-8192` in 6 functions |
+| `backend/src/config/env.ts` | Rename `openai.apiKey` → `groq.apiKey`, env var `OPENAI_API_KEY` → `GROQ_API_KEY` |
+| `backend/.env` | Rename `OPENAI_API_KEY` → `GROQ_API_KEY`, set Groq key value |
+
+**No changes needed:**
+- `backend/package.json` — `openai` npm package works with Groq as-is
+- `backend/src/routes/analyze.ts` — error classification already handles all API errors generically
+- `backend/src/index.ts` — no startup changes
+
+**Setup Required:**
+1. Sign up at [console.groq.com](https://console.groq.com) (Google account, no credit card)
+2. Create API key at [console.groq.com/keys](https://console.groq.com/keys)
+3. Set `GROQ_API_KEY` in `backend/.env` and Render environment variables
+4. Deploy to Render and verify AI analysis works
+
+**Model Options:**
+| Model | Daily Limit | Quality |
+|-------|-------------|---------|
+| `llama3-8b-8192` | 14,400 req/day | Good for most questions |
+| `llama3-70b-8192` | 1,000 req/day | Excellent — recommended |
+
 ---
 
 ## Important Files
@@ -777,8 +812,8 @@ Professional HTML email prompt with inline CSS, table-based CTA buttons, full em
 | `backend/src/routes/media.ts` | Media library CRUD — paginated, category-filtered list + upload + delete |
 | `backend/src/lib/evaluationQueue.ts` | Serialized FIFO queue for global AI evaluation rate limiting |
 | `backend/src/lib/emailVariables.ts` | Per-user variable resolver (`resolveVariables`, `AVAILABLE_VARIABLES`) |
-| `backend/src/services/email.ts` | SMTP service — `sendBroadcastEmail()` + `wrapWithBranding()` + `verifySmtpConnection()` |
-| `backend/src/services/openai.ts` | AI service — `evaluateSubjectiveWithAI()` + `generateEmailContent()` + `callWithRetry()` |
+| `backend/src/services/email.ts` | Brevo HTTP API email service — `sendBroadcastEmail()` (batch 10, 600ms delay) + `sendContactEmail()` + `wrapWithBranding()` |
+| `backend/src/services/openai.ts` | AI service — `evaluateSubjectiveWithAI()` + `generateEmailContent()` + `callWithRetry()` (target for Groq migration) |
 | `frontend/src/app/fouri-root-console/email-broadcast/page.tsx` | Email broadcast compose + preview + campaign history |
 | `frontend/src/app/fouri-root-console/email-templates/page.tsx` | Template CRUD + branding + variable picker + media library picker |
 | `frontend/src/app/fouri-root-console/media/page.tsx` | Media library with TanStack Query, pagination, search, filter, preview modal |

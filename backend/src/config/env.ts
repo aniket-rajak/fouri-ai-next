@@ -11,8 +11,8 @@ export const env = {
     privateKey: process.env.FIREBASE_PRIVATE_KEY!,
     clientEmail: process.env.FIREBASE_CLIENT_EMAIL!,
   },
-  openai: {
-    apiKey: process.env.OPENAI_API_KEY!,
+  groq: {
+    apiKey: process.env.GROQ_API_KEY!,
   },
   brevo: {
     apiKey: process.env.BREVO_API_KEY || "",
