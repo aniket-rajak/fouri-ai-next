@@ -182,15 +182,38 @@ export default function TestAttemptPage() {
     init();
   }, [params.id, router]);
 
-  const handleSubmit = async (_isTimeout = false) => {
+  const handleSubmit = async (isTimeout = false) => {
     if (!attemptId || submitting || submitCooldown || submittingRef.current) return;
     submittingRef.current = true;
     setSubmitting(true);
     setSubmitError(null);
 
-    try {
-      await api.put(`/attempts/${attemptId}/save`, { answers });
-    } catch {
+    // On timeout, skip the save call — auto-save keeps answers synced.
+    // This avoids a full HTTP round-trip delay before submitting.
+    if (!isTimeout) {
+      try {
+        await api.put(`/attempts/${attemptId}/save`, { answers });
+      } catch {
+      }
+    }
+
+    // On timeout: fire submit in the background (don't await it)
+    // so the Thank You overlay shows immediately instead of waiting
+    // for the backend's scoring loop (which can take 2-5s for large tests).
+    if (isTimeout) {
+      // Show overlay right away
+      localStorage.removeItem(`fouri_attempt_${attemptId}`);
+      submittingRef.current = false;
+      setSubmitting(false);
+      setShowThankYou(true);
+      setThankYouCountdown(6);
+
+      // Submit async — fire-and-forget
+      api.post(`/attempts/${attemptId}/submit`, {
+        timeTaken: test ? test.duration : null,
+        markedIds: Array.from(markedIds),
+      }).catch(() => {});
+      return;
     }
 
     const maxRetries = 3;
@@ -201,7 +224,6 @@ export default function TestAttemptPage() {
           markedIds: Array.from(markedIds),
         });
 
-        // If the backend says it was already submitted, treat as success
         if (res.data?.alreadySubmitted) {
           localStorage.removeItem(`fouri_attempt_${attemptId}`);
           submittingRef.current = false;

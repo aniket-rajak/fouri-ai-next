@@ -90,6 +90,11 @@ export function useAutoSave(
     if (!isActive || !attemptId) return;
     if (submittingRef.current) return;
 
+    // Skip if no real answers yet — avoids unnecessary save on initial mount
+    const hasRealAnswers = answersRef.current.some(a => a.selectedOption !== null);
+    const hasMarked = markedRef.current.size > 0;
+    if (!hasRealAnswers && !hasMarked) return;
+
     const timer = setTimeout(async () => {
       try {
         await api.put(`/attempts/${attemptId}/save`, {
