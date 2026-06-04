@@ -347,7 +347,26 @@ FORMATTING REQUIREMENTS FOR body:
   if (!content) throw new Error("Empty response from OpenAI during email generation");
 
   const cleaned = content.replace(/```(?:json)?\s*([\s\S]*?)\s*```/g, "$1").trim();
-  const parsed = JSON.parse(cleaned);
+
+  // Attempt to parse JSON with fallback extraction
+  let parsed: Record<string, string>;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    // Fallback: try extracting a JSON object via regex
+    const jsonMatch = cleaned.match(/\{[\s\S]*?\}/);
+    if (jsonMatch) {
+      try {
+        parsed = JSON.parse(jsonMatch[0]);
+      } catch {
+        console.error("[openai] Failed to parse email content JSON. Raw response (first 500 chars):", cleaned.slice(0, 500));
+        throw new Error("Failed to parse AI generated email content as JSON");
+      }
+    } else {
+      console.error("[openai] No JSON found in email content response. Raw response (first 500 chars):", cleaned.slice(0, 500));
+      throw new Error("Failed to parse AI generated email content as JSON");
+    }
+  }
 
   return {
     subject: parsed.subject || "",

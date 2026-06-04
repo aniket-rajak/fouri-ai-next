@@ -89,9 +89,14 @@ router.post("/generate-ai", async (req, res) => {
       tone || "Professional",
     );
     res.json(result);
-  } catch (error) {
-    console.error("AI email generation error:", error);
-    res.status(500).json({ error: "Failed to generate email" });
+  } catch (error: any) {
+    console.error("[Email] AI generation error:", error?.message || error, error?.stack ? `\nStack: ${error.stack}` : "");
+    // Log the actual Groq/OpenAI error details if available
+    if (error?.status) console.error("[Email] AI generation HTTP status:", error.status);
+    if (error?.code) console.error("[Email] AI generation error code:", error.code);
+    res.status(500).json({
+      error: `Failed to generate email: ${error instanceof Error ? error.message : "Unknown error"}`,
+    });
   }
 });
 
