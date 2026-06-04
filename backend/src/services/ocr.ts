@@ -100,12 +100,25 @@ export function cleanText(text: string): string {
     .join("\n");
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`Timed out after ${ms / 1000}s: ${label}`)), ms)
+    ),
+  ]);
+}
+
 export async function extractText(
   buffer: Buffer,
   mimeType: string
 ): Promise<string> {
   if (mimeType === "application/pdf") {
-    return await extractTextFromPDF(buffer);
+    return await withTimeout(
+      extractTextFromPDF(buffer),
+      300_000,
+      "OCR PDF processing"
+    );
   }
 
   const raw = await ocrImage(buffer);

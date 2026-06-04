@@ -5,6 +5,8 @@ import { Card } from "@/components/ui/Card";
 import Link from "next/link";
 import { Upload, FileText, BarChart3, RotateCcw } from "lucide-react";
 import { api } from "@/lib/api";
+import { CreditUsageCard } from "@/components/credits/CreditUsageCard";
+import { CreditWarningBanner } from "@/components/credits/CreditWarningBanner";
 
 interface PausedAttempt {
   id: string;
@@ -36,7 +38,13 @@ export default function DashboardPage() {
         <p className="text-zinc-500 mt-1">Welcome back! Ready to practice?</p>
       </div>
 
-      <div className="grid sm:grid-cols-3 gap-4">
+      <CreditWarningBanner />
+
+      <div className="grid sm:grid-cols-4 gap-4">
+        <div className="sm:col-span-1">
+          <CreditUsageCard />
+        </div>
+        <div className="sm:col-span-3 grid sm:grid-cols-3 gap-4">
         <Link href="/upload">
           <Card className="hover:shadow-md transition-shadow cursor-pointer">
             <div className="flex items-center gap-3">
@@ -76,6 +84,7 @@ export default function DashboardPage() {
             </div>
           </Card>
         </Link>
+        </div>
       </div>
 
       {/* Paused Tests Summary */}

@@ -75,10 +75,16 @@ export async function getTelegramFileUrl(fileId: string): Promise<string> {
 
 export async function downloadTelegramFile(fileId: string): Promise<Buffer> {
   const url = await getTelegramFileUrl(fileId);
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Failed to download file from Telegram: ${response.status}`);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 120_000);
+  try {
+    const response = await fetch(url, { signal: controller.signal });
+    if (!response.ok) {
+      throw new Error(`Failed to download file from Telegram: ${response.status}`);
+    }
+    const arrayBuffer = await response.arrayBuffer();
+    return Buffer.from(arrayBuffer);
+  } finally {
+    clearTimeout(timeout);
   }
-  const arrayBuffer = await response.arrayBuffer();
-  return Buffer.from(arrayBuffer);
 }

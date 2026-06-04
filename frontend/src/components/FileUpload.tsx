@@ -21,9 +21,16 @@ interface FileWithPreview extends File {
 
 interface FileUploadProps {
   onUploadComplete?: (uploadId: string, fileSize: number) => void;
+  onFilesChange?: (files: File[]) => void;
+  disabled?: boolean;
+  creditInfo?: {
+    estimatedCost: number;
+    availableCredits: number;
+    hasEnoughCredits: boolean;
+  } | null;
 }
 
-export function FileUpload({ onUploadComplete }: FileUploadProps) {
+export function FileUpload({ onUploadComplete, onFilesChange, disabled, creditInfo }: FileUploadProps) {
   const [files, setFiles] = useState<FileWithPreview[]>([]);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -32,8 +39,12 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
 
   const onDrop = useCallback((accepted: FileWithPreview[]) => {
     setError(null);
-    setFiles((prev) => [...prev, ...accepted]);
-  }, []);
+    setFiles((prev) => {
+      const next = [...prev, ...accepted];
+      onFilesChange?.(next);
+      return next;
+    });
+  }, [onFilesChange]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -50,7 +61,11 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
   });
 
   const removeFile = (index: number) => {
-    setFiles((prev) => prev.filter((_, i) => i !== index));
+    setFiles((prev) => {
+      const next = prev.filter((_, i) => i !== index);
+      onFilesChange?.(next);
+      return next;
+    });
   };
 
   const handleUpload = async () => {
@@ -161,6 +176,24 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
             ))}
           </div>
 
+          {creditInfo && files.length > 0 && !uploading && uploadedFiles.length === 0 && (
+            <div className={`p-3 rounded-lg border text-sm ${
+              creditInfo.hasEnoughCredits
+                ? "bg-green-50 border-green-200 text-green-800"
+                : "bg-red-50 border-red-200 text-red-800"
+            }`}>
+              <p className="font-medium">
+                Estimated AI Cost: {creditInfo.estimatedCost} Credits
+              </p>
+              <p className="text-xs mt-0.5">
+                Available: {creditInfo.availableCredits} Credits
+                {creditInfo.hasEnoughCredits
+                  ? ` → ${Math.max(0, creditInfo.availableCredits - creditInfo.estimatedCost)} after analysis`
+                  : " — Insufficient"}
+              </p>
+            </div>
+          )}
+
           {uploading && (
             <div className="space-y-1">
               <div className="h-2 bg-zinc-200 rounded-full overflow-hidden">
@@ -175,7 +208,7 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
 
           <button
             onClick={handleUpload}
-            disabled={uploading}
+            disabled={uploading || disabled}
             className="w-full h-10 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 disabled:opacity-50 cursor-pointer"
           >
             {uploading ? "Uploading..." : "Upload Files"}

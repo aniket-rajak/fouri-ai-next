@@ -5,12 +5,20 @@ import { extractText } from "../services/ocr.js";
 import { downloadTelegramFile } from "../services/telegramStorage.js";
 import { analyzeQuestions } from "../services/openai.js";
 import { analyzeLimiter, standardLimiter, analyzeStatusLimiter } from "../middleware/rateLimiter.js";
+import { getUserCredits, deductCredits, estimateRequiredCredits } from "../services/creditService.js";
+import type { AnalysisMode } from "../services/creditService.js";
 
 const router = Router();
 
 router.post("/:uploadId", analyzeLimiter, authenticate, async (req, res) => {
   try {
     const uploadId = req.params.uploadId as string;
+    const mode = (req.query.mode as string) || "full";
+    if (!["basic", "standard", "full"].includes(mode)) {
+      res.status(400).json({ error: "Invalid analysis mode. Use 'basic', 'standard', or 'full'." });
+      return;
+    }
+
     const upload = await prisma.upload.findUnique({
       where: { id: uploadId },
     });
@@ -20,14 +28,27 @@ router.post("/:uploadId", analyzeLimiter, authenticate, async (req, res) => {
       return;
     }
 
+    const credits = await getUserCredits(req.user!.uid);
+    const required = estimateRequiredCredits(upload.fileSize || 0, mode as AnalysisMode);
+    if (credits.remaining < required) {
+      res.status(403).json({
+        error: "INSUFFICIENT_CREDITS",
+        message: `This analysis requires ${required} AI Credits but you only have ${credits.remaining}.`,
+        required,
+        available: credits.remaining,
+        resetsAt: credits.resetsAt,
+      });
+      return;
+    }
+
     await prisma.upload.update({
       where: { id: upload.id },
       data: { status: "ANALYZING" },
     });
 
-    res.json({ status: "processing", uploadId: upload.id });
+    res.json({ status: "processing", uploadId: upload.id, creditsRequired: required, creditsAvailable: credits.remaining });
 
-    processUpload(upload.id).catch((err) =>
+    processUpload(upload.id, mode as AnalysisMode).catch((err) =>
       console.error(`Process upload ${upload.id} failed:`, err)
     );
   } catch (error) {
@@ -36,9 +57,13 @@ router.post("/:uploadId", analyzeLimiter, authenticate, async (req, res) => {
   }
 });
 
-async function processUpload(uploadId: string): Promise<void> {
+async function processUpload(uploadId: string, mode: AnalysisMode = "full"): Promise<void> {
+  let upload: Awaited<ReturnType<typeof prisma.upload.findUniqueOrThrow>> | null = null;
+  let required = 0;
+  let creditsDeducted = false;
+
   try {
-    const upload = await prisma.upload.findUniqueOrThrow({
+    upload = await prisma.upload.findUniqueOrThrow({
       where: { id: uploadId },
     });
 
@@ -46,79 +71,94 @@ async function processUpload(uploadId: string): Promise<void> {
       throw new Error("Upload has no Telegram file reference");
     }
 
-    const fileBuffer = await downloadTelegramFile(upload.telegramFileId);
-    const rawText = await extractText(fileBuffer, upload.fileType);
-    if (!rawText || rawText.trim().length === 0) {
-      throw new Error("OCR returned empty text - could not extract any content from the file");
-    }
+    required = estimateRequiredCredits(upload.fileSize || 0, mode);
+    await deductCredits(upload.userId, required);
+    creditsDeducted = true;
+    console.log(`[Analyze] Deducted ${required} credits (${mode}) for upload ${uploadId}`);
 
-    const questions = await analyzeQuestions(rawText);
+    const telegramFileId = upload.telegramFileId!;
+    const fileType = upload.fileType;
 
-    const subjectCounts = new Map<string, number>();
-    for (const q of questions) {
-      if (q.subject) {
-        subjectCounts.set(q.subject, (subjectCounts.get(q.subject) || 0) + 1);
-      }
-    }
-    let subject = "General";
-    let maxCount = 0;
-    for (const [s, c] of subjectCounts) {
-      if (c > maxCount) {
-        subject = s;
-        maxCount = c;
-      }
-    }
+    await Promise.race([
+      (async () => {
+        const fileBuffer = await downloadTelegramFile(telegramFileId);
+        const rawText = await extractText(fileBuffer, fileType);
+        if (!rawText || rawText.trim().length === 0) {
+          throw new Error("OCR returned empty text - could not extract any content from the file");
+        }
 
-    const _filename = upload.filename
-      .replace(/\.(pdf|png|jpg|jpeg)$/i, "")
-      .replace(/[-_]/g, " ")
-      .replace(/\b\w/g, (c) => c.toUpperCase());
+        const questions = await analyzeQuestions(rawText);
 
-    const count = questions.length;
-    const difficultyMap = { EASY: 0, MEDIUM: 1, HARD: 2 };
-    const avgDifficulty = questions.reduce(
-      (acc, q) => acc + (difficultyMap[q.difficulty] || 1),
-      0
-    );
-    const dominantDifficulty =
-      avgDifficulty / count < 0.8
-        ? "EASY"
-        : avgDifficulty / count < 1.5
-        ? "MEDIUM"
-        : "HARD";
+        const subjectCounts = new Map<string, number>();
+        for (const q of questions) {
+          if (q.subject) {
+            subjectCounts.set(q.subject, (subjectCounts.get(q.subject) || 0) + 1);
+          }
+        }
+        let subject = "General";
+        let maxCount = 0;
+        for (const [s, c] of subjectCounts) {
+          if (c > maxCount) {
+            subject = s;
+            maxCount = c;
+          }
+        }
 
-    const calculatedDuration = Math.max(count * 120, 600);
+        const _filename = upload!.filename
+          .replace(/\.(pdf|png|jpg|jpeg)$/i, "")
+          .replace(/[-_]/g, " ")
+          .replace(/\b\w/g, (c) => c.toUpperCase());
 
-    const mockTest = await prisma.mockTest.create({
-      data: {
-        title: `${subject} Mock Test`,
-        subject,
-        sourceUploadId: uploadId,
-        status: "PUBLISHED",
-        duration: calculatedDuration,
-        totalQuestions: count,
-        difficulty: dominantDifficulty as "EASY" | "MEDIUM" | "HARD",
-        questions: {
-          create: questions.map((q, i) => ({
-            questionText: q.question,
-            options: q.options,
-            correctAnswer: q.correctAnswer,
-            type: q.type,
-            difficulty: q.difficulty,
-            order: i + 1,
-          })),
-        },
-      },
-    });
+        const count = questions.length;
+        const difficultyMap = { EASY: 0, MEDIUM: 1, HARD: 2 };
+        const avgDifficulty = questions.reduce(
+          (acc, q) => acc + (difficultyMap[q.difficulty] || 1),
+          0
+        );
+        const dominantDifficulty =
+          avgDifficulty / count < 0.8
+            ? "EASY"
+            : avgDifficulty / count < 1.5
+              ? "MEDIUM"
+              : "HARD";
 
-    await prisma.upload.update({
-      where: { id: uploadId },
-      data: { status: "COMPLETED" },
-    });
+        const calculatedDuration = Math.max(count * 120, 600);
 
-    console.log(
-      `[Analyze] Test created: ID=${mockTest.id}, title="${mockTest.title}", questions=${count}, uploadId=${uploadId}, status=PUBLISHED`
-    );
+        const mockTest = await prisma.mockTest.create({
+          data: {
+            title: `${subject} Mock Test`,
+            subject,
+            sourceUploadId: uploadId,
+            status: "PUBLISHED",
+            duration: calculatedDuration,
+            totalQuestions: count,
+            difficulty: dominantDifficulty as "EASY" | "MEDIUM" | "HARD",
+            questions: {
+              create: questions.map((q, i) => ({
+                questionText: q.question,
+                options: q.options,
+                correctAnswer: q.correctAnswer,
+                type: q.type,
+                difficulty: q.difficulty,
+                order: i + 1,
+              })),
+            },
+          },
+        });
+
+        await prisma.upload.update({
+          where: { id: uploadId },
+          data: { status: "COMPLETED" },
+        });
+
+        console.log(
+          `[Analyze] Test created: ID=${mockTest.id}, title="${mockTest.title}", questions=${count}, uploadId=${uploadId}, status=PUBLISHED`
+        );
+      })(),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Analysis timed out after 10 minutes")), 600_000)
+      ),
+    ]);
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     const errorStack = error instanceof Error ? error.stack : "";
@@ -132,7 +172,26 @@ async function processUpload(uploadId: string): Promise<void> {
       console.error(`[Analyze] JSON parse error - AI response may be malformed`);
     }
 
+    if (creditsDeducted) {
+      try {
+        const user = await prisma.user.findUnique({ where: { firebaseUid: upload!.userId } });
+        if (user) {
+          const refunded = Math.min(required, user.usedCredits);
+          await prisma.user.update({
+            where: { firebaseUid: upload!.userId },
+            data: { usedCredits: { decrement: refunded } },
+          });
+          console.log(`[Analyze] Refunded ${refunded} credits to user ${upload!.userId} after failure`);
+        }
+      } catch (refundError) {
+        console.error(`[Analyze] Failed to refund credits:`, refundError);
+      }
+    }
+
     const failureReason = (() => {
+      if (errorMessage.includes("Timed out") || errorMessage.includes("timeout after") || errorMessage.includes("AbortError")) {
+        return "Analysis timed out. The file may be too large or the AI service is slow. Please try again with a smaller file or during off-peak hours.";
+      }
       if (errorMessage.includes("OCR") || errorMessage.includes("extract text") || errorMessage.includes("Tesseract")) {
         return "Could not read text from the file. Ensure the image is clear or the PDF is not scanned poorly.";
       }

@@ -134,17 +134,22 @@ function normalizeQuestion(q: Record<string, unknown>): ParsedQuestion {
 const CHUNK_RETRY_FALLBACK_PROMPT = `Extract questions from the text below. Return ONLY a valid JSON object with a "questions" array. Each question must have: question, options (array of strings, empty for subjective), correctAnswer (string), type ("MCQ" or "SUBJECTIVE"), difficulty ("EASY", "MEDIUM", or "HARD"). No markdown, no explanation, no code fences.`;
 
 async function analyzeChunk(text: string): Promise<ParsedQuestion[]> {
-  const attempt = async (prompt: string) => {
-    const response = await callWithRetry(() =>
-      client.chat.completions.create({
-        model: "llama-3.1-8b-instant",
-        messages: [
-          { role: "system", content: prompt },
-          { role: "user", content: text },
-        ],
-        temperature: 0.1,
-        max_tokens: CHUNK_OUTPUT_TOKENS,
-      })
+  const attempt = async (prompt: string, signal?: AbortSignal) => {
+    const response = await callWithRetry(
+      (s) =>
+        client.chat.completions.create(
+          {
+            model: "llama-3.1-8b-instant",
+            messages: [
+              { role: "system", content: prompt },
+              { role: "user", content: text },
+            ],
+            temperature: 0.1,
+            max_tokens: CHUNK_OUTPUT_TOKENS,
+          },
+          s ? { signal: s } : undefined
+        ),
+      signal
     );
 
     const content = response.choices[0]?.message?.content;
@@ -187,14 +192,21 @@ async function analyzeChunk(text: string): Promise<ParsedQuestion[]> {
     return questions.map(normalizeQuestion);
   };
 
-  const raw = await attempt(SYSTEM_PROMPT);
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 180_000);
+
   try {
-    return parseQuestions(raw);
-  } catch (err) {
-    console.error(`[openai] Chunk parsing failed with primary prompt. Raw response (first 500 chars): ${raw.slice(0, 500)}`);
-    console.log(`[openai] Retrying chunk with simplified fallback prompt...`);
-    const fallbackRaw = await attempt(CHUNK_RETRY_FALLBACK_PROMPT);
-    return parseQuestions(fallbackRaw);
+    const raw = await attempt(SYSTEM_PROMPT, controller.signal);
+    try {
+      return parseQuestions(raw);
+    } catch (err) {
+      console.error(`[openai] Chunk parsing failed with primary prompt. Raw response (first 500 chars): ${raw.slice(0, 500)}`);
+      console.log(`[openai] Retrying chunk with simplified fallback prompt...`);
+      const fallbackRaw = await attempt(CHUNK_RETRY_FALLBACK_PROMPT, controller.signal);
+      return parseQuestions(fallbackRaw);
+    }
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
@@ -350,13 +362,14 @@ export interface SubjectiveEvaluation {
   isCorrect: boolean | null;
 }
 
-async function callWithRetry<T>(fn: () => Promise<T>): Promise<T> {
+async function callWithRetry<T>(fn: (signal?: AbortSignal) => Promise<T>, signal?: AbortSignal): Promise<T> {
   let lastError: unknown;
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      return await fn();
+      return await fn(signal);
     } catch (error: any) {
       lastError = error;
+      if (error?.name === "AbortError") throw error;
       const isRateLimit =
         error?.status === 429 ||
         error?.code === "rate_limit" ||

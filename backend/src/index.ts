@@ -105,6 +105,9 @@ import { blogRoutes, ownerBlogRoutes } from "./routes/blog.js";
 app.use("/api/blog", standardLimiter, blogRoutes);
 app.use("/api/owner/blog", ownerLimiter, ownerAuth, ownerBlogRoutes);
 
+import creditRoutes from "./routes/credits.js";
+app.use("/api/credits", standardLimiter, creditRoutes);
+
 import contactRoutes from "./routes/contact.js";
 app.use("/api/contact", contactLimiter, contactRoutes);
 
