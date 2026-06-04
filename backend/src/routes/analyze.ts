@@ -117,7 +117,7 @@ async function processUpload(uploadId: string): Promise<void> {
     });
 
     console.log(
-      `Upload ${uploadId} processed: ${count} questions in test ${mockTest.id}`
+      `[Analyze] Test created: ID=${mockTest.id}, title="${mockTest.title}", questions=${count}, uploadId=${uploadId}, status=PUBLISHED`
     );
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
@@ -133,9 +133,6 @@ async function processUpload(uploadId: string): Promise<void> {
     }
 
     const failureReason = (() => {
-      if (errorMessage.includes("PERMISSION_DENIED") || errorMessage.includes("billing") || errorMessage.includes("Billing")) {
-        return "Google Cloud Vision API billing is not enabled. Please enable billing at https://console.cloud.google.com/billing for your project, or the OCR text extraction cannot work.";
-      }
       if (errorMessage.includes("OCR") || errorMessage.includes("extract text") || errorMessage.includes("Tesseract")) {
         return "Could not read text from the file. Ensure the image is clear or the PDF is not scanned poorly.";
       }

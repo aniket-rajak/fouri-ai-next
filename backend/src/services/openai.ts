@@ -72,76 +72,189 @@ function shuffleArray<T>(arr: T[]): T[] {
   return shuffled;
 }
 
+const MAX_CHUNK_CHARS = 3000;
+const CHUNK_OUTPUT_TOKENS = 3000;
+const OVERLAP_LINES = 5;
+
+function chunkText(text: string): string[] {
+  const lines = text.split("\n");
+  const chunks: string[] = [];
+  let start = 0;
+
+  while (start < lines.length) {
+    let end = start;
+    let charCount = 0;
+
+    while (end < lines.length && charCount < MAX_CHUNK_CHARS) {
+      charCount += lines[end].length + 1;
+      end++;
+    }
+
+    if (end < lines.length && end - start > 10) {
+      let boundary = end;
+      while (boundary > start) {
+        const line = lines[boundary].trim();
+        if (line === "" || /^\d+[.)]/.test(line)) {
+          break;
+        }
+        boundary--;
+      }
+      if (boundary > start && end - boundary < 15) {
+        end = boundary;
+      }
+    }
+
+    const overlapStart = Math.max(0, start - OVERLAP_LINES);
+    const chunk = lines.slice(overlapStart, end).join("\n");
+    chunks.push(chunk);
+    start = end;
+  }
+
+  return chunks;
+}
+
+function normalizeQuestion(q: Record<string, unknown>): ParsedQuestion {
+  let options: string[] = [];
+  if (Array.isArray(q.options)) options = q.options as string[];
+  else if (typeof q.options === "string") {
+    try { options = JSON.parse(q.options as string); }
+    catch { options = []; }
+  }
+  return {
+    question: q.question as string || "",
+    options,
+    correctAnswer: (q.correctAnswer as string) || "",
+    type: normalizeType(q.type as string),
+    difficulty: normalizeDifficulty(q.difficulty as string),
+    topic: q.topic as string | undefined,
+    subject: q.subject as string | undefined,
+  };
+}
+
+const CHUNK_RETRY_FALLBACK_PROMPT = `Extract questions from the text below. Return ONLY a valid JSON object with a "questions" array. Each question must have: question, options (array of strings, empty for subjective), correctAnswer (string), type ("MCQ" or "SUBJECTIVE"), difficulty ("EASY", "MEDIUM", or "HARD"). No markdown, no explanation, no code fences.`;
+
+async function analyzeChunk(text: string): Promise<ParsedQuestion[]> {
+  const attempt = async (prompt: string) => {
+    const response = await callWithRetry(() =>
+      client.chat.completions.create({
+        model: "llama-3.1-8b-instant",
+        messages: [
+          { role: "system", content: prompt },
+          { role: "user", content: text },
+        ],
+        temperature: 0.1,
+        max_tokens: CHUNK_OUTPUT_TOKENS,
+      })
+    );
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) throw new Error("Empty response from OpenAI");
+    return content;
+  };
+
+  const parseQuestions = (raw: string): ParsedQuestion[] => {
+    const cleaned = raw.replace(/```(?:json)?\s*([\s\S]*?)\s*```/g, "$1").trim();
+
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch {
+      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        try {
+          parsed = JSON.parse(jsonMatch[0]);
+        } catch {
+          const arrMatch = cleaned.match(/"questions"\s*:\s*\[[\s\S]*?\]\s*}/);
+          if (arrMatch) {
+            try {
+              parsed = JSON.parse(`{${arrMatch[0]}}`);
+            } catch {
+              throw new Error("Failed to parse OpenAI response as JSON after all fallback attempts");
+            }
+          } else {
+            throw new Error("Failed to parse OpenAI response as JSON after all fallback attempts");
+          }
+        }
+      } else {
+        throw new Error("Failed to parse OpenAI response as JSON after all fallback attempts");
+      }
+    }
+
+    const questions = (parsed.questions || parsed) as Record<string, unknown>[];
+    if (!Array.isArray(questions)) {
+      throw new Error("Invalid response format from OpenAI");
+    }
+    return questions.map(normalizeQuestion);
+  };
+
+  const raw = await attempt(SYSTEM_PROMPT);
+  try {
+    return parseQuestions(raw);
+  } catch (err) {
+    console.error(`[openai] Chunk parsing failed with primary prompt. Raw response (first 500 chars): ${raw.slice(0, 500)}`);
+    console.log(`[openai] Retrying chunk with simplified fallback prompt...`);
+    const fallbackRaw = await attempt(CHUNK_RETRY_FALLBACK_PROMPT);
+    return parseQuestions(fallbackRaw);
+  }
+}
+
+const CHUNK_DELAY_MS = 60000;
+
+function delay(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+function dedupQuestions(questions: ParsedQuestion[]): ParsedQuestion[] {
+  const result: ParsedQuestion[] = [];
+  for (const q of questions) {
+    const isDuplicate = result.some((existing) => {
+      const a = existing.question.replace(/\s+/g, " ").trim().toLowerCase();
+      const b = q.question.replace(/\s+/g, " ").trim().toLowerCase();
+      if (a === b) return true;
+      if (a.length > 20 && b.length > 20) {
+        if (a.includes(b) || b.includes(a)) return true;
+      }
+      return false;
+    });
+    if (!isDuplicate) {
+      result.push(q);
+    }
+  }
+  return result;
+}
+
 export async function analyzeQuestions(
   text: string
 ): Promise<ParsedQuestion[]> {
-  const response = await client.chat.completions.create({
-    model: "llama3-70b-8192",
-    messages: [
-      { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: text },
-    ],
-    temperature: 0.1,
-    max_tokens: 65536,
-  });
+  const chunks = chunkText(text);
 
-  const content = response.choices[0]?.message?.content;
-  if (!content) throw new Error("Empty response from OpenAI");
-
-  const cleaned = content.replace(/```(?:json)?\s*([\s\S]*?)\s*```/g, "$1").trim();
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let parsed: any;
-  try {
-    parsed = JSON.parse(cleaned);
-  } catch {
-    // Attempt to extract valid JSON object via regex as fallback
-    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      try {
-        parsed = JSON.parse(jsonMatch[0]);
-      } catch {
-        // If still fails, try to find the questions array directly
-        const arrMatch = cleaned.match(/"questions"\s*:\s*\[[\s\S]*?\]\s*}/);
-        if (arrMatch) {
-          try {
-            const partial = `{${arrMatch[0]}}`;
-            parsed = JSON.parse(partial);
-          } catch {
-            throw new Error("Failed to parse OpenAI response as JSON after all fallback attempts");
-          }
-        } else {
-          throw new Error("Failed to parse OpenAI response as JSON after all fallback attempts");
-        }
-      }
-    } else {
-      throw new Error("Failed to parse OpenAI response as JSON after all fallback attempts");
-    }
+  if (chunks.length <= 1) {
+    return shuffleArray(await analyzeChunk(chunks[0] || text));
   }
 
-  const questions: ParsedQuestion[] = parsed.questions || parsed;
+  console.log(`[Analyze] Splitting into ${chunks.length} chunks for AI processing`);
 
-  if (!Array.isArray(questions)) {
-    throw new Error("Invalid response format from OpenAI");
+  const totalEstimate = Math.ceil(chunks.length * CHUNK_DELAY_MS / 60000);
+  console.log(`[Analyze] Estimated total time: ~${totalEstimate} minutes (${CHUNK_DELAY_MS / 1000}s delay between chunks)`);
+
+  const allQuestions: ParsedQuestion[] = [];
+  for (let i = 0; i < chunks.length; i++) {
+    if (i > 0) {
+      console.log(`[Analyze] Waiting ${CHUNK_DELAY_MS / 1000}s to respect Groq free TPM limit...`);
+      await delay(CHUNK_DELAY_MS);
+    }
+    console.log(`[Analyze] Processing chunk ${i + 1}/${chunks.length}...`);
+    const questions = await analyzeChunk(chunks[i]);
+    allQuestions.push(...questions);
   }
 
-  return shuffleArray(questions.map((q) => {
-    let options: string[] = [];
-    if (Array.isArray(q.options)) options = q.options;
-    else if (typeof q.options === "string") {
-      try { options = JSON.parse(q.options); }
-      catch { options = []; }
-    }
-    return {
-      question: q.question,
-      options,
-      correctAnswer: q.correctAnswer || "",
-      type: normalizeType(q.type),
-      difficulty: normalizeDifficulty(q.difficulty),
-      topic: q.topic,
-      subject: q.subject,
-    };
-  }));
+  const deduped = dedupQuestions(allQuestions);
+  const removed = allQuestions.length - deduped.length;
+  if (removed > 0) {
+    console.log(`[Analyze] Removed ${removed} duplicate question(s) from chunk overlap`);
+  }
+
+  return shuffleArray(deduped);
 }
 
 export async function generateExplanation(
@@ -155,7 +268,7 @@ export async function generateExplanation(
       : `Provide a detailed step-by-step explanation for this answer. Use simple language. Include the concept and reasoning.\nQuestion: ${question}\nAnswer: ${correctAnswer}`;
 
   const response = await client.chat.completions.create({
-    model: "llama3-70b-8192",
+    model: "llama-3.1-8b-instant",
     messages: [{ role: "user", content: prompt }],
     temperature: 0.3,
     max_tokens: type === "short" ? 200 : 800,
@@ -211,7 +324,7 @@ FORMATTING REQUIREMENTS FOR body:
 
   const response = await callWithRetry(() =>
     client.chat.completions.create({
-      model: "llama3-70b-8192",
+      model: "llama-3.1-8b-instant",
       messages: [{ role: "user", content: prompt }],
       temperature: 0.7,
       max_tokens: 4000,
@@ -301,7 +414,7 @@ FORMATTING RULES FOR content:
 
   const response = await callWithRetry(() =>
     client.chat.completions.create({
-      model: "llama3-70b-8192",
+      model: "llama-3.1-8b-instant",
       messages: [{ role: "user", content: prompt }],
       temperature: 0.7,
       max_tokens: 4000,
@@ -354,7 +467,7 @@ Rules:
 
   const response = await callWithRetry(() =>
     client.chat.completions.create({
-      model: "llama3-70b-8192",
+      model: "llama-3.1-8b-instant",
       messages: [{ role: "user", content: prompt }],
       temperature: 0.7,
       max_tokens: 1000,
@@ -406,7 +519,7 @@ Rules:
 
   const response = await callWithRetry(() =>
     client.chat.completions.create({
-      model: "llama3-70b-8192",
+      model: "llama-3.1-8b-instant",
       messages: [{ role: "user", content: prompt }],
       temperature: 0.2,
       max_tokens: 1000,

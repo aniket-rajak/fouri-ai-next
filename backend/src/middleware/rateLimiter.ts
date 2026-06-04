@@ -58,7 +58,7 @@ export const contactLimiter = rateLimit({
 
 export const analyzeStatusLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 30,
+  max: 60,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: "Too many status checks. Try again later." },

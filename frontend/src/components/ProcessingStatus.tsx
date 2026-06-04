@@ -31,7 +31,7 @@ export function ProcessingStatus({ uploadId }: { uploadId: string }) {
         setStatus(res.data);
 
         if (res.data.status === "PROCESSING" || res.data.status === "ANALYZING") {
-          setTimeout(poll, 3000);
+          setTimeout(poll, 10000);
         }
       } catch (err: unknown) {
         if (cancelled) return;

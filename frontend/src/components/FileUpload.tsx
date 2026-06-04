@@ -20,7 +20,7 @@ interface FileWithPreview extends File {
 }
 
 interface FileUploadProps {
-  onUploadComplete?: (uploadId: string) => void;
+  onUploadComplete?: (uploadId: string, fileSize: number) => void;
 }
 
 export function FileUpload({ onUploadComplete }: FileUploadProps) {
@@ -75,7 +75,7 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
       setFiles([]);
       setProgress(100);
       if (onUploadComplete && uploads?.[0]?.id) {
-        onUploadComplete(uploads[0].id);
+        onUploadComplete(uploads[0].id, uploads[0].fileSize);
       }
     } catch {
       setError("Upload failed. Please try again.");

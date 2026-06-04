@@ -33,8 +33,7 @@ Set these in Railway dashboard:
 | `CLOUDINARY_CLOUD_NAME` | Cloudinary cloud name |
 | `CLOUDINARY_API_KEY` | Cloudinary API key |
 | `CLOUDINARY_API_SECRET` | Cloudinary API secret |
-| `GOOGLE_VISION_CREDENTIALS` | Full Google service account JSON |
-| `OPENAI_API_KEY` | OpenAI API key |
+| `GROQ_API_KEY` | Groq API key (free, replaces OpenRouter) |
 | `SENTRY_DSN` | Sentry DSN (optional) |
 | `JWT_SECRET` | Random secret string |
 | `CORS_ORIGIN` | Frontend URL (e.g., `https://fouri.in`) |

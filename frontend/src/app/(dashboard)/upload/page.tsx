@@ -5,6 +5,18 @@ import { FileUpload } from "@/components/FileUpload";
 import { ProcessingStatus } from "@/components/ProcessingStatus";
 import { Card, CardHeader, CardTitle } from "@/components/ui/Card";
 import { api } from "@/lib/api";
+import { AlertTriangle, Clock } from "lucide-react";
+
+const MAX_CHUNK_CHARS = 3000;
+const AI_TIME_PER_CHUNK_MS = 5000;
+const CHUNK_DELAY_MS = 60000;
+
+function estimateAnalysisTime(fileSizeBytes: number): { minutes: number; chunks: number } {
+  const estimatedChars = Math.round(fileSizeBytes * 0.1);
+  const chunks = Math.max(1, Math.ceil(estimatedChars / MAX_CHUNK_CHARS));
+  const timeMs = chunks * AI_TIME_PER_CHUNK_MS + Math.max(0, chunks - 1) * CHUNK_DELAY_MS;
+  return { minutes: Math.ceil(timeMs / 60000), chunks };
+}
 
 const guidelines = [
   {
@@ -68,14 +80,33 @@ const guidelines = [
 
 export default function UploadPage() {
   const [analyzingId, setAnalyzingId] = useState<string | null>(null);
+  const [estimatedTime, setEstimatedTime] = useState<{ minutes: number; chunks: number } | null>(null);
+  const [pendingUploadId, setPendingUploadId] = useState<string | null>(null);
 
-  const handleUploadComplete = async (uploadId: string) => {
-    setAnalyzingId(uploadId);
-    try {
-      await api.post(`/analyze/${uploadId}`);
-    } catch {
-      // error handled by ProcessingStatus polling
+  const handleUploadComplete = (uploadId: string, fileSize: number) => {
+    const estimate = estimateAnalysisTime(fileSize);
+
+    if (estimate.minutes > 2) {
+      setEstimatedTime(estimate);
+      setPendingUploadId(uploadId);
+    } else {
+      setAnalyzingId(uploadId);
+      api.post(`/analyze/${uploadId}`).catch(() => {});
     }
+  };
+
+  const handleProceedAnalysis = () => {
+    if (!pendingUploadId) return;
+    const id = pendingUploadId;
+    setEstimatedTime(null);
+    setPendingUploadId(null);
+    setAnalyzingId(id);
+    api.post(`/analyze/${id}`).catch(() => {});
+  };
+
+  const handleCancelAnalysis = () => {
+    setEstimatedTime(null);
+    setPendingUploadId(null);
   };
 
   return (
@@ -92,6 +123,46 @@ export default function UploadPage() {
           <CardTitle>Upload Files</CardTitle>
         </CardHeader>
         <FileUpload onUploadComplete={handleUploadComplete} />
+
+        {estimatedTime && (
+          <div className="px-6 pb-6">
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
+              <div className="flex items-start gap-3">
+                <AlertTriangle size={20} className="text-amber-600 shrink-0 mt-0.5" />
+                <div className="space-y-2">
+                  <p className="text-sm font-semibold text-amber-900">
+                    Estimated Analysis Time: <strong>{estimatedTime.minutes} minutes</strong>
+                  </p>
+                  <p className="text-sm text-amber-800 leading-relaxed">
+                    This file is large and may take longer to analyze. FOURI is completely free for students and operates within AI API, database, server, and infrastructure limits. Thank you for your patience and understanding.
+                  </p>
+                  <p className="text-sm text-amber-800">
+                    If you&apos;d like to support the platform, you can donate any amount via UPI: <span className="font-mono font-semibold">aniketrajak6291@oksbi</span>
+                  </p>
+                  <div className="flex items-center gap-1.5 text-xs text-amber-700">
+                    <Clock size={14} />
+                    {estimatedTime.chunks} chunk{estimatedTime.chunks > 1 ? 's' : ''} &bull; ~{estimatedTime.minutes} minute{estimatedTime.minutes > 1 ? 's' : ''}
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-3 pt-1">
+                <button
+                  onClick={handleProceedAnalysis}
+                  className="flex-1 h-9 rounded-lg bg-amber-600 text-white text-sm font-medium hover:bg-amber-700 cursor-pointer"
+                >
+                  Proceed Anyway
+                </button>
+                <button
+                  onClick={handleCancelAnalysis}
+                  className="flex-1 h-9 rounded-lg border border-amber-300 text-amber-800 text-sm font-medium hover:bg-amber-100 cursor-pointer"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {analyzingId && (
           <div className="px-6 pb-6">
             <ProcessingStatus uploadId={analyzingId} />

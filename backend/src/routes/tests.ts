@@ -24,6 +24,7 @@ router.get("/", authenticate, async (req, res) => {
       },
     });
     res.json({ tests });
+    console.log(`[Tests] Listing for user ${req.user!.uid}: ${tests.length} tests found`);
   } catch (error) {
     console.error("Fetch tests error:", error);
     res.status(500).json({ error: "Failed to fetch tests" });
@@ -54,6 +55,7 @@ router.get("/:id", authenticate, async (req, res) => {
     });
 
     if (!test || test.status !== "PUBLISHED") {
+      console.log(`[Tests] GET /tests/${testId} -> NOT FOUND (exists=${!!test}, status=${test?.status})`);
       res.status(404).json({ error: "Test not found" });
       return;
     }

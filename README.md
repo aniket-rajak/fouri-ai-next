@@ -241,7 +241,7 @@ Both repos require a `.env` file. See `.env.example` for full reference.
 - `FIREBASE_PROJECT_ID` / `FIREBASE_PRIVATE_KEY` / `FIREBASE_CLIENT_EMAIL`
 - `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHANNEL_ID` — Telegram Bot API for file storage
 - `GROQ_API_KEY` — Groq API key (replaces OpenRouter, **pending migration**)
-- `OPENAI_API_KEY` — OpenRouter API key (currently used, will be replaced by `GROQ_API_KEY`)
+- `GROQ_API_KEY` — Groq API key (free, replaces OpenRouter `OPENAI_API_KEY`)
 - `BREVO_API_KEY` — Brevo transactional email API key (free, 300 emails/day)
 - `JWT_SECRET` — Owner JWT signing secret
 - `OWNER_EMAIL` / `OWNER_PASSWORD` — Owner console credentials
@@ -335,7 +335,7 @@ Hidden `/fouri-root-console` admin panel, JWT owner auth, user CSV export, uploa
 | Feature | Detail |
 |---------|--------|
 | Telegram file storage | Replaced Cloudinary with Telegram Bot API — uploads stored in Telegram channel (`TELEGRAM_CHANNEL_ID`) |
-| Tesseract.js OCR | Replaced Google Cloud Vision (no billing required) — supports eng/hin/ben |
+| Tesseract.js OCR | Free, no billing required — supports eng/hin/ben |
 | AI extraction max_tokens | Increased from 4096 → 16384 → 65536 to extract ALL questions from large papers |
 | JSON parse fallback | Regex-based recovery for truncated AI responses (chunked JSON extraction) |
 | Custom test duration | **Start Test** (30min default) + **Edit Time** button → custom input → starts immediately |
@@ -538,7 +538,7 @@ Hidden `/fouri-root-console` admin panel, JWT owner auth, user CSV export, uploa
 | **Frontend** (Vercel) | 500+ | Static pages cached at edge; dynamic pages hit backend |
 | **Backend** (Railway free) | **25-50** | 0.5 vCPU, 512MB RAM — primary bottleneck |
 | **Database** (Neon free) | **50-100 concurrent queries** | Pooled connections shared across requests |
-| **OCR** (Google Vision) | 1,800 images/month | Free tier; pay-as-you-go after |
+| **OCR** (Tesseract.js) | Unlimited | Completely free, no API costs |
 | **AI** (OpenRouter) | ~$1-5/month | Pay-per-token; ~1,000 analyses/month at current rates |
 
 ### Estimated Monthly Traffic
@@ -556,7 +556,7 @@ Hidden `/fouri-root-console` admin panel, JWT owner auth, user CSV export, uploa
 |------------|--------|-----|
 | Railway 0.5 vCPU | 25-50 concurrent users → latency spikes | Upgrade to $5-10/month plan (1-2 vCPU) |
 | Neon free pool | Connection exhaustion under load | Upgrade to Scale plan ($19/mo, 100+ connections) |
-| Google Vision free tier | 1,800 images/month cap | Enable billing (pay-as-you-go, ~$1.50/1,000 images) |
+| Tesseract.js | No external API needed | Runs locally, no costs, no rate limits |
 | OpenRouter rate limits | Queue delays under concurrent AI calls | Add request queue or batch processing |
 | No Redis caching | Repeated DB queries for same data | Add Upstash Redis (Vercel integration, free 10MB) |
 | Firebase Auth IP rate limits | ~100 signups/hr/IP | Upgrade to GCIP (Identity Platform) for project-level quota |
@@ -619,7 +619,7 @@ Firebase SDK (lazy-loaded, SSR-safe), AuthProvider with onAuthStateChanged, Logi
 Cloudinary upload service (stream-based), multer memory storage, drag-and-drop zone (react-dropzone), file preview with validation, progress bar, multiple file support.
 
 ### Phase 4 — OCR Text Extraction
-Google Vision API (image + PDF text detection), 3x retry with exponential backoff, text cleaning pipeline, async processing.
+Tesseract.js (image + PDF text detection), 3x retry with exponential backoff, image preprocessing pipeline (sharp), text cleaning.
 
 ### Phase 5 — AI Question Analyzer
 OpenAI GPT-4o-mini integration with structured JSON output, MCQ/subjective detection, auto-generates missing options, fixes OCR typos, creates MockTest + Question records.
