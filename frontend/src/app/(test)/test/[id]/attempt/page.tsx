@@ -66,6 +66,7 @@ export default function TestAttemptPage() {
   const [pausing, setPausing] = useState(false);
   const fullscreenRef = useRef(false);
   const answerTimestampsRef = useRef<number[]>([]);
+  const handleSubmitRef = useRef<((isTimeout?: boolean) => Promise<void>) | null>(null);
   const [showThankYou, setShowThankYou] = useState(false);
   const [thankYouCountdown, setThankYouCountdown] = useState(6);
   const [markedFilter, setMarkedFilter] = useState(false);
@@ -190,11 +191,12 @@ export default function TestAttemptPage() {
     } catch {
     }
 
-    const maxRetries = 2;
+    const maxRetries = 3;
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         await api.post(`/attempts/${attemptId}/submit`, {
           timeTaken: test ? test.duration - timer.timeLeft : null,
+          markedIds: Array.from(markedIds),
         });
         localStorage.removeItem(`fouri_attempt_${attemptId}`);
         setSubmitting(false);
@@ -204,7 +206,7 @@ export default function TestAttemptPage() {
       } catch (error: any) {
         const is429 = error?.response?.status === 429;
         if (is429 && attempt < maxRetries) {
-          await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
+          await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
           continue;
         }
         setSubmitting(false);
@@ -220,9 +222,11 @@ export default function TestAttemptPage() {
     }
   };
 
+  handleSubmitRef.current = handleSubmit;
+
   const handleTimeUp = useCallback(() => {
-    handleSubmit(true);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    handleSubmitRef.current?.(true);
+  }, []);
 
   const handleTabSwitch = useCallback(() => {
     setShowTabWarning(true);
@@ -241,7 +245,7 @@ export default function TestAttemptPage() {
   useEffect(() => {
     if (!showThankYou) return;
     if (thankYouCountdown <= 0) {
-      router.push(`/results/${attemptId}`);
+      router.push(`/results/${attemptId}?tab=marked`);
       return;
     }
     const id = setTimeout(() => setThankYouCountdown((c) => c - 1), 1000);
@@ -425,7 +429,7 @@ export default function TestAttemptPage() {
       {/* Main Content */}
       <div className="flex-1 flex">
         {/* Question Area */}
-        <main className="flex-1 p-3 sm:p-4 md:p-6 lg:p-8 w-full pb-24 lg:pb-8 overflow-visible">
+        <main className="flex-1 p-3 sm:p-4 md:p-6 lg:p-8 w-full pb-24 lg:pb-8 overflow-y-auto">
           {/* Marked Filter Toggle */}
           {markedIds.size > 0 && (
             <button
@@ -651,7 +655,7 @@ export default function TestAttemptPage() {
             </p>
             <Button
               className="w-full"
-              onClick={() => router.push(`/results/${attemptId}`)}
+              onClick={() => router.push(`/results/${attemptId}?tab=marked`)}
             >
               View Results Now
             </Button>

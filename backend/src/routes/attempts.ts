@@ -3,7 +3,7 @@ import { authenticate } from "../middleware/auth.js";
 import { validate, schemas } from "../middleware/validate.js";
 import { prisma, withRetry } from "../lib/prisma.js";
 import { evaluationQueue } from "../lib/evaluationQueue.js";
-import { evaluateSubjectiveWithAI } from "../services/openai.js";
+import { evaluateSubjectiveWithAI, generateExplanationForMCQ } from "../services/openai.js";
 
 function normalizeText(s: string | null | undefined): string {
   if (!s) return "";
@@ -36,6 +36,12 @@ function evaluateSubjective(userAnswer: string | null | undefined, correctAnswer
   const overlap = matched / correctWords.length;
 
   return overlap >= 0.6;
+}
+
+function isSubjectiveQuestion(question: { type: string; options: unknown }): boolean {
+  if (question.type === "SUBJECTIVE") return true;
+  const options = Array.isArray(question.options) ? question.options : [];
+  return options.length === 0;
 }
 
 const router = Router();
@@ -87,7 +93,8 @@ router.post("/", authenticate, validate(schemas.mockTestId), async (req, res) =>
 router.put("/:id/save", authenticate, validate(schemas.answers), async (req, res) => {
   try {
     const attemptId = req.params.id as string;
-    const { answers } = req.body;
+    const { answers, markedIds } = req.body;
+    const markedSet = new Set(markedIds || []);
 
     const attempt = await prisma.testAttempt.findUnique({
       where: { id: attemptId },
@@ -106,11 +113,12 @@ router.put("/:id/save", authenticate, validate(schemas.answers), async (req, res
             questionId: ans.questionId,
           },
         },
-        update: { selectedOption: ans.selectedOption },
+        update: { selectedOption: ans.selectedOption, isMarkedForReview: markedSet.has(ans.questionId) },
         create: {
           testAttemptId: attemptId,
           questionId: ans.questionId,
           selectedOption: ans.selectedOption,
+          isMarkedForReview: markedSet.has(ans.questionId),
         },
       });
     }
@@ -130,6 +138,9 @@ router.post("/:id/submit", authenticate, async (req, res) => {
     return;
   }
   submittingAttempts.add(attemptId);
+
+  const markedIds: string[] = req.body.markedIds || [];
+  const markedSet = new Set(markedIds);
 
   try {
     const attempt = await prisma.testAttempt.findUnique({
@@ -163,7 +174,7 @@ router.post("/:id/submit", authenticate, async (req, res) => {
       const selected = answerMap.get(question.id);
       let isCorrect: boolean | null;
 
-      if (question.type === "SUBJECTIVE") {
+      if (isSubjectiveQuestion(question)) {
         isCorrect = evaluateSubjective(selected, question.correctAnswer);
       } else {
         isCorrect = selected === question.correctAnswer;
@@ -179,12 +190,13 @@ router.post("/:id/submit", authenticate, async (req, res) => {
               questionId: question.id,
             },
           },
-          update: { isCorrect, selectedOption: selected },
+          update: { isCorrect, selectedOption: selected, isMarkedForReview: markedSet.has(question.id) },
           create: {
             testAttemptId: attemptId,
             questionId: question.id,
             selectedOption: selected || null,
             isCorrect,
+            isMarkedForReview: markedSet.has(question.id),
           },
         })
       );
@@ -222,7 +234,7 @@ router.post("/:id/submit", authenticate, async (req, res) => {
     (async () => {
       const subjectiveAnswers = attempt.answers.filter((a) => {
         const q = attempt.mockTest.questions.find((q) => q.id === a.questionId);
-        return q?.type === "SUBJECTIVE" && a.selectedOption != null;
+        return a.selectedOption != null && isSubjectiveQuestion(q!);
       });
 
       for (const ans of subjectiveAnswers) {
@@ -256,6 +268,54 @@ router.post("/:id/submit", authenticate, async (req, res) => {
           } catch (error) {
             console.error(
               `Background AI eval failed for question ${question.id}:`,
+              error
+            );
+          }
+        });
+      }
+    })();
+
+    // Background AI explanation for marked MCQ questions
+    (async () => {
+      const markedMcqAnswers = attempt.answers.filter((a) => {
+        const q = attempt.mockTest.questions.find((q) => q.id === a.questionId);
+        return markedSet.has(a.questionId) && a.selectedOption != null && q && !isSubjectiveQuestion(q);
+      });
+
+      for (const ans of markedMcqAnswers) {
+        const question = attempt.mockTest.questions.find(
+          (q) => q.id === ans.questionId
+        );
+        if (!question) continue;
+
+        evaluationQueue.enqueue(async () => {
+          try {
+            const options = Array.isArray(question.options)
+              ? question.options
+              : typeof question.options === "string"
+              ? JSON.parse(question.options)
+              : [];
+            const explanation = await generateExplanationForMCQ(
+              question.questionText,
+              options,
+              question.correctAnswer,
+              ans.selectedOption
+            );
+            await prisma.explanation.upsert({
+              where: { questionId: question.id },
+              update: {
+                shortExplanation: explanation.shortExplanation,
+                detailedExplanation: explanation.detailedExplanation,
+              },
+              create: {
+                questionId: question.id,
+                shortExplanation: explanation.shortExplanation,
+                detailedExplanation: explanation.detailedExplanation,
+              },
+            });
+          } catch (error) {
+            console.error(
+              `Background MCQ explanation failed for question ${question.id}:`,
               error
             );
           }

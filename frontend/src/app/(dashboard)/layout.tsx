@@ -7,15 +7,9 @@ import { BlogImage } from "@/components/blog/BlogImage";
 import { useEffect, useState, useRef } from "react";
 import { logout } from "@/lib/firebase";
 import {
-  LayoutDashboard,
-  Upload,
-  FileText,
-  BarChart3,
-  LogOut,
-  Menu,
-  X,
-  Search,
-  RotateCcw,
+  LayoutDashboard, RotateCcw, Upload, Search, FileText, BarChart3,
+  Menu, X, LogOut, ChevronDown, User, ArrowLeft,
+  Bookmark, ExternalLink, ChevronRight, Clock, TrendingUp,
 } from "lucide-react";
 import { AdSlot } from "@/components/AdSlot";
 
@@ -39,6 +33,9 @@ const navItems = [
   { href: "/upload", label: "Upload Paper", icon: Upload },
   { href: "/discover", label: "Discover", icon: Search },
   { href: "/tests", label: "My Tests", icon: FileText },
+  { href: "/history", label: "History", icon: Clock },
+  { href: "/bookmarks", label: "Bookmarks", icon: Bookmark },
+  { href: "/progress", label: "Progress", icon: TrendingUp },
   { href: "/results", label: "Results", icon: BarChart3 },
 ];
 
@@ -126,7 +123,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
         <div className="p-4 space-y-1">
           {navItems.map((item) => {
             const Icon = item.icon;
-            const active = pathname === item.href;
+            const active = item.href === "/" ? pathname === "/" : (pathname === item.href || pathname.startsWith(item.href + "/"));
             return (
               <Link
                 key={item.href}

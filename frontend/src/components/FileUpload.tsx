@@ -39,12 +39,10 @@ export function FileUpload({ onUploadComplete, onFilesChange, disabled, creditIn
 
   const onDrop = useCallback((accepted: FileWithPreview[]) => {
     setError(null);
-    setFiles((prev) => {
-      const next = [...prev, ...accepted];
-      onFilesChange?.(next);
-      return next;
-    });
-  }, [onFilesChange]);
+    const next = [...files, ...accepted];
+    setFiles(next);
+    onFilesChange?.(next);
+  }, [onFilesChange, files]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -61,11 +59,9 @@ export function FileUpload({ onUploadComplete, onFilesChange, disabled, creditIn
   });
 
   const removeFile = (index: number) => {
-    setFiles((prev) => {
-      const next = prev.filter((_, i) => i !== index);
-      onFilesChange?.(next);
-      return next;
-    });
+    const next = files.filter((_, i) => i !== index);
+    setFiles(next);
+    onFilesChange?.(next);
   };
 
   const handleUpload = async () => {
@@ -92,8 +88,9 @@ export function FileUpload({ onUploadComplete, onFilesChange, disabled, creditIn
       if (onUploadComplete && uploads?.[0]?.id) {
         onUploadComplete(uploads[0].id, uploads[0].fileSize);
       }
-    } catch {
-      setError("Upload failed. Please try again.");
+    } catch (err: any) {
+      const serverMsg = err?.response?.data?.error;
+      setError(serverMsg || "Upload failed. Please try again.");
     } finally {
       setUploading(false);
     }

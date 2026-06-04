@@ -57,6 +57,8 @@ model User {
 
   uploads      Upload[]
   testAttempts TestAttempt[]
+  bookmarks    Bookmark[]
+  achievements Achievement[]
 }
 
 model Upload {
@@ -96,6 +98,11 @@ model MockTest {
   sourceUpload Upload?       @relation(fields: [sourceUploadId], references: [id])
   questions    Question[]
   attempts     TestAttempt[]
+  bookmarks    Bookmark[]
+  analysisReports AnalysisReport[]
+  avgScore       Float?
+  completionRate Float?
+  totalTimeSpent Int?
 
   @@index([subject])
   @@index([examType])
@@ -114,6 +121,50 @@ model SuspiciousActivity {
   @@index([attemptId])
   @@index([userId])
   @@index([createdAt])
+}
+
+model Bookmark {
+  id        String   @id @default(uuid())
+  userId    String
+  mockTestId String
+  createdAt DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [firebaseUid], onDelete: Cascade)
+  mockTest MockTest @relation(fields: [mockTestId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, mockTestId])
+  @@index([userId])
+  @@index([mockTestId])
+}
+
+model Achievement {
+  id        String   @id @default(uuid())
+  userId    String
+  badge     String
+  earnedAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [firebaseUid], onDelete: Cascade)
+
+  @@unique([userId, badge])
+  @@index([userId])
+}
+
+model AnalysisReport {
+  id              String   @id @default(uuid())
+  mockTestId      String
+  userId          String?
+  status          String   @default("PENDING") // PENDING | GENERATING | COMPLETED | FAILED
+  paperSummary    Json?
+  personalSummary Json?
+  generatedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  mockTest MockTest @relation(fields: [mockTestId], references: [id], onDelete: Cascade)
+
+  @@unique([mockTestId, userId])
+  @@index([mockTestId])
+  @@index([userId])
 }
 
 model Question {
@@ -160,12 +211,13 @@ model TestAttempt {
 }
 
 model Answer {
-  id              String  @id @default(uuid())
-  testAttemptId   String
-  questionId      String
-  selectedOption  String?
-  isCorrect       Boolean?
-  timeSpent       Int?
+  id                String   @id @default(uuid())
+  testAttemptId     String
+  questionId        String
+  selectedOption    String?
+  isCorrect         Boolean?
+  isMarkedForReview Boolean  @default(false)
+  timeSpent         Int?
 
   testAttempt TestAttempt @relation(fields: [testAttemptId], references: [id], onDelete: Cascade)
   question    Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)

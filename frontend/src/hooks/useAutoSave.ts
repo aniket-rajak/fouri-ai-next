@@ -56,6 +56,7 @@ export function useAutoSave(
       try {
         await api.put(`/attempts/${attemptId}/save`, {
           answers: answersRef.current,
+          markedIds: Array.from(markedRef.current),
         });
       } catch {
         // will retry on next interval or final submit
@@ -93,6 +94,7 @@ export function useAutoSave(
       try {
         await api.put(`/attempts/${attemptId}/save`, {
           answers: answersRef.current,
+          markedIds: Array.from(markedRef.current),
         });
       } catch {
         // will retry on next interval or final submit

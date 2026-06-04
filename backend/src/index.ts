@@ -108,6 +108,9 @@ app.use("/api/owner/blog", ownerLimiter, ownerAuth, ownerBlogRoutes);
 import creditRoutes from "./routes/credits.js";
 app.use("/api/credits", standardLimiter, creditRoutes);
 
+import historyRoutes from "./routes/history.js";
+app.use("/api/users/history", standardLimiter, historyRoutes);
+
 import contactRoutes from "./routes/contact.js";
 app.use("/api/contact", contactLimiter, contactRoutes);
 
@@ -130,10 +133,19 @@ app.get("/api/health", async (_req, res) => {
 });
 
 // Global error handler
+import multer from "multer";
 import { captureError } from "./services/sentry.js";
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   if (err.message === "Not allowed by CORS") {
     res.status(403).json({ error: "Origin not allowed" });
+    return;
+  }
+  if (err instanceof multer.MulterError) {
+    if (err.code === "LIMIT_FILE_SIZE") {
+      res.status(413).json({ error: "File too large. Maximum size is 20 MB." });
+      return;
+    }
+    res.status(400).json({ error: err.message });
     return;
   }
   captureError(err);

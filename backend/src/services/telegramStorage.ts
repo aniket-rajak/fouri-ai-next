@@ -28,10 +28,18 @@ export async function uploadToTelegram(
   formData.append("document", blob, filename);
   formData.append("chat_id", CHANNEL_ID);
 
-  const response = await fetch(`${API_BASE}/sendDocument`, {
-    method: "POST",
-    body: formData,
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 120_000);
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}/sendDocument`, {
+      method: "POST",
+      body: formData,
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
 
   const data = (await response.json()) as TelegramResponse<{
     document?: { file_id: string };

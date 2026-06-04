@@ -97,6 +97,7 @@ export function FilterPanel({
           >
             <option value="newest">Newest</option>
             <option value="popular">Most Popular</option>
+            <option value="alpha">Alphabetical (A-Z)</option>
           </select>
           <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-500 pointer-events-none" />
         </div>

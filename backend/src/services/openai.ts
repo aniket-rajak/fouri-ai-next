@@ -210,7 +210,7 @@ async function analyzeChunk(text: string): Promise<ParsedQuestion[]> {
   }
 }
 
-const CHUNK_DELAY_MS = 60000;
+const CHUNK_DELAY_MS = 20000;
 
 function delay(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
@@ -354,6 +354,11 @@ FORMATTING REQUIREMENTS FOR body:
     body: parsed.body || "",
     ctaText: parsed.ctaText || "",
   };
+}
+
+export interface MCQExplanation {
+  shortExplanation: string;
+  detailedExplanation: string;
 }
 
 export interface SubjectiveEvaluation {
@@ -550,4 +555,183 @@ Rules:
     feedback: parsed.feedback || "",
     isCorrect: parsed.isCorrect === undefined ? null : parsed.isCorrect,
   };
+}
+
+export async function generateExplanationForMCQ(
+  questionText: string,
+  options: string[],
+  correctAnswer: string,
+  userAnswer: string | null | undefined
+): Promise<MCQExplanation> {
+  const userChoice = userAnswer?.trim() || "(Not answered)";
+
+  const prompt = `You are a tutor explaining a multiple-choice question to a student.
+
+Question: "${questionText}"
+
+Options:
+${options.map((o, i) => `${String.fromCharCode(65 + i)}. ${o}`).join("\n")}
+
+Correct answer: "${correctAnswer}"
+Student's chosen answer: "${userChoice}"
+
+Explain why the correct answer is correct. If the student chose a wrong answer, explain why that answer is incorrect and what misconception it might reflect.
+
+Respond with valid JSON only — no markdown, no code fences:
+{
+  "shortExplanation": "A concise 2-3 sentence explanation of the key concept",
+  "detailedExplanation": "A thorough, educational explanation covering why the correct answer is right and (if applicable) why the wrong answer is wrong"
+}`;
+
+  const response = await callWithRetry(() =>
+    client.chat.completions.create({
+      model: "llama-3.1-8b-instant",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.2,
+      max_tokens: 800,
+    })
+  );
+
+  const content = response.choices[0]?.message?.content;
+  if (!content) throw new Error("Empty response from OpenAI during MCQ explanation");
+
+  const cleaned = content.replace(/```(?:json)?\s*([\s\S]*?)\s*```/g, "$1").trim();
+  const parsed = JSON.parse(cleaned);
+
+  return {
+    shortExplanation: parsed.shortExplanation || "",
+    detailedExplanation: parsed.detailedExplanation || "",
+  };
+}
+
+export interface AnalysisInput {
+  questions: {
+    id: string;
+    questionText: string;
+    type: string;
+    difficulty: string;
+    topic?: string | null;
+    correctAnswer: string;
+  }[];
+  userAnswers?: {
+    questionId: string;
+    selectedOption: string | null;
+    isCorrect: boolean | null;
+    timeSpent?: number | null;
+  }[];
+  communityStats?: {
+    avgScore: number | null;
+    totalStudents: number;
+    mostIncorrectQuestions?: { questionId: string; failureRate: number }[];
+  };
+}
+
+export interface AnalysisReport {
+  overallSummary: string;
+  strengths: { topic: string; accuracy: number; comment: string }[];
+  weaknesses: { topic: string; accuracy: number; comment: string }[];
+  recommendations: string[];
+  studyStrategy: string;
+  difficultyBreakdown: {
+    easy: { correct: number; total: number; accuracy: number };
+    medium: { correct: number; total: number; accuracy: number };
+    hard: { correct: number; total: number; accuracy: number };
+  };
+  questionInsights: { questionId: string; insight: string }[];
+}
+
+export async function generateAnalysisReport(input: AnalysisInput): Promise<AnalysisReport> {
+  const prompt = buildAnalysisPrompt(input);
+
+  const response = await Promise.race([
+    client.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
+      messages: [
+        {
+          role: "system",
+          content: `You are an AI test performance analyst. Analyze the student's test performance and provide a structured report.
+Return ONLY valid JSON with no markdown formatting. The JSON must match the specified schema exactly.
+
+Schema:
+{
+  "overallSummary": "string - 2-3 sentence summary of overall performance",
+  "strengths": [{ "topic": "string", "accuracy": number, "comment": "string - why this is a strength" }],
+  "weaknesses": [{ "topic": "string", "accuracy": number, "comment": "string - specific areas to improve" }],
+  "recommendations": ["string - actionable study recommendation"],
+  "studyStrategy": "string - 2-3 sentence personalized study strategy",
+  "difficultyBreakdown": {
+    "easy": { "correct": number, "total": number, "accuracy": number },
+    "medium": { "correct": number, "total": number, "accuracy": number },
+    "hard": { "correct": number, "total": number, "accuracy": number }
+  },
+  "questionInsights": [{ "questionId": "string", "insight": "string - specific insight about this question" }]
+}
+
+Accuracy is a percentage 0-100. If no user answers provided, set strengths/weaknesses to empty arrays and difficultyBreakdown accuracies to 0.`,
+        },
+        { role: "user", content: prompt },
+      ],
+      temperature: 0.3,
+      max_tokens: 4096,
+    }),
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Analysis generation timeout")), 30000)
+    ),
+  ]);
+
+  const content = response.choices[0]?.message?.content;
+  if (!content) throw new Error("Empty response from AI during analysis generation");
+
+  const cleaned = content.replace(/```(?:json)?\s*([\s\S]*?)\s*```/g, "$1").trim();
+
+  try {
+    const parsed = JSON.parse(cleaned);
+    return {
+      overallSummary: parsed.overallSummary || "Analysis completed.",
+      strengths: parsed.strengths || [],
+      weaknesses: parsed.weaknesses || [],
+      recommendations: parsed.recommendations || [],
+      studyStrategy: parsed.studyStrategy || "Continue practicing regularly.",
+      difficultyBreakdown: parsed.difficultyBreakdown || { easy: { correct: 0, total: 0, accuracy: 0 }, medium: { correct: 0, total: 0, accuracy: 0 }, hard: { correct: 0, total: 0, accuracy: 0 } },
+      questionInsights: parsed.questionInsights || [],
+    };
+  } catch {
+    throw new Error("Failed to parse AI analysis response");
+  }
+}
+
+function buildAnalysisPrompt(input: AnalysisInput): string {
+  const sections: string[] = [];
+
+  sections.push("TEST QUESTIONS:");
+  input.questions.forEach((q, i) => {
+    sections.push(`[Q${i + 1}] id:${q.id} | ${q.questionText.substring(0, 200)} | Type:${q.type} | Difficulty:${q.difficulty} | Topic:${q.topic || "N/A"} | CorrectAnswer:${q.correctAnswer.substring(0, 100)}`);
+  });
+
+  if (input.userAnswers && input.userAnswers.length > 0) {
+    sections.push("\nUSER ANSWERS:");
+    input.userAnswers.forEach((a, i) => {
+      const q = input.questions.find((q) => q.id === a.questionId);
+      sections.push(`[Q${i + 1}] id:${a.questionId} | Selected:${a.selectedOption || "(empty)"} | Correct:${a.isCorrect !== null ? (a.isCorrect ? "Yes" : "No") : "Unevaluated"} | Time:${a.timeSpent || "N/A"}s`);
+    });
+
+    const correct = input.userAnswers.filter((a) => a.isCorrect === true).length;
+    const wrong = input.userAnswers.filter((a) => a.isCorrect === false).length;
+    const total = input.userAnswers.length;
+    sections.push(`\nSUMMARY: ${correct}/${total} correct (${total > 0 ? Math.round((correct / total) * 100) : 0}%), ${wrong} wrong, ${total - correct - wrong} unevaluated`);
+  }
+
+  if (input.communityStats) {
+    sections.push("\nCOMMUNITY STATS:");
+    sections.push(`Avg Score: ${input.communityStats.avgScore ?? "N/A"}%`);
+    sections.push(`Total Students: ${input.communityStats.totalStudents}`);
+    if (input.communityStats.mostIncorrectQuestions) {
+      sections.push("Most Incorrect Questions:");
+      input.communityStats.mostIncorrectQuestions.forEach((q) => {
+        sections.push(`  Q:${q.questionId} - ${q.failureRate}% incorrect`);
+      });
+    }
+  }
+
+  return sections.join("\n");
 }

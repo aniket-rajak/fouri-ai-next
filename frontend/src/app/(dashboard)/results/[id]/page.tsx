@@ -1,14 +1,14 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import Link from "next/link";
 import {
   CheckCircle2, XCircle, Clock, Target, ArrowLeft,
-  Loader2, AlertCircle,
+  Loader2, AlertCircle, Bookmark,
 } from "lucide-react";
 
 interface Explanation {
@@ -20,12 +20,14 @@ interface AnswerDetail {
   id: string;
   selectedOption: string | null;
   isCorrect: boolean | null;
+  isMarkedForReview: boolean;
   question: {
     id: string;
     questionText: string;
     options: string[];
     correctAnswer: string;
     type: string;
+    order: number;
     explanations: Explanation[];
   };
 }
@@ -65,18 +67,37 @@ async function apiPostWithRetry(url: string, body: unknown, retries = 3): Promis
 export default function ResultDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [attempt, setAttempt] = useState<AttemptDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [evaluating, setEvaluating] = useState<Record<string, boolean>>({});
   const [evaluationErrors, setEvaluationErrors] = useState<Record<string, string>>({});
+  const [filter, setFilter] = useState<"all" | "marked">("all");
+  const [returnUrl, setReturnUrl] = useState("/results");
+
+  useEffect(() => {
+    const stored = sessionStorage.getItem("resultsReturn");
+    if (stored) {
+      setReturnUrl(stored);
+      sessionStorage.removeItem("resultsReturn");
+    } else if (searchParams.get("from") === "history") {
+      setReturnUrl("/history");
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     api
       .get(`/results/${params.id}`)
       .then((res) => setAttempt(res.data.attempt))
-      .catch(() => router.push("/results"))
+      .catch(() => router.push(returnUrl === "/history" ? "/history" : "/results"))
       .finally(() => setLoading(false));
-  }, [params.id, router]);
+  }, [params.id, router, returnUrl]);
+
+  useEffect(() => {
+    if (searchParams.get("tab") === "marked") {
+      setFilter("marked");
+    }
+  }, [searchParams]);
 
   const needsAiReview = useCallback((ans: AnswerDetail) => {
     if (ans.question.type !== "SUBJECTIVE") return false;
@@ -162,11 +183,14 @@ export default function ResultDetailPage() {
   const wrongCount =
     attempt.answers?.filter((a) => a.selectedOption !== null && a.isCorrect === false).length || 0;
 
+  const markedAnswers = attempt.answers?.filter((a) => a.isMarkedForReview) || [];
+  const filteredAnswers = filter === "marked" ? markedAnswers : attempt.answers;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
         <Link
-          href="/results"
+          href={returnUrl}
           className="p-2 text-zinc-500 hover:text-zinc-900"
         >
           <ArrowLeft size={20} />
@@ -217,10 +241,43 @@ export default function ResultDetailPage() {
         </Card>
       </div>
 
-      {/* Answer Review */}
-      <div className="space-y-3">
+      {/* Filter Toggle */}
+      <div className="flex items-center gap-3">
         <h2 className="text-lg font-semibold text-zinc-900">Answer Review</h2>
-        {attempt.answers.map((ans) => {
+        {markedAnswers.length > 0 && (
+          <div className="flex bg-zinc-100 rounded-lg p-0.5">
+            <button
+              onClick={() => setFilter("all")}
+              className={`px-3 py-1 text-xs font-medium rounded-md transition-all cursor-pointer ${
+                filter === "all" ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-500 hover:text-zinc-700"
+              }`}
+            >
+              All ({attempt.answers.length})
+            </button>
+            <button
+              onClick={() => setFilter("marked")}
+              className={`px-3 py-1 text-xs font-medium rounded-md transition-all cursor-pointer ${
+                filter === "marked" ? "bg-white text-zinc-900 shadow-sm" : "text-zinc-500 hover:text-zinc-700"
+              }`}
+            >
+              <span className="flex items-center gap-1">
+                <Bookmark size={12} />
+                Marked ({markedAnswers.length})
+              </span>
+            </button>
+          </div>
+        )}
+      </div>
+
+      {filter === "marked" && markedAnswers.length === 0 ? (
+        <Card>
+          <div className="text-center py-6 text-sm text-zinc-500">
+            <Bookmark size={24} className="mx-auto mb-2 text-zinc-300" />
+            No questions were marked for review
+          </div>
+        </Card>
+      ) : <div className="space-y-3">
+        {filteredAnswers.map((ans) => {
           const explanation = ans.question.explanations?.[0];
           const isEvaluating = evaluating[ans.question.id];
           const evalError = evaluationErrors[ans.question.id];
@@ -243,6 +300,12 @@ export default function ResultDetailPage() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-zinc-900 mb-2">
+                    {ans.isMarkedForReview && (
+                      <span className="inline-flex items-center gap-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-1.5 py-0.5 mr-2">
+                        <Bookmark size={10} />
+                        Marked
+                      </span>
+                    )}
                     {ans.question.questionText}
                   </p>
 
@@ -343,14 +406,14 @@ export default function ResultDetailPage() {
                         </div>
                       )}
                     </div>
-                  ) : (
+                  ) : (<>
                     <div className="space-y-1">
-                      {ans.question.options.map((opt) => {
+                      {ans.question.options.map((opt, idx) => {
                         const isSelected = ans.selectedOption === opt;
                         const isCorrectOpt = ans.question.correctAnswer === opt;
                         return (
                           <div
-                            key={opt}
+                            key={idx}
                             className={`text-xs px-3 py-1.5 rounded-lg border ${
                               isCorrectOpt
                                 ? "border-green-300 bg-green-50 text-green-700"
@@ -369,13 +432,34 @@ export default function ResultDetailPage() {
                         );
                       })}
                     </div>
-                  )}
+
+                    {explanation && (
+                      <div className="mt-2 space-y-2">
+                        {explanation.detailedExplanation && (
+                          <div className="text-xs px-3 py-2 rounded-lg border border-blue-200 bg-blue-50 text-blue-800">
+                            <span className="font-medium block mb-0.5">Explanation:</span>
+                            <span className="whitespace-pre-wrap break-words">
+                              {explanation.detailedExplanation}
+                            </span>
+                          </div>
+                        )}
+                        {explanation.shortExplanation && (
+                          <div className="text-xs px-3 py-2 rounded-lg border border-purple-200 bg-purple-50 text-purple-800">
+                            <span className="font-medium block mb-0.5">Key takeaway:</span>
+                            <span className="whitespace-pre-wrap break-words">
+                              {explanation.shortExplanation}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>)}
                 </div>
               </div>
             </Card>
           );
         })}
-      </div>
+      </div>}
 
       <div className="flex justify-center pb-8">
         <Link href="/tests">

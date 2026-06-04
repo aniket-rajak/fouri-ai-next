@@ -33,6 +33,7 @@ export const schemas = {
         selectedOption: z.string().nullable(),
       })
     ),
+    markedIds: z.array(z.string().uuid()).optional(),
   }),
 
   roleUpdate: z.object({

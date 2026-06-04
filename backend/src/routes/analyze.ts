@@ -156,7 +156,7 @@ async function processUpload(uploadId: string, mode: AnalysisMode = "full"): Pro
         );
       })(),
       new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("Analysis timed out after 10 minutes")), 600_000)
+        setTimeout(() => reject(new Error("Analysis timed out after 30 minutes")), 1_800_000)
       ),
     ]);
   } catch (error) {

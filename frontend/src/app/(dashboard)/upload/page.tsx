@@ -8,7 +8,7 @@ import { AnalysisModeSelector } from "@/components/credits/AnalysisModeSelector"
 import { InsufficientCreditsModal } from "@/components/credits/InsufficientCreditsModal";
 import type { AnalysisMode } from "@/components/credits/AnalysisModeSelector";
 import { api } from "@/lib/api";
-import { AlertTriangle, Clock, Zap } from "lucide-react";
+import { AlertTriangle, Clock, Zap, X } from "lucide-react";
 
 const MAX_CHUNK_CHARS = 3000;
 const AI_TIME_PER_CHUNK_MS = 5000;
@@ -111,7 +111,6 @@ export default function UploadPage() {
 
   const handleUploadComplete = (uploadId: string, fileSize: number) => {
     setPendingUploadId(uploadId);
-    setCreditEstimate(null);
     setAnalysisMode("full");
   };
 
@@ -144,6 +143,12 @@ export default function UploadPage() {
   const handleCancelAnalysis = () => {
     setEstimatedTime(null);
     setPendingUploadId(null);
+  };
+
+  const handleDismissStatus = () => {
+    if (!analyzingId) return;
+    api.delete(`/upload/${analyzingId}`).catch(() => {});
+    setAnalyzingId(null);
   };
 
   const handleInsufficientDonate = () => {
@@ -181,6 +186,22 @@ export default function UploadPage() {
       available: creditEstimate.availableCredits,
     });
   }, [creditEstimate]);
+
+  useEffect(() => {
+    api
+      .get("/upload")
+      .then((res) => {
+        const uploads = res.data.uploads || [];
+        const active = uploads.find(
+          (u: { status: string }) =>
+            u.status === "PROCESSING" || u.status === "ANALYZING"
+        );
+        if (active) {
+          setAnalyzingId(active.id);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const needsCreditCheck = !creditCheckLoading && creditEstimate && selectedFileSize > 0;
   const hasEnoughCredits = needsCreditCheck ? creditEstimate.hasEnoughCredits : true;
@@ -306,7 +327,16 @@ export default function UploadPage() {
 
         {analyzingId && (
           <div className="px-6 pb-6">
-            <ProcessingStatus uploadId={analyzingId} />
+            <div className="relative">
+              <button
+                onClick={handleDismissStatus}
+                className="absolute -top-2 -right-2 z-10 p-1.5 rounded-full bg-white border border-zinc-200 shadow-sm hover:bg-red-50 text-zinc-400 hover:text-red-500 transition-colors cursor-pointer"
+                title="Cancel analysis"
+              >
+                <X size={14} />
+              </button>
+              <ProcessingStatus uploadId={analyzingId} />
+            </div>
           </div>
         )}
       </Card>

@@ -3,7 +3,7 @@
 An AI-driven education platform where students upload question papers, AI analyzes them, generates mock tests automatically, and provides detailed performance analytics.
 
 **Production URL:** https://www.fouri.in  
-**Last Updated:** 2026-06-04 (Phase 34 — ✅ Completed)
+**Last Updated:** 2026-06-04 (Phase 38 — ✅ Completed)
 
 ---
 
@@ -15,7 +15,7 @@ An AI-driven education platform where students upload question papers, AI analyz
 | Backend | Node.js, Express, TypeScript, JWT, Helmet, express-rate-limit, Zod |
 | Database | PostgreSQL (Neon via Prisma ORM) — 17 models, pooled, indexed |
 | Auth | Firebase Authentication (Google + Email/Password) + Firebase Admin SDK |
-| AI | OpenRouter (GPT-4o-mini, 65K tokens, **paid**) — **Planned:** Groq (free, Llama 3 70B), Tesseract.js OCR |
+| AI | Groq (free, Llama 3.1 8B / Llama 3.3 70B, 6000 TPM) — migrated from OpenRouter, Tesseract.js OCR |
 | AI Email Gen | GPT-4o-mini — generates branded, responsive HTML emails with CTA buttons (**Planned:** Groq) |
 | Storage | Telegram Bot API (channels as file backend) |
 | Email (SMTP) | Brevo HTTP API (free 300 emails/day, HTTPS) — replaces Hostinger SMTP (blocked on Render free tier) |
@@ -54,6 +54,9 @@ fouri-ai-mocktest/
 │   │   │   ├── landing/         # Navbar, Hero (LightPillar + CardSwap), HowItWorks (GlassSurface),
 │   │   │   │                   # FeaturesSection, StudentBenefits, AIDashboardShowcase, AboutSection,
 │   │   │   │                   # Testimonials, FreeAccess, FinalCTA, FAQSection, Footer
+│   │   │   ├── dashboard/       # GreetingSection, QuickActions, ActiveUploadCard
+│   │   │   ├── credits/         # CreditWarningBanner, CreditUsageCard, AnalysisModeSelector,
+│   │   │   │                   # InsufficientCreditsModal
 │   │   │   ├── ui/              # Button, Input, Card, MultiSelect, CardSwap, GlassSurface
 │   │   │   ├── test/            # QuestionCard, QuestionPalette, Timer
 │   │   │   ├── results/         # ScoreCard, AnswerReview, ExplanationPanel
@@ -101,9 +104,9 @@ fouri-ai-mocktest/
 | **Upload** | userId, filename, telegramFileId, status, failureReason | Uploaded question papers (Telegram storage) |
 | **MockTest** | title, subject, duration, totalQuestions, status | Generated test |
 | **Question** | mockTestId, questionText, options[], correctAnswer, type (MCQ/SUBJECTIVE) | Test questions |
-| **TestAttempt** | userId, mockTestId, score, accuracy, status | User's attempt |
-| **Answer** | testAttemptId, questionId, selectedOption, isCorrect | Individual answer |
-| **Explanation** | questionId, shortExplanation, detailedExplanation | AI explanations |
+| **TestAttempt** | userId, mockTestId, score, accuracy, status, remainingTime, currentQuestionIndex | User's attempt (paused/resumed) |
+| **Answer** | testAttemptId, questionId, selectedOption, isCorrect, isMarkedForReview | Individual answer with review marking |
+| **Explanation** | questionId, shortExplanation, detailedExplanation | AI explanations (both subjective and MCQ) |
 | **SuspiciousActivity** | attemptId, userId, activityType, metadata | Tab switch / blur logging |
 | **AnalyticsEvent** | eventType, userId, metadata | Usage tracking |
 | **Ad** | title, description, imageUrl, ctaText, ctaLink, active, clicks, impressions | Owner-created advertisements |
@@ -150,8 +153,8 @@ fouri-ai-mocktest/
 | GET | `/api/tests/:id` | Get any published test with questions |
 | DELETE | `/api/tests/:id` | Delete own test (cascade) |
 | POST | `/api/attempts` | Start a test attempt |
-| PUT | `/api/attempts/:id/save` | Save answers during test |
-| POST | `/api/attempts/:id/submit` | Submit completed test (subjective scoring with semantic matching) |
+| PUT | `/api/attempts/:id/save` | Save answers + markedIds during test |
+| POST | `/api/attempts/:id/submit` | Submit completed test (accepts `timeTaken` + `markedIds`, subjective scoring with semantic matching, background AI explanation for marked MCQs) |
 | POST | `/api/attempts/:id/re-evaluate` | Re-evaluate subjective answers for existing attempts |
 | POST | `/api/attempts/:id/suspicious-activity` | Log tab switch / blur events |
 | GET | `/api/attempts/:id` | Get attempt with answers |
@@ -472,11 +475,22 @@ Hidden `/fouri-root-console` admin panel, JWT owner auth, user CSV export, uploa
 - Image URL sanitization — `getFileUrl()` helper replaces hardcoded localhost URLs with production base on all stored image references
 - Backend URL rewriting — `resolveFileUrl()` sanitizes stored template branding URLs (logoUrl, headerImage, footerLogo) on all CRUD responses
 - SMTP error propagation — `sendBroadcastEmail()` returns detailed error messages with connection timeouts (10s connect, 10s greeting, 15s socket)
+- AI analysis migrated from OpenRouter (paid) to Groq (free) — `llama3-70b-8192` for analysis/email/blog/ad generation, `llama3-8b-8192` for subjective evaluation and MCQ explanations
+- Daily AI credit system — 100 free credits/day, auto-reset every 24h, credit estimation before upload, credit deduction before analysis, full/standard/basic mode tiers, credit refund on failure
+- Groq rate-limit handling — `CHUNK_DELAY_MS: 20s` between chunks, per-chunk 3min AbortController, per-API-step timeouts (OCR 5min, Telegram download 2min), global 30min pipeline timeout
+- Dashboard light theme — white cards, zinc borders/text, gradient greeting hero with count-up stat counters, 2×2 quick action grid with hover effects
+- Upload persistence — resume-on-mount checks for PROCESSING/ANALYZING uploads and shows ProcessingStatus; ActiveUploadCard on dashboard polls every 10s for active uploads
+- Submit rate-limit resilience — `standardLimiter` bumped 100→300 req/15min, frontend retries 2→3 with 1s-2s-4s exponential backoff
+- Questions with no options automatically treated as subjective — textarea shown instead of "No options available" placeholder; `isSubjectiveQuestion()` helper handles scoring + AI evaluation in backend
+- Marked-for-review persistence — `isMarkedForReview` on Answer model; markedIds saved via auto-save to server, persisted through submit; results page has "All"/"Marked" filter toggle; background AI generates explanations for marked MCQs via `generateExplanationForMCQ()`
+- Upload error handling — meaningful server error messages shown instead of generic "Upload failed"; 20MB file size limit returns clear "File too large" error; 120s Telegram upload timeout; 5min axios timeout prevents indefinite hanging
+- Analysis task dismiss — ✕ button on Dashboard ActiveUploadCard and Upload page ProcessingStatus to cancel stuck/invalid analysis tasks; optimistically clears state and deletes backend record
+- Independently scrollable question area — test attempt page question section scrolls independently (timer bar + sidebar remain fixed)
 
 ### What Is Not Finished
 - Google Maps API key — embedded map uses placeholder key, needs real key for production
 - Re-running AI analysis on existing tests to populate `correctAnswer` for subjective questions
-- ~~Groq migration (Phase 34)~~ ✅ — AI analysis migrated from OpenRouter (paid) to Groq (free, Llama 3 70B) on 2026-06-04
+- AI-powered on-demand explanation retry for MCQ questions on the results page
 
 ---
 
@@ -775,6 +789,239 @@ Professional HTML email prompt with inline CSS, table-based CTA buttons, full em
 
 ---
 
+### Phase 35 — Daily Credits, Dashboard Redesign, Marked Questions Review & Rate-Limit Hardening ✅
+
+**Goal:** Implement free-tier AI credit system, light-theme dashboard redesign, upload state persistence across navigation, option-less question handling, marked-for-review persistence with AI explanations, and rate-limit hardening for exam submission.
+
+**Daily AI Credit System:**
+- User schema: `dailyCredits=100`, `usedCredits=0`, `lastResetDate` — auto-resets every 24h on first request
+- `creditService.ts` — `getUserCredits()`, `estimateTokens()`, `estimateRequiredCredits()`, `deductCredits()`
+- Credit routes: `GET /api/credits/me`, `POST /api/credits/estimate`
+- Credit check + deduction before AI analysis in `analyze.ts`; refund on failure
+- Analysis mode tiers: `basic` (0.4× cost, limited features), `standard` (0.7×), `full` (1×)
+- `CreditWarningBanner` — 80% yellow, 90% orange, 100% red with donation CTA via UPI: `aniketrajak6291@oksbi`
+- `InsufficientCreditsModal` — donate, switch to basic mode, or try again tomorrow
+
+**Dashboard Light Theme Redesign:**
+- Full light theme (white cards, zinc-900 headings, zinc-500 muted, zinc-200 borders)
+- `GreetingSection` — time-based greeting, user name fetch, rotating quotes, 4 animated stat counters with eased count-up, gradient bg with orb blur
+- `QuickActions` — 2×2 grid with gradient icons, hover scale + glow + arrow slide
+- `ActiveUploadCard` — polls `GET /api/upload` every 10s for PROCESSING/ANALYZING uploads, shows filename + status + link to /upload
+
+**Upload Persistence & Resume:**
+- Upload page `useEffect` on mount fetches `GET /api/upload`, finds active PROCESSING/ANALYZING uploads, sets `analyzingId` to resume ProcessingStatus
+- Navigation away and back preserves upload progress view
+
+**Rate-Limit & Submission Hardening:**
+- `standardLimiter` bumped from 100→300 req/15min across all `/api/attempts`, `/api/tests`, `/api/results`, `/api/credits`, etc. routes
+- Frontend `handleSubmit` retries increased from 2→3 with exponential backoff (1s→2s→4s instead of 2s→4s)
+
+**Option-Less Question Handling:**
+- `QuestionCard.tsx` — when `options.length === 0`, renders a `<textarea>` regardless of `question.type` (was "No options available" placeholder for non-SUBJECTIVE)
+- `attempts.ts` — added `isSubjectiveQuestion()` helper: returns `true` if `type === "SUBJECTIVE"` OR options array is empty
+- Scoring loop uses `isSubjectiveQuestion()` instead of strict `type === "SUBJECTIVE"` check
+- Background AI evaluation filter uses `isSubjectiveQuestion()` for correct routing
+
+**Marked-for-Review Persistence & Review:**
+- Prisma schema: `Answer.isMarkedForReview Boolean @default(false)` — pushed to DB
+- Save endpoint: accepts `markedIds`, upserts `isMarkedForReview` per answer
+- Submit endpoint: accepts `markedIds`, persists during scoring loop; background queue generates AI explanations for marked MCQ questions via `generateExplanationForMCQ()`
+- Auto-save hook: sends `markedIds: Array.from(markedRef.current)` in every PUT save request
+- Submit handler: sends `markedIds: Array.from(markedIds)` in POST body; thank-you redirect passes `?tab=marked`
+- Results page: `isMarkedForReview` + `order` in API response; filter toggle ("All" / "Marked") with `?tab=marked` initial state; amber "Marked" badge on answer cards; explanation display for MCQs when available (generated asynchronously by background queue)
+
+**Files Changed:**
+
+| File | Change |
+|------|--------|
+| `backend/prisma/schema.prisma` | `Answer.isMarkedForReview`, `User.dailyCredits`, `User.usedCredits`, `User.lastResetDate` |
+| `backend/src/middleware/rateLimiter.ts` | `standardLimiter` 100→300 |
+| `backend/src/middleware/validate.ts` | `markedIds` field in answers schema |
+| `backend/src/routes/attempts.ts` | `isSubjectiveQuestion()` helper; `markedIds` in save + submit; background MCQ explanation queue |
+| `backend/src/routes/analyze.ts` | Credit check/deduction/refund; per-step timeouts; 30min global timeout |
+| `backend/src/routes/credits.ts` | NEW — credit estimation + balance endpoints |
+| `backend/src/services/creditService.ts` | NEW — credit logic with auto-reset |
+| `backend/src/services/openai.ts` | `generateExplanationForMCQ()` function; timeouts on AI calls |
+| `backend/src/services/ocr.ts` | 5min timeout |
+| `backend/src/services/telegramStorage.ts` | 2min download timeout |
+| `backend/src/routes/results.ts` | `isMarkedForReview` + `order` in answer select |
+| `frontend/src/components/dashboard/ActiveUploadCard.tsx` | NEW — live polling active upload card |
+| `frontend/src/components/dashboard/GreetingSection.tsx` | NEW — animated hero with stats |
+| `frontend/src/components/dashboard/QuickActions.tsx` | NEW — 2×2 action grid |
+| `frontend/src/components/credits/CreditWarningBanner.tsx` | NEW — credit threshold banner |
+| `frontend/src/components/credits/CreditUsageCard.tsx` | NEW — credit usage display |
+| `frontend/src/components/credits/AnalysisModeSelector.tsx` | NEW — full/standard/basic mode picker |
+| `frontend/src/components/credits/InsufficientCreditsModal.tsx` | NEW — insufficient credits modal |
+| `frontend/src/components/test/QuestionCard.tsx` | Textarea for all option-less questions |
+| `frontend/src/components/FileUpload.tsx` | Fixed render-time race condition |
+| `frontend/src/hooks/useAutoSave.ts` | Sends `markedIds` in save requests |
+| `frontend/src/app/(test)/test/[id]/attempt/page.tsx` | `markedIds` in submit body + `?tab=marked` redirect |
+| `frontend/src/app/(dashboard)/results/[id]/page.tsx` | Filter toggle, marked badge, MCQ explanations |
+| `frontend/src/app/(dashboard)/upload/page.tsx` | Resume active upload on mount |
+| `frontend/src/app/(dashboard)/dashboard/page.tsx` | ActiveUploadCard + credit components |
+
+---
+
+### Phase 36 — Upload Error Handling, Auto-Submit Fix, Analysis Dismiss & UI Polish ✅
+
+**Goal:** Fix auto-submit on time expiry (stale closure bug), improve large file upload error handling with meaningful messages, add dismiss functionality for stuck analysis tasks, make question area scrollable independently, fix React key warnings.
+
+**Upload Error Handling Improvements:**
+- Multer `LIMIT_FILE_SIZE` errors now return `413` with `"File too large. Maximum size is 20 MB."` instead of generic `"Internal server error"` — caught and displayed on the frontend via `err.response.data.error`
+- `uploadToTelegram()` now has a 120s `AbortController` timeout (was hanging indefinitely on slow Telegram responses)
+- Axios instance configured with 300s (5 min) timeout — prevents browser from hanging indefinitely on large uploads
+- Frontend `FileUpload.tsx` now reads the actual server error message and displays it instead of the hardcoded `"Upload failed. Please try again."`
+
+**Auto-Submit on Time Expiry Fix:**
+- Root cause: `handleTimeUp` had an empty `useCallback` dependency array, capturing `handleSubmit` from the first render where `attemptId` was `null`
+- Fix: `handleSubmitRef` ref always points to the latest `handleSubmit`; `handleTimeUp` calls via ref, ensuring the real `attemptId`, `answers`, etc. are used when the timer expires
+
+**Analysis Task Dismiss:**
+- Dashboard `ActiveUploadCard`: added ✕ dismiss button — clears local state and calls `DELETE /api/upload/:id` to clean up the backend record
+- Upload page `ProcessingStatus`: added ✕ dismiss button — deletes the upload from the backend and clears `analyzingId`, returning the page to its initial state
+- Fixed stuck-loading bug: `.catch()` handler on the `GET /upload` poll now resets `active` to `null` on API error, preventing infinite spinner when upload is deleted externally
+
+**UI Polish:**
+- Question area on test attempt page now scrolls independently (`overflow-y-auto` instead of `overflow-visible`) — timer bar stays fixed at top, sidebar scrolls separately
+- Fixed React duplicate key warning in results page (options map): `key={opt}` → `key={idx}`
+
+**Files Changed:**
+
+| File | Change |
+|------|--------|
+| `backend/src/index.ts` | Catches `MulterError` — returns 413 for `LIMIT_FILE_SIZE`, 400 for other multer errors |
+| `backend/src/services/telegramStorage.ts` | 120s AbortController timeout on `uploadToTelegram()` |
+| `frontend/src/lib/api.ts` | 300s (5 min) axios timeout |
+| `frontend/src/components/FileUpload.tsx` | Shows actual server error from `err.response.data.error` |
+| `frontend/src/app/(test)/test/[id]/attempt/page.tsx` | `handleSubmitRef` for auto-submit stale closure fix; `overflow-y-auto` on question area |
+| `frontend/src/components/dashboard/ActiveUploadCard.tsx` | ✕ dismiss button; `.catch()` now clears `active` |
+| `frontend/src/app/(dashboard)/upload/page.tsx` | ✕ dismiss button on ProcessingStatus |
+| `frontend/src/app/(dashboard)/results/[id]/page.tsx` | Fixed duplicate key: `key={opt}` → `key={idx}` |
+
+---
+
+### Phase 37 — Chunked AI Analysis, Brevo Email Migration, Credit Upload Integration & Attempt Page Overhaul ✅
+
+**Goal:** Handle large question papers via chunked AI analysis (overcomes Groq free-tier context limits), migrate email from nodemailer/SMTP to Brevo HTTP API (reliable delivery), integrate credit estimation into upload flow, and overhaul the test attempt page with Thank You overlay and marked-question filter.
+
+**Chunked AI Analysis (`openai.ts`):**
+- `chunkText()` — splits OCR output into ~3000-char chunks with 5-line overlap, respecting question boundaries
+- `analyzeChunk()` — processes each chunk via `llama-3.1-8b-instant` (replaced `llama3-70b-8192`); 180s AbortController timeout per chunk; fallback simplified prompt on JSON parse failure
+- 60s delay between chunks to respect Groq free-tier TPM limits
+- `dedupQuestions()` — removes duplicate questions from chunk overlap (exact match + substring fuzzy)
+- `analyzeQuestions()` — orchestrates chunk loop, logs estimated total time, returns deduplicated + shuffled result
+- `callWithRetry()` now accepts `AbortSignal` for proper timeout propagation; AbortError immediately re-thrown (no retry)
+
+**Credit Integration into Upload Flow:**
+- Upload page `FileUpload` component enhanced with `onFilesChange` callback → `POST /api/credits/estimate` on file selection to display credit cost before upload
+- `CreditCostDisplay` — new component showing required/available/remaining credits in 3-column grid
+- `AnalysisModeSelector` shown after upload completes, before analysis begins — user picks basic/standard/full
+- `InsufficientCreditsModal` triggers when credits are insufficient (donate via UPI, switch to basic mode, or try again tomorrow)
+- `estimateAnalysisTime()` — client-side estimation of chunks and minutes based on file size
+- Backend `POST /analyze/:uploadId` accepts `?mode=basic|standard|full` query param; deducts credits before processing; refunds credits on failure
+- 600s (10 min) global Promise.race timeout on `processUpload()` — catches stuck analyses with meaningful message
+
+**Brevo API Email Migration:**
+- Replaced `nodemailer` SMTP transport with Brevo HTTP API (`api.brevo.com/v3/smtp/email`) — no SMTP credentials needed, only `BREVO_API_KEY`
+- `sendViaBrevo()` — direct `fetch()` POST with `api-key` header, `sender`/`to`/`subject`/`htmlContent`/`textContent` payload
+- Batch sending: 10 emails/batch with 600ms delay between batches via `Promise.allSettled`
+- `isValidEmail()` regex guard — skips invalid addresses with clear error message
+- `sendBroadcastEmail()` now returns `errors: string[]` array with per-recipient failure details
+- Email route `/send` response includes `smtpError` field with the first error message for frontend display
+- Removed SMTP startup verification (`verifySmtpConnection()`)
+- URL sanitization of template image fields (`logoUrl`, `headerImage`, `footerLogo`) via `resolveFileUrl()` on all CRUD responses
+
+**Test Attempt Page Overhaul:**
+- **Thank You overlay** on successful submit — `CheckCircle2` icon, question count + time taken summary, 6-second countdown auto-redirect to results, "View Results Now" button
+- **Marked filter toggle** — amber button showing "Show Marked (N)" count; when active, renders only marked questions in a filtered list with amber borders; ✕ to clear filter
+- **QuestionCard**: Mark for Review button moved from inline next to question to full-width bottom bar with border-2 styling
+- **QuestionPalette**: New "Marked for Review" section at top with amber-colored numbered buttons; "All Questions" grid below; new color legend (answered/current/unanswered/marked)
+- **Mobile palette**: Shows marked count indicator (● N); increased height to `max-h-[50vh]`; `List` icon added
+- Navigation buttons use `flex-1` on mobile for better touch targets
+
+**Other Changes:**
+- `analyzeStatusLimiter` 30→60 req/min (prevents 429 on long chunked analysis)
+- `index.ts` — credit routes registered under `/api/credits`; removed SMTP verify call
+- `tests.ts` — added debug logging for test listing and not-found cases
+- `email.ts` routes — code formatting cleanup, `sanitizeTemplate()` helper for consistent URL resolution
+- `env.ts` — added `brevo.apiKey` config field
+- `package.json` — `start` script now runs `prisma generate && prisma db push` before starting (fixes 500 error on first deploy)
+- `next.config.ts` — expanded CSP for AdSense measurement domains (`ep2.adtrafficquality.google`, etc.)
+- `QuestionCard.tsx` — removed inline break-words on question text to prevent overflow
+
+**Files Changed/Added:**
+
+| File | Change |
+|------|--------|
+| `backend/src/services/openai.ts` | Full rewrite — chunked analysis with `chunkText()`, `analyzeChunk()`, `dedupQuestions()`; model `llama3-70b-8192`→`llama-3.1-8b-instant`; 180s per-chunk timeout; fallback prompt |
+| `backend/src/routes/analyze.ts` | `?mode=` query param; credit check+deduct+refund; 600s global timeout; timeout error message |
+| `backend/src/services/creditService.ts` | Full rewrite — `getUserCredits()` auto-reset, `estimateTokens()`, `estimateRequiredCredits()`, `deductCredits()` |
+| `backend/src/routes/credits.ts` | `POST /estimate` — fileSize + analysisType → estimated tokens/cost/availability |
+| `backend/src/config/env.ts` | Added `brevo.apiKey` alongside `groq.apiKey` |
+| `backend/src/index.ts` | Registered `/api/credits` routes; removed SMTP verify call |
+| `backend/src/routes/email.ts` | URL sanitization on all template CRUD responses; `smtpError` in /send response |
+| `backend/src/services/email.ts` | Full rewrite — `sendViaBrevo()` HTTP API replaces nodemailer; batch 10, 600ms delay; `isValidEmail()`; `errors: string[]` return |
+| `backend/src/middleware/rateLimiter.ts` | `analyzeStatusLimiter` 30→60 req/min |
+| `backend/src/routes/tests.ts` | Added debug logging |
+| `backend/src/services/ocr.ts` | 5min timeout preserved |
+| `backend/src/services/telegramStorage.ts` | 120s download timeout preserved |
+| `backend/src/lib/resolveFileUrl.ts` | NEW — backend URL sanitizer (localhost→production) |
+| `backend/package.json` | `start` → `prisma generate && prisma db push && node dist/index.js` |
+| `frontend/src/app/(dashboard)/upload/page.tsx` | Full rewrite — credit estimation, analysis mode picker, insufficient credits modal, estimated time display |
+| `frontend/src/components/FileUpload.tsx` | `onFilesChange` callback, `creditInfo` prop, `disabled` state when insufficient credits |
+| `frontend/src/components/credits/CreditCostDisplay.tsx` | NEW — 3-column required/available/after credit display |
+| `frontend/src/components/credits/AnalysisModeSelector.tsx` | Used on upload page post-upload |
+| `frontend/src/components/credits/InsufficientCreditsModal.tsx` | Donate/switch/tomorrow actions |
+| `frontend/src/components/credits/CreditWarningBanner.tsx` | Threshold banner (80%/90%/100%) |
+| `frontend/src/components/credits/CreditUsageCard.tsx` | Card display for daily usage |
+| `frontend/src/lib/getFileUrl.ts` | NEW — frontend URL sanitizer (localhost→production) |
+| `frontend/src/components/blog/BlogImage.tsx` | URL resolution via `getFileUrl()` |
+| `frontend/src/app/fouri-root-console/blog/editor/page.tsx` | URL resolution |
+| `frontend/src/app/fouri-root-console/media/page.tsx` | URL resolution |
+| `frontend/src/app/fouri-root-console/email-templates/page.tsx` | URL resolution |
+| `frontend/next.config.ts` | Expanded AdSense CSP domains |
+| `frontend/src/app/(test)/test/[id]/attempt/page.tsx` | Thank You overlay (6s countdown), marked filter toggle, mobile palette marked count |
+| `frontend/src/components/test/QuestionCard.tsx` | Mark button → full-width bottom bar; removed inline break-words |
+| `frontend/src/components/test/QuestionPalette.tsx` | Separate "Marked for Review" section with amber buttons; color legend |
+
+### Phase 38 — AI Analysis Credit Confirmation Dialog, Tooltip Explanation & Error Handling Fixes ✅
+
+**Goal:** Give users full visibility before spending credits on AI Analysis — replace auto-generation with a credit cost confirmation dialog, add tooltip explanations on the AI Analysis badge, and fix error handling for failed analysis attempts and null credit values.
+
+**Credit Confirmation Flow:**
+- `GET /tests/:id/analysis` no longer auto-generates — returns `{ status: "NOT_GENERATED", creditEstimate }` when no completed report exists
+- `POST /tests/:id/analysis/generate` (NEW) — checks `estimateAnalysisReportCost()`, deducts credits via `deductCredits()`, creates report with `GENERATING` status, fires background generation, and refunds credits on failure
+- `AIAnalysisCreditDialog` — modal showing BrainCircuit icon, description of AI Analysis, cost breakdown (required/available/remaining credits), "How it works" explanation box, Generate and Cancel buttons, and insufficient credits warning
+- Analysis page updated: on mount fetches GET → if `NOT_GENERATED` shows credit dialog → on confirm calls POST generate → polls every 3s for completion → handles cancel and error states
+
+**Credit Cost Formula:**
+- `estimateAnalysisReportCost()` = `5 + ceil(questions / 10)` credits (e.g., 10Q = 6 credits, 50Q = 10 credits)
+
+**Tooltip Explanations (AIAnalysisBadge):**
+- **Green (COMPLETED):** _"This test has an AI Analysis report available. View detailed performance insights, strengths, weaknesses, and study recommendations. Credits are consumed when generating a new analysis report."_
+- **Amber (ANALYZING):** _"AI Analysis is currently being generated for this test. This typically takes 20-60 seconds and consumes AI credits from your daily limit."_
+- **Grey (Not Generated):** _"Complete a mock test to unlock AI Analysis — get detailed performance insights, strengths, weaknesses, and study recommendations. AI credits are required to generate a new analysis."_
+
+**Error Handling Fixes (POST-fix):**
+- `GET /tests/:id/analysis` now handles `FAILED` report status — returns `NOT_GENERATED` with credit estimate so user can retry (previously fell through to unknown status causing frontend error)
+- `creditService.ts` — `getUserCredits()` and `deductCredits()` now use null-safe defaults (`?? 100`, `?? 0`) for `dailyCredits` and `usedCredits` to prevent `null` arithmetic causing insufficient-credit failures on older user records
+- Frontend error logging added to all catch blocks in the analysis page — fetch/post/poll errors log the actual response body/error message to console
+- Error UI now displays the specific error message (e.g., `INSUFFICIENT_CREDITS`, backend error text) instead of a generic "Failed to load analysis"
+
+**Files Changed/Added:**
+
+| File | Change |
+|------|--------|
+| `backend/src/services/creditService.ts` | Added `estimateAnalysisReportCost(questionCount)` export |
+| `backend/src/routes/tests.ts` | `GET /:id/analysis` returns credit estimate instead of auto-generating; added `POST /:id/analysis/generate` with credit check, deduction, and refund on failure |
+| `frontend/src/components/AIAnalysisCreditDialog.tsx` | NEW — credit confirmation modal with cost breakdown, How-it-works box, Generate/Cancel buttons |
+| `frontend/src/components/AIAnalysisBadge.tsx` | Updated tooltips on all three states (green/amber/grey) with descriptive explanations |
+| `frontend/src/app/(dashboard)/analysis/[testId]/page.tsx` | Updated flow — fetch → credit dialog → generate → poll → display; handles cancel and error states; added error message display and console logging |
+| `backend/src/services/creditService.ts` | Null-safe defaults for `dailyCredits`/`usedCredits` (`?? 100`, `?? 0`) |
+| `backend/src/routes/tests.ts` | `GET /:id/analysis` handles `FAILED` status → returns `NOT_GENERATED` with retry credit estimate |
+
+---
+
 ## Important Files
 
 | File | Purpose |
@@ -795,7 +1042,7 @@ Professional HTML email prompt with inline CSS, table-based CTA buttons, full em
 | `backend/src/middleware/validate.ts` | Zod validation schemas + middleware |
 | `backend/src/middleware/rateLimiter.ts` | Rate limiter definitions (analyze POST/GET separated) |
 | `backend/src/middleware/ownerAuth.ts` | JWT owner auth middleware |
-| `backend/prisma/schema.prisma` | Full database schema (17 models, indexes) |
+| `backend/prisma/schema.prisma` | Full database schema (17 models, indexed, isMarkedForReview on Answer) |
 | `backend/src/routes/contact.ts` | Contact form endpoint |
 | `backend/src/routes/owner.ts` | Owner routes including upload delete, bulk delete, download |
 | `backend/src/routes/tests.ts` | Test routes (any student can view published tests) |
@@ -841,3 +1088,12 @@ Professional HTML email prompt with inline CSS, table-based CTA buttons, full em
 | `frontend/src/lib/getFileUrl.ts` | URL sanitizer — replaces localhost with production base in stored image URLs |
 | `backend/src/lib/resolveFileUrl.ts` | Backend URL sanitizer — replaces localhost with production base in stored template URLs |
 | `frontend/src/components/blog/BlogImage.tsx` | CSP-safe image loader — fetches via blob URL to bypass `img-src` restrictions |
+| `frontend/src/components/dashboard/ActiveUploadCard.tsx` | Live polling card showing active analysis uploads |
+| `frontend/src/components/dashboard/GreetingSection.tsx` | Animated dashboard greeting with stat counters |
+| `frontend/src/components/dashboard/QuickActions.tsx` | 2×2 quick action grid for dashboard |
+| `frontend/src/components/credits/CreditCostDisplay.tsx` | 3-column required/available/after credit cost display |
+| `frontend/src/components/credits/CreditWarningBanner.tsx` | Credit threshold warning (80%/90%/100%) |
+| `frontend/src/components/credits/CreditUsageCard.tsx` | Daily credit usage display card |
+| `frontend/src/components/credits/AnalysisModeSelector.tsx` | Full/standard/basic analysis mode picker |
+| `frontend/src/components/credits/InsufficientCreditsModal.tsx` | Modal for insufficient credits (donate/switch/tomorrow) |
+| `backend/src/services/creditService.ts` | Daily credit auto-reset, estimation, deduction, refund |
