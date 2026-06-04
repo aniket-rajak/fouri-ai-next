@@ -159,7 +159,7 @@ router.post("/:id/submit", authenticate, async (req, res) => {
     }
 
     if (attempt.status !== "IN_PROGRESS") {
-      res.status(400).json({ error: "Attempt already completed" });
+      res.json({ alreadySubmitted: true, attempt });
       return;
     }
 

@@ -67,6 +67,7 @@ export default function TestAttemptPage() {
   const fullscreenRef = useRef(false);
   const answerTimestampsRef = useRef<number[]>([]);
   const handleSubmitRef = useRef<((isTimeout?: boolean) => Promise<void>) | null>(null);
+  const submittingRef = useRef(false);
   const [showThankYou, setShowThankYou] = useState(false);
   const [thankYouCountdown, setThankYouCountdown] = useState(6);
   const [markedFilter, setMarkedFilter] = useState(false);
@@ -182,7 +183,8 @@ export default function TestAttemptPage() {
   }, [params.id, router]);
 
   const handleSubmit = async (_isTimeout = false) => {
-    if (!attemptId || submitting || submitCooldown) return;
+    if (!attemptId || submitting || submitCooldown || submittingRef.current) return;
+    submittingRef.current = true;
     setSubmitting(true);
     setSubmitError(null);
 
@@ -194,11 +196,23 @@ export default function TestAttemptPage() {
     const maxRetries = 3;
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        await api.post(`/attempts/${attemptId}/submit`, {
+        const res = await api.post(`/attempts/${attemptId}/submit`, {
           timeTaken: test ? test.duration - timer.timeLeft : null,
           markedIds: Array.from(markedIds),
         });
+
+        // If the backend says it was already submitted, treat as success
+        if (res.data?.alreadySubmitted) {
+          localStorage.removeItem(`fouri_attempt_${attemptId}`);
+          submittingRef.current = false;
+          setSubmitting(false);
+          setShowThankYou(true);
+          setThankYouCountdown(6);
+          return;
+        }
+
         localStorage.removeItem(`fouri_attempt_${attemptId}`);
+        submittingRef.current = false;
         setSubmitting(false);
         setShowThankYou(true);
         setThankYouCountdown(6);
@@ -209,6 +223,7 @@ export default function TestAttemptPage() {
           await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
           continue;
         }
+        submittingRef.current = false;
         setSubmitting(false);
         if (is429) {
           setSubmitCooldown(true);
@@ -220,6 +235,7 @@ export default function TestAttemptPage() {
         return;
       }
     }
+    submittingRef.current = false;
   };
 
   handleSubmitRef.current = handleSubmit;
