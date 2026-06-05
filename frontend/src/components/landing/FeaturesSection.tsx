@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { LazyMotion, domAnimation, m } from "framer-motion";
 import { FileSearch, BrainCircuit, BarChart3, CheckSquare, PieChart, LayoutDashboard, Infinity, Smartphone } from "lucide-react";
 
 const features = [
@@ -64,10 +64,11 @@ const features = [
 
 export default function FeaturesSection() {
   return (
+    <LazyMotion features={domAnimation}>
     <section id="features" className="py-16 md:py-24 lg:py-28 relative overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-b from-[#0C0C0C] via-[#0d0d15] to-[#0C0C0C] pointer-events-none" />
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
@@ -79,11 +80,11 @@ export default function FeaturesSection() {
           <h2 className="mt-4 text-3xl sm:text-4xl lg:text-5xl font-bold font-heading text-[#f5f5f7]">
             Everything You Need <span className="text-gradient">To Prepare Better</span>
           </h2>
-        </motion.div>
+        </m.div>
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {features.map((feature, i) => (
-            <motion.div
+            <m.div
               key={feature.title}
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -97,10 +98,11 @@ export default function FeaturesSection() {
               </div>
               <h3 className="text-sm font-semibold text-[#f5f5f7] mb-2">{feature.title}</h3>
               <p className="text-xs text-[#888899] leading-relaxed">{feature.desc}</p>
-            </motion.div>
+            </m.div>
           ))}
         </div>
       </div>
     </section>
+    </LazyMotion>
   );
 }

@@ -104,7 +104,12 @@ export default function EmailBroadcastPage() {
 
   useEffect(() => {
     // Fetch a reasonable number of users for preview picker
-    api("/owner/users?limit=50").then((r) => setUserList(r.users || [])).catch(() => {});
+    api("/owner/users?limit=50").then((r) => {
+      const sorted = (r.users || []).sort((a: any, b: any) =>
+        (a.name || "").localeCompare(b.name || "")
+      );
+      setUserList(sorted);
+    }).catch(() => {});
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Close variable picker on click outside
@@ -120,6 +125,7 @@ export default function EmailBroadcastPage() {
   const [aiInstructions, setAiInstructions] = useState("");
   const [aiTone, setAiTone] = useState("Professional");
   const [generating, setGenerating] = useState(false);
+  const [aiError, setAiError] = useState("");
 
   useEffect(() => {
     queueMicrotask(async () => {
@@ -166,6 +172,7 @@ export default function EmailBroadcastPage() {
   const generateWithAi = async () => {
     if (!aiInstructions.trim()) return;
     setGenerating(true);
+    setAiError("");
     try {
       const res = await api("/owner/email/generate-ai", {
         method: "POST",
@@ -173,8 +180,9 @@ export default function EmailBroadcastPage() {
       });
       setSubject(res.subject || "");
       setBody(res.body || "");
-    } catch {
-      // handle error
+    } catch (err: any) {
+      const msg = err?.message || "AI generation failed. Please try again.";
+      setAiError(msg);
     } finally {
       setGenerating(false);
     }
@@ -391,12 +399,17 @@ export default function EmailBroadcastPage() {
               >
                 {generating ? <Loader2 size={14} className="animate-spin" /> : "Generate"}
               </button>
+              </div>
             </div>
+            {aiError && (
+              <div className="mt-2 px-3 py-2 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-300">
+                {aiError}
+              </div>
+            )}
           </div>
-        </div>
-      </motion.div>
+        </motion.div>
 
-      {/* Recipient Targeting */}
+        {/* Recipient Targeting */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}

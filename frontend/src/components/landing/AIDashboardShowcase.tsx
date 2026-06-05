@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { LazyMotion, domAnimation, m } from "framer-motion";
 import { CheckCircle2, Clock, Target, Brain, FileText } from "lucide-react";
 
 const metrics = [
@@ -17,11 +17,12 @@ const subjectPerformance = [
 
 export default function AIDashboardShowcase() {
   return (
+    <LazyMotion features={domAnimation}>
     <section id="mock-tests" className="py-16 md:py-24 lg:py-28 relative overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-b from-[#0C0C0C] via-[#0d0d15] to-[#0C0C0C] pointer-events-none" />
       <div className="absolute inset-0 opacity-[0.02]" style={{ backgroundImage: "radial-gradient(circle at 1px 1px, #3D81E3 1px, transparent 0)", backgroundSize: "40px 40px" }} />
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
@@ -36,10 +37,10 @@ export default function AIDashboardShowcase() {
           <p className="mt-3 text-[#888899] text-sm sm:text-base max-w-lg mx-auto">
             Track every aspect of your performance with intelligent insights
           </p>
-        </motion.div>
+        </m.div>
 
         <div className="grid lg:grid-cols-3 gap-6">
-          <motion.div
+          <m.div
             initial={{ opacity: 0, x: -30 }}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
@@ -67,9 +68,9 @@ export default function AIDashboardShowcase() {
               </div>
               <p className="mt-3 text-[10px] text-[#888899] text-center">+ 20 more questions extracted</p>
             </div>
-          </motion.div>
+          </m.div>
 
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
@@ -106,9 +107,9 @@ export default function AIDashboardShowcase() {
                 <span className="text-[11px] text-[#888899]">Difficulty: Mixed</span>
               </div>
             </div>
-          </motion.div>
+          </m.div>
 
-          <motion.div
+          <m.div
             initial={{ opacity: 0, x: 30 }}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
@@ -146,7 +147,7 @@ export default function AIDashboardShowcase() {
                       <span className="text-[10px] text-[#888899]">{s.correct}/{s.total}</span>
                     </div>
                     <div className="h-1.5 rounded-full bg-white/[0.04] overflow-hidden">
-                      <motion.div
+                      <m.div
                         initial={{ width: 0 }}
                         whileInView={{ width: `${(s.correct / s.total) * 100}%` }}
                         viewport={{ once: true }}
@@ -158,9 +159,10 @@ export default function AIDashboardShowcase() {
                 ))}
               </div>
             </div>
-          </motion.div>
+          </m.div>
         </div>
       </div>
     </section>
+    </LazyMotion>
   );
 }

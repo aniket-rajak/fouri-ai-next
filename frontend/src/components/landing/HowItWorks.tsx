@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { LazyMotion, domAnimation, m } from "framer-motion";
 import {
   ShieldCheck,
   UploadCloud,
@@ -84,13 +84,14 @@ function GlassCard({
 
 export default function HowItWorks() {
   return (
+    <LazyMotion features={domAnimation}>
     <section
       id="how-it-works"
       className="py-16 md:py-24 lg:py-28 relative overflow-hidden"
     >
       <div className="absolute inset-0 bg-gradient-to-b from-[#0C0C0C] via-[#0d0d15] to-[#0C0C0C] pointer-events-none" />
       <div className="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
@@ -105,13 +106,13 @@ export default function HowItWorks() {
           <p className="mt-3 text-[#888899] text-sm sm:text-base max-w-lg mx-auto">
             From Question Paper To Performance Analytics
           </p>
-        </motion.div>
+        </m.div>
 
         <div className="relative">
           <div className="absolute left-6 md:left-1/2 top-0 bottom-0 w-px bg-gradient-to-b from-[#3D81E3]/40 via-[#00D2FF]/20 to-transparent -translate-x-1/2" />
 
           {steps.map((step, i) => (
-            <motion.div
+            <m.div
               key={step.title}
               initial={{ opacity: 0, y: 50 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -146,10 +147,11 @@ export default function HowItWorks() {
               <div className="flex md:hidden flex-1 min-w-0">
                 <GlassCard step={step} i={i} compact />
               </div>
-            </motion.div>
+            </m.div>
           ))}
         </div>
       </div>
     </section>
+    </LazyMotion>
   );
 }

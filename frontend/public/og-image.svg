@@ -1,0 +1,24 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#08080f"/>
+      <stop offset="100%" stop-color="#0C0C0C"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3D81E3"/>
+      <stop offset="100%" stop-color="#00D2FF"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#bg)"/>
+  <rect x="0" y="0" width="1200" height="4" fill="url(#accent)"/>
+  <rect x="0" y="626" width="1200" height="4" fill="url(#accent)"/>
+  <rect x="40" y="40" width="1120" height="550" rx="16" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+  <circle cx="80" cy="80" r="20" fill="url(#accent)" opacity="0.8"/>
+  <text x="110" y="95" font-family="system-ui, sans-serif" font-size="28" font-weight="700" fill="#f5f5f7">FOURI.IN</text>
+  <text x="80" y="260" font-family="system-ui, sans-serif" font-size="52" font-weight="700" fill="#f5f5f7">AI-Powered Mock Tests</text>
+  <text x="80" y="320" font-family="system-ui, sans-serif" font-size="52" font-weight="700" fill="url(#accent)">for JEE, NEET &amp; More</text>
+  <text x="80" y="390" font-family="system-ui, sans-serif" font-size="22" fill="#888899">Upload question papers → Get instant AI-generated mock tests</text>
+  <rect x="80" y="440" width="240" height="56" rx="12" fill="url(#accent)"/>
+  <text x="120" y="477" font-family="system-ui, sans-serif" font-size="18" font-weight="600" fill="#ffffff">Start Free →</text>
+  <text x="80" y="540" font-family="system-ui, sans-serif" font-size="14" fill="#555566">100% Free • AI-Powered • 10,000+ Students • 20+ Exams</text>
+</svg>

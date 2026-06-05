@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { LazyMotion, domAnimation, m, AnimatePresence } from "framer-motion";
 import { ChevronDown } from "lucide-react";
 
 const faqs = [
@@ -17,9 +17,10 @@ export default function FAQSection() {
   const [open, setOpen] = useState<number | null>(null);
 
   return (
+    <LazyMotion features={domAnimation}>
     <section id="faq" className="py-16 md:py-24 lg:py-28 relative overflow-hidden">
       <div className="relative max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
@@ -31,11 +32,11 @@ export default function FAQSection() {
           <h2 className="mt-4 text-3xl sm:text-4xl lg:text-5xl font-bold font-heading text-[#f5f5f7]">
             Got Questions? <span className="text-gradient">We Have Answers</span>
           </h2>
-        </motion.div>
+        </m.div>
 
         <div className="space-y-3">
           {faqs.map((faq, i) => (
-            <motion.div
+            <m.div
               key={i}
               initial={{ opacity: 0, y: 10 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -54,7 +55,7 @@ export default function FAQSection() {
               </div>
               <AnimatePresence>
                 {open === i && (
-                  <motion.div
+                  <m.div
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: "auto", opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}
@@ -64,13 +65,14 @@ export default function FAQSection() {
                     <p className="px-6 pb-5 text-sm text-[#888899] leading-relaxed border-t border-[#3D81E3]/10 pt-4">
                       {faq.a}
                     </p>
-                  </motion.div>
+                  </m.div>
                 )}
               </AnimatePresence>
-            </motion.div>
+            </m.div>
           ))}
         </div>
       </div>
     </section>
+    </LazyMotion>
   );
 }

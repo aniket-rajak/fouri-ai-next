@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { motion } from "framer-motion";
+import { LazyMotion, domAnimation, m } from "framer-motion";
 import { Loader2, ArrowRight } from "lucide-react";
 import { BlogCard } from "./BlogCard";
 
@@ -35,10 +35,11 @@ export default function BlogSection() {
   if (blogs.length === 0) return null;
 
   return (
+    <LazyMotion features={domAnimation}>
     <section className="py-16 md:py-24 lg:py-28 relative overflow-hidden bg-[#0C0C0C]">
       <div className="absolute inset-0 bg-gradient-to-b from-[#0C0C0C] via-[#0d0d15] to-[#0C0C0C] pointer-events-none" />
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
@@ -53,11 +54,11 @@ export default function BlogSection() {
           <p className="mt-3 text-[#888899] text-sm sm:text-base max-w-lg mx-auto">
             Tips, guides, and insights to help you prepare smarter.
           </p>
-        </motion.div>
+        </m.div>
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {blogs.map((blog, i) => (
-            <motion.div
+            <m.div
               key={blog.id}
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -73,11 +74,11 @@ export default function BlogSection() {
                 authorName={blog.authorName}
                 publishedAt={blog.publishedAt}
               />
-            </motion.div>
+            </m.div>
           ))}
         </div>
 
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 10 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
@@ -90,8 +91,9 @@ export default function BlogSection() {
             View All Blogs
             <ArrowRight size={16} className="text-[#00D2FF]" />
           </Link>
-        </motion.div>
+        </m.div>
       </div>
     </section>
+    </LazyMotion>
   );
 }

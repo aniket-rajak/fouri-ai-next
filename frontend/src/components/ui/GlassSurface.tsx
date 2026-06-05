@@ -1,3 +1,5 @@
+"use client";
+
 import React, { useEffect, useRef, useState, useId } from 'react';
 
 export interface GlassSurfaceProps {
@@ -165,36 +167,27 @@ const GlassSurface: React.FC<GlassSurfaceProps> = ({
     setSvgSupported(supportsSVGFilters());
   }, []);
 
-  useEffect(() => {
-    if (!containerRef.current) return;
-
-    const resizeObserver = new ResizeObserver(() => {
-      setTimeout(updateDisplacementMap, 0);
-    });
-
-    resizeObserver.observe(containerRef.current);
-
-    return () => {
-      resizeObserver.disconnect();
-    };
-  }, []);
+  const resizeTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
 
-    const resizeObserver = new ResizeObserver(() => {
-      setTimeout(updateDisplacementMap, 0);
-    });
+    const debouncedUpdate = () => {
+      if (resizeTimeoutRef.current) clearTimeout(resizeTimeoutRef.current);
+      resizeTimeoutRef.current = window.setTimeout(updateDisplacementMap, 150);
+    };
 
+    const resizeObserver = new ResizeObserver(debouncedUpdate);
     resizeObserver.observe(containerRef.current);
 
     return () => {
       resizeObserver.disconnect();
+      if (resizeTimeoutRef.current) clearTimeout(resizeTimeoutRef.current);
     };
   }, []);
 
   useEffect(() => {
-    setTimeout(updateDisplacementMap, 0);
+    updateDisplacementMap();
   }, [width, height]);
 
   const supportsSVGFilters = () => {

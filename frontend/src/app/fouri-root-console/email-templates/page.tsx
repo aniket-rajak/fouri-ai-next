@@ -32,6 +32,103 @@ const BRANDING_FIELDS = [
   },
 ];
 
+const DEFAULT_EMAIL_BODY = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FOURI Feature Update</title>
+</head>
+
+<body style="margin:0;padding:0;background:#0f172a;font-family:'Segoe UI',Arial,Helvetica,sans-serif;">
+
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="padding:30px 15px;background:#0f172a;">
+<tr>
+<td align="center">
+
+<table width="560" cellpadding="0" cellspacing="0" border="0"
+style="max-width:560px;background:#1e293b;border-radius:12px;overflow:hidden;border:1px solid #334155;">
+
+    <!-- Title Banner -->
+    <tr>
+        <td align="center" style="padding:36px 32px 0 32px;">
+            <h1 style="margin:0;color:#f1f5f9;font-size:28px;font-weight:700;letter-spacing:-0.3px;">
+                New Feature Released
+            </h1>
+            <p style="margin:10px 0 0 0;color:#94a3b8;font-size:15px;font-weight:400;">
+                Discover what's new in FOURI
+            </p>
+        </td>
+    </tr>
+
+    <!-- Body -->
+    <tr>
+        <td style="padding:36px 32px;color:#cbd5e1;line-height:1.8;">
+
+            <p style="margin:0 0 22px 0;font-size:16px;">
+                Hello <strong style="color:#60a5fa;">{{name}}</strong>,
+            </p>
+
+            <p style="margin:0 0 28px 0;font-size:15px;color:#94a3b8;">
+                We're thrilled to introduce a new feature designed to enhance your learning journey with FOURI. This update makes your experience smarter, faster, and more interactive.
+            </p>
+
+            <!-- Feature Card -->
+            <table width="100%" cellpadding="0" cellspacing="0" border="0"
+                   style="background:linear-gradient(135deg,#1e3a5f,#172554);border-radius:10px;">
+                <tr>
+                    <td style="padding:24px;">
+
+                        <h2 style="margin:0 0 10px 0;color:#60a5fa;font-size:20px;font-weight:700;">
+                            {{feature_name}}
+                        </h2>
+
+                        <p style="margin:0;color:#94a3b8;font-size:15px;line-height:1.7;">
+                            {{feature_description}}
+                        </p>
+
+                    </td>
+                </tr>
+            </table>
+
+            <!-- CTA -->
+            <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:32px;">
+                <tr>
+                    <td align="center">
+
+                        <a href="{{feature_link}}"
+                           style="display:inline-block;
+                                  background:linear-gradient(135deg,#2563eb,#1d4ed8);
+                                  color:#ffffff;
+                                  text-decoration:none;
+                                  padding:14px 36px;
+                                  border-radius:8px;
+                                  font-size:15px;
+                                  font-weight:600;
+                                  box-shadow:0 4px 14px rgba(37,99,235,0.35);">
+                            Explore Feature
+                        </a>
+
+                    </td>
+                </tr>
+            </table>
+
+            <p style="margin:30px 0 0 0;font-size:15px;color:#94a3b8;line-height:1.7;">
+                Thank you for being part of the FOURI community. Your support and feedback help us build better learning experiences for everyone.
+            </p>
+
+        </td>
+    </tr>
+
+</table>
+
+</td>
+</tr>
+</table>
+
+</body>
+</html>`;
+
 export default function EmailTemplatesPage() {
   const api = useOwnerApi();
   const [loading, setLoading] = useState(true);
@@ -212,13 +309,13 @@ export default function EmailTemplatesPage() {
   }, [varPickerOpen]);
 
   const resetForm = () => {
-    setName("");
-    setSubject("");
-    setBody("");
+    setName("Feature Update");
+    setSubject("New Feature Alert — {{name}}");
+    setBody(DEFAULT_EMAIL_BODY);
     setLogoUrl("");
     setHeaderImage("");
     setFooterLogo("");
-    setCopyright("© FOURI Technologies. All Rights Reserved.");
+    setCopyright("© 2026 FOURI.IN. All rights reserved. Built by Aniket Rajak");
     setEditingId(null);
     setShowForm(false);
     setShowPreview(false);
@@ -233,7 +330,7 @@ export default function EmailTemplatesPage() {
     setLogoUrl(t.logoUrl || "");
     setHeaderImage(t.headerImage || "");
     setFooterLogo(t.footerLogo || "");
-    setCopyright(t.copyright || "© FOURI Technologies. All Rights Reserved.");
+    setCopyright(t.copyright || "© 2026 FOURI.IN. All rights reserved. Built by Aniket Rajak");
     setEditingId(t.id);
     setShowForm(true);
     setShowPreview(false);
@@ -379,12 +476,16 @@ export default function EmailTemplatesPage() {
   };
 
   const previewHtml = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; padding: 24px;">
-      ${logoUrl ? `<div style="text-align: center; padding: 20px 0;"><img src="${getFileUrl(logoUrl)}" style="max-height: 60px;" /></div>` : ""}
-      ${headerImage ? `<div style="text-align: center;"><img src="${getFileUrl(headerImage)}" style="max-width: 100%; max-height: 200px;" /></div>` : ""}
-      <div>${body}</div>
-      ${footerLogo ? `<div style="text-align: center; padding: 10px 0;"><img src="${getFileUrl(footerLogo)}" style="max-height: 40px;" /></div>` : ""}
-      ${copyright ? `<p style="font-size: 11px; color: #888899; text-align: center;">${copyright}</p>` : ""}
+    <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 560px; margin: 0 auto; background: #1e293b; border-radius: 12px; overflow: hidden; padding: 0; border: 1px solid #334155;">
+      ${logoUrl && objectUrls["logoUrl"] ? `<div style="text-align: center; padding: 24px 20px 16px 20px;"><img src="${objectUrls["logoUrl"]}" width="150" height="150" style="display: block; width: 150px; height: 150px; max-width: 100%; margin: 0 auto;" /></div>` : ""}
+      ${headerImage && objectUrls["headerImage"] ? `<div style="text-align: center; line-height: 0;"><img src="${objectUrls["headerImage"]}" style="display: block; width: 100%; max-width: 560px; height: auto;" /></div>` : ""}
+      <div style="padding: 0;">${body}</div>
+      ${footerLogo && objectUrls["footerLogo"] ? `<div style="text-align: center; padding: 24px 20px 16px 20px;"><img src="${objectUrls["footerLogo"]}" width="100" height="100" style="display: block; width: 100px; height: 100px; max-width: 100%; margin: 0 auto;" /></div>` : ""}
+      <div style="text-align: center; padding: 20px 30px; border-top: 1px solid #334155;">
+        <p style="margin: 0 0 4px 0; color: #94a3b8; font-size: 14px; font-weight: 600;">Team FOURI</p>
+        <p style="margin: 0; color: #64748b; font-size: 13px;">AI-Powered Learning Platform</p>
+      </div>
+      ${copyright ? `<div style="text-align: center; padding: 0 30px 24px 30px;"><p style="margin: 0; font-size: 11px; color: #64748b; line-height: 1.5;">${copyright}</p></div>` : ""}
     </div>
   `;
 

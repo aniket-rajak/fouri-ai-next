@@ -146,6 +146,7 @@ async function analyzeChunk(text: string): Promise<ParsedQuestion[]> {
             ],
             temperature: 0.1,
             max_tokens: CHUNK_OUTPUT_TOKENS,
+            response_format: { type: "json_object" },
           },
           s ? { signal: s } : undefined
         ),
@@ -334,38 +335,39 @@ FORMATTING REQUIREMENTS FOR body:
   3. A CTA section with the button
   4. A brief closing/footer line`;
 
-  const response = await callWithRetry(() =>
-    client.chat.completions.create({
-      model: "llama-3.1-8b-instant",
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.7,
-      max_tokens: 4000,
-    })
-  );
-
-  const content = response.choices[0]?.message?.content;
-  if (!content) throw new Error("Empty response from OpenAI during email generation");
-
-  const cleaned = content.replace(/```(?:json)?\s*([\s\S]*?)\s*```/g, "$1").trim();
-
-  // Attempt to parse JSON with fallback extraction
   let parsed: Record<string, string>;
   try {
-    parsed = JSON.parse(cleaned);
-  } catch {
-    // Fallback: try extracting a JSON object via regex
-    const jsonMatch = cleaned.match(/\{[\s\S]*?\}/);
-    if (jsonMatch) {
-      try {
-        parsed = JSON.parse(jsonMatch[0]);
-      } catch {
-        console.error("[openai] Failed to parse email content JSON. Raw response (first 500 chars):", cleaned.slice(0, 500));
-        throw new Error("Failed to parse AI generated email content as JSON");
-      }
-    } else {
-      console.error("[openai] No JSON found in email content response. Raw response (first 500 chars):", cleaned.slice(0, 500));
+    const response = await callWithRetry(
+      (s) =>
+        client.chat.completions.create(
+          {
+            model: "llama-3.1-8b-instant",
+            messages: [{ role: "user", content: prompt }],
+            temperature: 0.7,
+            max_tokens: 4000,
+            response_format: { type: "json_object" },
+          },
+          s ? { signal: s } : undefined
+        ),
+    );
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) throw new Error("Empty response from AI during email generation");
+
+    const cleaned = content.replace(/```(?:json)?\s*([\s\S]*?)\s*```/g, "$1").trim();
+
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch {
+      console.error("[openai] Failed to parse email content JSON. Raw response (first 500 chars):", cleaned.slice(0, 500));
       throw new Error("Failed to parse AI generated email content as JSON");
     }
+  } catch (error: any) {
+    console.error("[openai] Email generation failed:", error?.message || error);
+    if (error?.status) console.error("[openai] HTTP status:", error.status);
+    if (error?.code) console.error("[openai] Error code:", error.code);
+    if (error?.stack) console.error("[openai] Stack:", error.stack);
+    throw error;
   }
 
   return {
@@ -394,14 +396,16 @@ async function callWithRetry<T>(fn: (signal?: AbortSignal) => Promise<T>, signal
     } catch (error: any) {
       lastError = error;
       if (error?.name === "AbortError") throw error;
-      const isRateLimit =
+      const isRetryable =
         error?.status === 429 ||
         error?.code === "rate_limit" ||
         error?.message?.includes("429") ||
-        error?.message?.includes("rate limit");
-      if (!isRateLimit || attempt === 3) throw error;
-      console.warn(`[openai] 429 on attempt ${attempt}/3. Retrying in ${2000 * attempt}ms...`);
-      await new Promise((r) => setTimeout(r, 2000 * attempt));
+        error?.message?.includes("rate limit") ||
+        (error?.status >= 500 && error?.status < 600);
+      if (!isRetryable || attempt === 3) throw error;
+      const delayMs = 2000 * attempt;
+      console.warn(`[openai] Transient error (${error?.status || "unknown"}) on attempt ${attempt}/3. Retrying in ${delayMs}ms...`);
+      await new Promise((r) => setTimeout(r, delayMs));
     }
   }
   throw lastError;
@@ -455,6 +459,7 @@ FORMATTING RULES FOR content:
       messages: [{ role: "user", content: prompt }],
       temperature: 0.7,
       max_tokens: 4000,
+      response_format: { type: "json_object" },
     })
   );
 
@@ -462,7 +467,13 @@ FORMATTING RULES FOR content:
   if (!content) throw new Error("Empty response from OpenAI during blog generation");
 
   const cleaned = content.replace(/```(?:json)?\s*([\s\S]*?)\s*```/g, "$1").trim();
-  const parsed = JSON.parse(cleaned);
+  let parsed: any;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    console.error("[openai] Failed to parse blog content JSON. Raw response (first 500 chars):", cleaned.slice(0, 500));
+    throw new Error("Failed to parse AI generated blog content as JSON");
+  }
 
   return {
     title: parsed.title || "",
@@ -508,6 +519,7 @@ Rules:
       messages: [{ role: "user", content: prompt }],
       temperature: 0.7,
       max_tokens: 1000,
+      response_format: { type: "json_object" },
     })
   );
 
@@ -515,7 +527,13 @@ Rules:
   if (!content) throw new Error("Empty response from OpenAI during ad generation");
 
   const cleaned = content.replace(/```(?:json)?\s*([\s\S]*?)\s*```/g, "$1").trim();
-  const parsed = JSON.parse(cleaned);
+  let parsed: any;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    console.error("[openai] Failed to parse ad content JSON. Raw response (first 500 chars):", cleaned.slice(0, 500));
+    throw new Error("Failed to parse AI generated ad content as JSON");
+  }
 
   return {
     title: parsed.title || "",
@@ -560,6 +578,7 @@ Rules:
       messages: [{ role: "user", content: prompt }],
       temperature: 0.2,
       max_tokens: 1000,
+      response_format: { type: "json_object" },
     })
   );
 
@@ -567,7 +586,13 @@ Rules:
   if (!content) throw new Error("Empty response from OpenAI during subjective evaluation");
 
   const cleaned = content.replace(/```(?:json)?\s*([\s\S]*?)\s*```/g, "$1").trim();
-  const parsed = JSON.parse(cleaned);
+  let parsed: any;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    console.error("[openai] Failed to parse subjective evaluation JSON. Raw response (first 500 chars):", cleaned.slice(0, 500));
+    throw new Error("Failed to parse AI subjective evaluation as JSON");
+  }
 
   return {
     modelAnswer: parsed.modelAnswer || "",
@@ -608,6 +633,7 @@ Respond with valid JSON only — no markdown, no code fences:
       messages: [{ role: "user", content: prompt }],
       temperature: 0.2,
       max_tokens: 800,
+      response_format: { type: "json_object" },
     })
   );
 
@@ -615,7 +641,13 @@ Respond with valid JSON only — no markdown, no code fences:
   if (!content) throw new Error("Empty response from OpenAI during MCQ explanation");
 
   const cleaned = content.replace(/```(?:json)?\s*([\s\S]*?)\s*```/g, "$1").trim();
-  const parsed = JSON.parse(cleaned);
+  let parsed: any;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    console.error("[openai] Failed to parse MCQ explanation JSON. Raw response (first 500 chars):", cleaned.slice(0, 500));
+    throw new Error("Failed to parse AI MCQ explanation as JSON");
+  }
 
   return {
     shortExplanation: parsed.shortExplanation || "",
@@ -692,9 +724,10 @@ Accuracy is a percentage 0-100. If no user answers provided, set strengths/weakn
       ],
       temperature: 0.3,
       max_tokens: 4096,
+      response_format: { type: "json_object" },
     }),
     new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Analysis generation timeout")), 30000)
+      setTimeout(() => reject(new Error("Analysis generation timeout")), 180000)
     ),
   ]);
 
@@ -715,6 +748,7 @@ Accuracy is a percentage 0-100. If no user answers provided, set strengths/weakn
       questionInsights: parsed.questionInsights || [],
     };
   } catch {
+    console.error("[openai] Failed to parse analysis report JSON. Raw response (first 500 chars):", cleaned.slice(0, 500));
     throw new Error("Failed to parse AI analysis response");
   }
 }

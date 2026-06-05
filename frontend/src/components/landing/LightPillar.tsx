@@ -72,7 +72,9 @@ const LightPillar: React.FC<LightPillarProps> = ({
     const width = container.clientWidth;
     const height = container.clientHeight;
 
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    const isSmallScreen = window.innerWidth < 768;
+    const isMobile = isMobileUA || isSmallScreen;
     const isLowEndDevice = isMobile || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4);
 
     let effectiveQuality = quality;
@@ -80,12 +82,12 @@ const LightPillar: React.FC<LightPillarProps> = ({
     if (isMobile && quality !== 'low') effectiveQuality = 'low';
 
     const qualitySettings = {
-      low: { iterations: 24, waveIterations: 1, pixelRatio: 0.5, precision: 'mediump' as const, stepMultiplier: 1.5 },
-      medium: { iterations: 40, waveIterations: 2, pixelRatio: 0.65, precision: 'mediump' as const, stepMultiplier: 1.2 },
+      low: { iterations: 16, waveIterations: 1, pixelRatio: 0.4, precision: 'mediump' as const, stepMultiplier: 1.5 },
+      medium: { iterations: 30, waveIterations: 2, pixelRatio: 0.5, precision: 'mediump' as const, stepMultiplier: 1.2 },
       high: {
-        iterations: 80,
-        waveIterations: 4,
-        pixelRatio: Math.min(window.devicePixelRatio, 2),
+        iterations: 60,
+        waveIterations: 3,
+        pixelRatio: Math.min(window.devicePixelRatio, 1.5),
         precision: 'highp' as const,
         stepMultiplier: 1.0
       }

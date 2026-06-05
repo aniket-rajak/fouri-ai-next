@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, JetBrains_Mono, Poppins } from "next/font/google";
+import { Inter, Poppins } from "next/font/google";
 import { Toaster } from "sonner";
 import "./globals.css";
 import { JsonLd } from "@/components/JsonLd";
@@ -10,20 +10,14 @@ import { AdSenseScript } from "@/components/AdSenseScript";
 const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
-  display: "swap",
-});
-
-const jetbrainsMono = JetBrains_Mono({
-  variable: "--font-mono",
-  subsets: ["latin"],
-  display: "swap",
+  display: "optional",
 });
 
 const poppins = Poppins({
   variable: "--font-poppins",
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
-  display: "swap",
+  weight: ["400", "500", "600", "700"],
+  display: "optional",
 });
 
 export const metadata: Metadata = {
@@ -54,12 +48,14 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_IN",
     siteName: "FOURI.IN",
+    images: [{ url: "/og-image.svg", width: 1200, height: 630 }],
   },
   twitter: {
     card: "summary_large_image",
     title: "FOURI.IN — AI-Powered Mock Tests",
     description:
       "Upload question papers and get instant AI-generated mock tests with explanations.",
+    images: ["/og-image.svg"],
   },
   robots: {
     index: true,
@@ -79,9 +75,9 @@ export const metadata: Metadata = {
     canonical: "https://fouri.in",
   },
   icons: {
-    icon: "/assets/images/favicon/fav-ai.png",
-    shortcut: "/assets/images/favicon/fav-ai.png",
-    apple: "/assets/images/favicon/fav-ai.png",
+    icon: "/favicon.svg",
+    shortcut: "/favicon.svg",
+    apple: "/favicon.svg",
   },
 };
 
@@ -91,12 +87,22 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${inter.variable} ${jetbrainsMono.variable} ${poppins.variable} h-full antialiased`}
-    >
-      <head>
-        <JsonLd
+      <html
+        lang="en"
+        className={`${inter.variable} ${poppins.variable} h-full antialiased`}
+      >
+        <head>
+          <link rel="preconnect" href="https://fonts.googleapis.com" />
+          <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+          <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
+          <link rel="dns-prefetch" href="https://pagead2.googlesyndication.com" />
+          <link
+            rel="preload"
+            as="image"
+            href="/assets/images/hero/hero-1.jpg"
+            fetchPriority="high"
+          />
+          <JsonLd
           data={{
             "@context": "https://schema.org",
             "@type": "WebSite",

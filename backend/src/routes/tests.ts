@@ -573,6 +573,7 @@ router.get("/:id/analysis", authenticate, async (req, res) => {
           resetsAt: credits.resetsAt,
         },
         reportId: report.id,
+        failureReason: report.failureReason || undefined,
       });
       return;
     }
@@ -782,9 +783,14 @@ async function generateAnalysisInBackground(testId: string, userId: string, repo
       }
     }
 
+    const failureMsg = error instanceof Error ? error.message : String(error);
+    const userFailureReason = failureMsg.includes("timeout")
+      ? "Analysis timed out. The AI service took too long to respond. Please try again."
+      : `Analysis failed: ${failureMsg}`;
+
     await prisma.analysisReport.update({
       where: { id: reportId },
-      data: { status: "FAILED" },
+      data: { status: "FAILED", failureReason: userFailureReason },
     });
   }
 }

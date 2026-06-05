@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { LazyMotion, domAnimation, m, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 
 const COOKIE_CONSENT_KEY = "fouri_cookie_consent";
@@ -25,18 +25,21 @@ export function CookieConsent() {
     localStorage.setItem(COOKIE_CONSENT_KEY, "accepted");
     setConsent("accepted");
     setVisible(false);
+    window.dispatchEvent(new CustomEvent("consent-updated", { detail: "accepted" }));
   };
 
   const handleReject = () => {
     localStorage.setItem(COOKIE_CONSENT_KEY, "rejected");
     setConsent("rejected");
     setVisible(false);
+    window.dispatchEvent(new CustomEvent("consent-updated", { detail: "rejected" }));
   };
 
   return (
+    <LazyMotion features={domAnimation}>
     <AnimatePresence>
       {visible && (
-        <motion.div
+        <m.div
           initial={{ y: 100, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           exit={{ y: 100, opacity: 0 }}
@@ -86,8 +89,9 @@ export function CookieConsent() {
               </button>
             </div>
           </div>
-        </motion.div>
+        </m.div>
       )}
     </AnimatePresence>
+    </LazyMotion>
   );
 }

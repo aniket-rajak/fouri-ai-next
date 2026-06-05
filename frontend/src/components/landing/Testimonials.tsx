@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { LazyMotion, domAnimation, m, AnimatePresence } from "framer-motion";
 import { Star, ChevronLeft, ChevronRight, Quote } from "lucide-react";
 
 const EXAMPLES = [
@@ -67,10 +67,11 @@ export default function Testimonials() {
   }, [goNext]);
 
   return (
+    <LazyMotion features={domAnimation}>
     <section className="py-16 md:py-24 lg:py-28 relative overflow-hidden bg-gradient-to-b from-[#0C0C0C] to-[#0d0d15]">
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[800px] rounded-full bg-[#3D81E3]/5 blur-3xl pointer-events-none" />
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
@@ -85,12 +86,12 @@ export default function Testimonials() {
           <p className="mt-3 text-xs text-[#555566] max-w-md mx-auto">
             Illustrative examples based on common student experiences.
           </p>
-        </motion.div>
+        </m.div>
 
         <div className="relative max-w-3xl mx-auto">
           <div className="min-h-[260px] flex items-center">
             <AnimatePresence mode="wait" custom={direction}>
-              <motion.div
+              <m.div
                 key={current}
                 custom={direction}
                 initial={{ opacity: 0, x: direction > 0 ? 60 : -60 }}
@@ -116,7 +117,7 @@ export default function Testimonials() {
                   </div>
                   <p className="text-base text-[#888899] leading-relaxed italic">&ldquo;{EXAMPLES[current].review}&rdquo;</p>
                 </div>
-              </motion.div>
+              </m.div>
             </AnimatePresence>
           </div>
 
@@ -151,5 +152,6 @@ export default function Testimonials() {
         </div>
       </div>
     </section>
+    </LazyMotion>
   );
 }

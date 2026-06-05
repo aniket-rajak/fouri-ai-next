@@ -88,16 +88,17 @@ export function wrapWithBranding(
   options?: { logoUrl?: string | null; headerImage?: string | null; footerLogo?: string | null; copyright?: string | null }
 ): string {
   const logo = options?.logoUrl
-    ? `<tr><td align="center" style="padding: 20px 20px 0 20px;"><img src="${options.logoUrl}" alt="" width="auto" height="auto" style="display: block; max-height: 60px; width: auto; border: 0;" /></td></tr>`
+    ? `<tr><td align="center" style="padding: 24px 20px 16px 20px;"><img src="${options.logoUrl}" alt="" width="150" height="150" style="display: block; width: 150px; height: 150px; max-width: 100%; border: 0;" /></td></tr>`
     : "";
   const header = options?.headerImage
-    ? `<tr><td align="center" style="padding: 10px 20px 0 20px;"><img src="${options.headerImage}" alt="" width="auto" height="auto" style="display: block; max-width: 100%; max-height: 200px; width: auto; height: auto; border: 0;" /></td></tr>`
+    ? `<tr><td align="center" style="line-height: 0;"><img src="${options.headerImage}" alt="" style="display: block; width: 100%; max-width: 560px; height: auto; border: 0;" /></td></tr>`
     : "";
   const footerLogo = options?.footerLogo
-    ? `<tr><td align="center" style="padding: 10px 20px 0 20px;"><img src="${options.footerLogo}" alt="" width="auto" height="auto" style="display: block; max-height: 40px; width: auto; border: 0;" /></td></tr>`
+    ? `<tr><td align="center" style="padding: 24px 20px 16px 20px;"><img src="${options.footerLogo}" alt="" width="100" height="100" style="display: block; width: 100px; height: 100px; max-width: 100%; border: 0;" /></td></tr>`
     : "";
+  const footerText = `<tr><td align="center" style="padding: 20px 30px; border-top: 1px solid #334155;"><p style="margin: 0 0 4px 0; color: #94a3b8; font-size: 14px; font-weight: 600; line-height: 1.5;">Team FOURI</p><p style="margin: 0; color: #64748b; font-size: 13px; line-height: 1.5;">AI-Powered Learning Platform</p></td></tr>`;
   const copyright = options?.copyright
-    ? `<tr><td align="center" style="padding: 6px 20px 20px 20px;"><p style="margin: 0; font-size: 11px; color: #888899; line-height: 1.4;">${options.copyright}</p></td></tr>`
+    ? `<tr><td align="center" style="padding: 0 30px 24px 30px;"><p style="margin: 0; font-size: 11px; color: #64748b; line-height: 1.5;">${options.copyright}</p></td></tr>`
     : "";
 
   return `<!DOCTYPE html>
@@ -108,21 +109,22 @@ export function wrapWithBranding(
 <meta http-equiv="X-UA-Compatible" content="IE=edge" />
 <title></title>
 </head>
-<body style="margin: 0; padding: 0; background-color: #f4f4f6; font-family: Arial, Helvetica, sans-serif; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%;">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #f4f4f6;">
+<body style="margin: 0; padding: 0; background-color: #0f172a; font-family: 'Segoe UI', Arial, Helvetica, sans-serif; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #0f172a;">
 <tr>
 <td align="center" style="padding: 20px 10px;">
-  <!--[if mso]><table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
-  <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden;">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #ffffff; border-radius: 8px;">
+  <!--[if mso]><table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0"><tr><td><![endif]-->
+  <div style="max-width: 560px; margin: 0 auto; background-color: #1e293b; border-radius: 12px; overflow: hidden; border: 1px solid #334155;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color: #1e293b; border-radius: 12px;">
       ${logo}
       ${header}
       <tr>
-        <td style="padding: 24px; color: #333333; font-size: 16px; line-height: 1.6; font-family: Arial, Helvetica, sans-serif;">
+        <td style="padding: 0; color: #cbd5e1; font-size: 16px; line-height: 1.8; font-family: 'Segoe UI', Arial, Helvetica, sans-serif;">
           ${content}
         </td>
       </tr>
       ${footerLogo}
+      ${footerText}
       ${copyright}
     </table>
   </div>

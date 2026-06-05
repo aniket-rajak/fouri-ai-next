@@ -156,6 +156,7 @@ model AnalysisReport {
   status          String   @default("PENDING") // PENDING | GENERATING | COMPLETED | FAILED
   paperSummary    Json?
   personalSummary Json?
+  failureReason   String?
   generatedAt     DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt

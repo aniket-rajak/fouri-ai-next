@@ -8,7 +8,8 @@ import React, {
   RefObject,
   useEffect,
   useMemo,
-  useRef
+  useRef,
+  useState
 } from 'react';
 import gsap from 'gsap';
 
@@ -78,8 +79,20 @@ const CardSwap: React.FC<CardSwapProps> = ({
   easing = 'elastic',
   children
 }) => {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 768px)');
+    setIsMobile(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
+  }, []);
+
+  const resolvedEasing = isMobile ? 'linear' : easing;
+
   const config =
-    easing === 'elastic'
+    resolvedEasing === 'elastic'
       ? {
           ease: 'elastic.out(0.6,0.9)',
           durDrop: 2,
@@ -115,6 +128,7 @@ const CardSwap: React.FC<CardSwapProps> = ({
 
       const [front, ...rest] = order.current;
       const elFront = refs[front].current!;
+      tlRef.current?.kill();
       const tl = gsap.timeline();
       tlRef.current = tl;
 
@@ -187,10 +201,14 @@ const CardSwap: React.FC<CardSwapProps> = ({
         node.removeEventListener('mouseenter', pause);
         node.removeEventListener('mouseleave', resume);
         clearInterval(intervalRef.current);
+        tlRef.current?.kill();
       };
     }
-    return () => clearInterval(intervalRef.current);
-  }, [cardDistance, verticalDistance, delay, pauseOnHover, skewAmount, easing]);
+    return () => {
+      clearInterval(intervalRef.current);
+      tlRef.current?.kill();
+    };
+  }, [cardDistance, verticalDistance, delay, pauseOnHover, skewAmount, resolvedEasing]);
 
   const rendered = childArr.map((child, i) =>
     isValidElement<CardProps>(child)

@@ -20,30 +20,39 @@ function getMinHeight(format: string): string {
 }
 
 export function AdSlot({ slot, format = "auto", className = "" }: AdSlotProps) {
-  const adRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const rendered = useRef(false);
 
   useEffect(() => {
     if (rendered.current) return;
+    const el = containerRef.current;
+    if (!el) return;
 
-    const timer = setTimeout(() => {
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const adsbygoogle = (window as any).adsbygoogle || [];
-        adsbygoogle.push({});
-        rendered.current = true;
-      } catch {
-        // AdBlock or not loaded
-      }
-    }, 1000);
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          try {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const adsbygoogle = (window as any).adsbygoogle || [];
+            adsbygoogle.push({});
+            rendered.current = true;
+          } catch {
+            // AdBlock or not loaded
+          }
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "200px" },
+    );
 
-    return () => clearTimeout(timer);
+    observer.observe(el);
+    return () => observer.disconnect();
   }, []);
 
   return (
     <div
       className={`adsense-container ${getMinHeight(format)} flex items-center justify-center bg-zinc-50 rounded-lg overflow-hidden ${className}`}
-      ref={adRef}
+      ref={containerRef}
     >
       <ins
         className="adsbygoogle"

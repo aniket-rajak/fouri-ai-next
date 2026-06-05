@@ -63,6 +63,7 @@ export default function AnalysisPage() {
   } | null>(null);
   const [generatingCredit, setGeneratingCredit] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [failureReason, setFailureReason] = useState<string | null>(null);
 
   const fetchReport = useCallback(() => {
     setLoading(true);
@@ -79,6 +80,7 @@ export default function AnalysisPage() {
           setTimeout(fetchReport, 3000);
         } else if (res.data.status === "NOT_GENERATED") {
           setCreditEstimate(res.data.creditEstimate);
+          setFailureReason(res.data.failureReason || null);
           setLoading(false);
         } else {
           setError(true);
@@ -112,7 +114,11 @@ export default function AnalysisPage() {
               setReport(res.data);
               setGenerating(false);
             } else if (res.data.status === "GENERATING") {
-              setTimeout(poll, 3000);
+              setTimeout(poll, 5000);
+            } else if (res.data.status === "NOT_GENERATED") {
+              setCreditEstimate(res.data.creditEstimate);
+              setFailureReason(res.data.failureReason || null);
+              setGenerating(false);
             } else {
               setError(true);
               setGenerating(false);
@@ -127,7 +133,7 @@ export default function AnalysisPage() {
             setGenerating(false);
           });
       };
-      setTimeout(poll, 3000);
+      setTimeout(poll, 5000);
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { error?: string; message?: string } }; message?: string };
       const msg = axiosErr?.response?.data?.error || axiosErr?.response?.data?.message || axiosErr?.message || "Failed to generate analysis";
@@ -140,6 +146,7 @@ export default function AnalysisPage() {
 
   const handleCancelGenerate = () => {
     setCreditEstimate(null);
+    setFailureReason(null);
     setError(true);
   };
 
@@ -219,7 +226,7 @@ export default function AnalysisPage() {
         <div className="flex items-center justify-center py-20">
           <div className="text-center space-y-4 px-4">
             <AlertCircle size={40} className="mx-auto text-zinc-300" />
-            <p className="text-zinc-500">{errorMessage || "Failed to load analysis. Please try again."}</p>
+            <p className="text-zinc-500">{failureReason || errorMessage || "Failed to load analysis. Please try again."}</p>
             <button
               onClick={fetchReport}
               className="inline-flex items-center gap-2 h-10 px-4 rounded-lg bg-zinc-900 text-white text-sm font-medium hover:bg-zinc-800 cursor-pointer"

@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { LazyMotion, domAnimation, m } from "framer-motion";
 import { Lightbulb, Zap, TrendingUp } from "lucide-react";
 
 const benefits = [
@@ -32,10 +32,11 @@ const stats = [
 
 export default function StudentBenefits() {
   return (
+    <LazyMotion features={domAnimation}>
     <section className="py-16 md:py-24 lg:py-28 relative overflow-hidden bg-[#0d0d15]/30">
       <div className="absolute inset-0 bg-gradient-to-b from-[#0C0C0C] via-transparent to-[#0C0C0C] pointer-events-none" />
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
@@ -47,11 +48,11 @@ className="text-center mb-12 md:mb-16"
           <h2 className="mt-4 text-3xl sm:text-4xl lg:text-5xl font-bold font-heading text-[#f5f5f7]">
             Built <span className="text-gradient">For Students</span>
           </h2>
-        </motion.div>
+        </m.div>
 
         <div className="grid md:grid-cols-3 gap-4 sm:gap-6 mb-12 md:mb-16">
           {benefits.map((benefit, i) => (
-            <motion.div
+            <m.div
               key={benefit.title}
               initial={{ opacity: 0, y: 30 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -68,13 +69,13 @@ className="text-center mb-12 md:mb-16"
               </div>
               <h3 className="text-base sm:text-lg font-bold text-[#f5f5f7] mb-2 sm:mb-3">{benefit.title}</h3>
               <p className="text-sm text-[#888899] leading-relaxed">{benefit.desc}</p>
-            </motion.div>
+            </m.div>
           ))}
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-8 max-w-3xl mx-auto">
           {stats.map((stat, i) => (
-            <motion.div
+            <m.div
               key={stat.label}
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -85,10 +86,11 @@ className="text-center mb-12 md:mb-16"
               <div className="text-xl sm:text-3xl md:text-4xl font-bold font-heading text-[#f5f5f7]">
                 {stat.label}
               </div>
-            </motion.div>
+            </m.div>
           ))}
         </div>
       </div>
     </section>
+    </LazyMotion>
   );
 }

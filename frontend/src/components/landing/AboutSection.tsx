@@ -1,14 +1,15 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { LazyMotion, domAnimation, m } from "framer-motion";
 import { Target, Eye, Sparkles } from "lucide-react";
 
 export default function AboutSection() {
   return (
+    <LazyMotion features={domAnimation}>
     <section className="py-16 md:py-24 lg:py-28 relative overflow-hidden bg-[#0d0d15]/30">
       <div className="absolute inset-0 bg-gradient-to-b from-[#0C0C0C] via-transparent to-[#0C0C0C] pointer-events-none" />
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
@@ -25,10 +26,10 @@ export default function AboutSection() {
             It helps students transform traditional question papers into interactive mock tests
             with instant performance insights.
           </p>
-        </motion.div>
+        </m.div>
 
         <div className="grid md:grid-cols-3 gap-4 sm:gap-6">
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
@@ -44,9 +45,9 @@ export default function AboutSection() {
             <p className="text-xs text-[#888899] mt-3 leading-relaxed">
               Building AI-powered tools to make quality education accessible to every student in India.
             </p>
-          </motion.div>
+          </m.div>
 
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
@@ -61,9 +62,9 @@ export default function AboutSection() {
             <p className="text-xs text-[#888899] leading-relaxed">
               Making AI-Powered Learning Accessible To Every Student.
             </p>
-          </motion.div>
+          </m.div>
 
-          <motion.div
+          <m.div
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
@@ -78,9 +79,10 @@ export default function AboutSection() {
             <p className="text-xs text-[#888899] leading-relaxed">
               Free Quality Education Through Technology.
             </p>
-          </motion.div>
+          </m.div>
         </div>
       </div>
     </section>
+    </LazyMotion>
   );
 }

@@ -3,7 +3,7 @@
 An AI-driven education platform where students upload question papers, AI analyzes them, generates mock tests automatically, and provides detailed performance analytics.
 
 **Production URL:** https://www.fouri.in  
-**Last Updated:** 2026-06-04 (Phase 38 — ✅ Completed)
+**Last Updated:** 2026-06-04 (Phase 41 — ✅ Completed)
 
 ---
 
@@ -1019,6 +1019,67 @@ Professional HTML email prompt with inline CSS, table-based CTA buttons, full em
 | `frontend/src/app/(dashboard)/analysis/[testId]/page.tsx` | Updated flow — fetch → credit dialog → generate → poll → display; handles cancel and error states; added error message display and console logging |
 | `backend/src/services/creditService.ts` | Null-safe defaults for `dailyCredits`/`usedCredits` (`?? 100`, `?? 0`) |
 | `backend/src/routes/tests.ts` | `GET /:id/analysis` handles `FAILED` status → returns `NOT_GENERATED` with retry credit estimate |
+
+### Phase 39 — Alphabetical Sort & Discover Bugs Fix ✅
+
+**Goal:** Fix discover page search not working on initial load, and add alphabetical sort option.
+
+**Bug 1 — Initial data never loads:**
+- Track ref guard was removed from `discover-client.tsx` so data fetches correctly on initial mount.
+
+**Bug 2 — Search input disconnected:**
+- `SearchBar` already had `onSearch` callback prop passed from `DiscoverClient` — this was already fixed in the code.
+- `SearchBar` uses `onSearch` instead of `router.push` when the prop is provided.
+
+**Alphabetical Sort:**
+| File | Change |
+|------|--------|
+| `backend/src/routes/tests.ts` | Added `else if (sort === "alpha") orderBy.title = "asc"` to `/discover` endpoint |
+| `frontend/src/components/FilterPanel.tsx` | Added `<option value="alpha">Alphabetical (A-Z)</option>` to sort dropdown |
+
+---
+
+### Phase 40 — Auto-Submit & Race Condition Fixes ✅
+
+**Goal:** Fix "Failed to submit" error on exam submission and eliminate 5-second delay on timeout auto-submit.
+
+**Bug 1 — Race condition on submit:**
+- **Root cause:** React state (`submitting`) updates asynchronously. When auto-submit from timer + user click both fired, the second call didn't see `submitting === true` yet.
+- **Fix:** Added `submittingRef` (synchronous ref guard) alongside the state guard.
+
+**Bug 2 — Backend 400 on repeat submit:**
+- **Root cause:** When two submit requests reached the backend, the second got `400 "Attempt already completed"`.
+- **Fix:** Changed to return `200 { alreadySubmitted: true }` — frontend treats this as success.
+
+**Bug 3 — 5-second delay on auto-submit:**
+- **Root cause:** Timeout path awaited two sequential HTTP calls (`save` + `submit`) before showing the overlay.
+- **Fix:** Timeout path now shows the Thank You overlay immediately and fires submit as fire-and-forget.
+
+| File | Change |
+|------|--------|
+| `frontend/src/app/(test)/test/[id]/attempt/page.tsx` | Added `submittingRef` ref guard; handles `alreadySubmitted` response; timeout path shows overlay immediately and fires submit in background |
+| `backend/src/routes/attempts.ts` | Changed `if (attempt.status !== "IN_PROGRESS")` from `400` error to `200 { alreadySubmitted: true }` |
+
+---
+
+### Phase 41 — Auto-Save Optimization & Email AI Error Resilience ✅
+
+**Goal:** Fix unnecessary auto-save requests on exam start, and fix 500 error on email AI generation in production.
+
+**Auto-Save Fix:**
+- **Root cause:** `useAutoSave.ts` debounced effect (3s after mount) fired whenever `attemptId` or `isActive` changed, sending a PUT `/save` with an empty answers array.
+- **Fix:** Added guard `if (!hasRealAnswers && !hasMarked) return` before the API call.
+
+**Email AI Generation 500 Fix:**
+- **Root cause:** `generateEmailContent()` in `openai.ts` called `JSON.parse(cleaned)` without try-catch. On production, Groq's response could be malformed JSON (truncated, extra text, code fences), causing `SyntaxError` → 500.
+- **Fix:** Wrapped `JSON.parse` in try-catch with regex-based JSON extraction fallback and error logging.
+- **Fix:** Improved error logging in email route to capture Groq HTTP status, error code, and stack trace.
+
+| File | Change |
+|------|--------|
+| `frontend/src/hooks/useAutoSave.ts` | Added `hasRealAnswers` and `hasMarked` guard in debounced save effect — skips API call when no real answers exist |
+| `backend/src/services/openai.ts` | Added try-catch + regex fallback to `generateEmailContent()` JSON parsing; logs raw AI response on failure |
+| `backend/src/routes/email.ts` | Improved `/generate-ai` catch block — logs status, code, stack; returns actual error message to frontend |
 
 ---
 

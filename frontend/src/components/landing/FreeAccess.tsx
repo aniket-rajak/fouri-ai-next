@@ -1,6 +1,6 @@
 "use client";
 
-import { motion } from "framer-motion";
+import { LazyMotion, domAnimation, m } from "framer-motion";
 import Link from "next/link";
 import { Sparkles, CheckCircle2, Infinity, BarChart3, Brain, LayoutDashboard, Zap } from "lucide-react";
 
@@ -15,10 +15,11 @@ const freeFeatures = [
 
 export default function FreeAccess() {
   return (
+    <LazyMotion features={domAnimation}>
     <section className="py-16 md:py-24 lg:py-28 relative overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-b from-[#0d0d15] to-[#0C0C0C] pointer-events-none" />
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
@@ -30,9 +31,9 @@ export default function FreeAccess() {
           <h2 className="mt-4 text-3xl sm:text-4xl lg:text-5xl font-bold font-heading text-[#f5f5f7]">
             Always Free <span className="text-gradient">For Students</span>
           </h2>
-        </motion.div>
+        </m.div>
 
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 30 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
@@ -76,8 +77,9 @@ export default function FreeAccess() {
               </Link>
             </div>
           </div>
-        </motion.div>
+        </m.div>
       </div>
     </section>
+    </LazyMotion>
   );
 }
