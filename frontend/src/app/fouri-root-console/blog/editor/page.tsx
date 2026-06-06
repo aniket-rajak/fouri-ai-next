@@ -69,12 +69,7 @@ export default function BlogEditorPage() {
   const [uploadingThumbnail, setUploadingThumbnail] = useState(false);
   const [thumbnailMode, setThumbnailMode] = useState<"upload" | "url">("url");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [imageLoading, setImageLoading] = useState(false);
-  const [imageLoaded, setImageLoaded] = useState<"success" | "error" | null>(
-    null,
-  );
-  const [objectUrl, setObjectUrl] = useState<string>("");
-  const objectUrlRef = useRef("");
+
 
   // Media library picker
   const [showMediaPicker, setShowMediaPicker] = useState(false);
@@ -123,45 +118,7 @@ export default function BlogEditorPage() {
     }
   }, [editId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Preview blob URL for thumbnail
-  useEffect(() => {
-    if (!thumbnailUrl) {
-      if (objectUrlRef.current) {
-        URL.revokeObjectURL(objectUrlRef.current);
-        objectUrlRef.current = "";
-      }
-      setObjectUrl("");
-      setImageLoaded(null);
-      return;
-    }
 
-    if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
-    setImageLoading(true);
-    setImageLoaded(null);
-
-    (async () => {
-      try {
-        const res = await fetch(getFileUrl(thumbnailUrl));
-        if (!res.ok) {
-          setImageLoading(false);
-          setImageLoaded("error");
-          return;
-        }
-        const blob = await res.blob();
-        const blobUrl = URL.createObjectURL(blob);
-        objectUrlRef.current = blobUrl;
-        setObjectUrl(blobUrl);
-        setImageLoading(false);
-      } catch {
-        setImageLoading(false);
-        setImageLoaded("error");
-      }
-    })();
-
-    return () => {
-      if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
-    };
-  }, [thumbnailUrl]);
 
   const handleAiGenerate = async () => {
     if (!aiInstructions.trim() || generating) return;
@@ -665,37 +622,12 @@ export default function BlogEditorPage() {
 
         {/* Thumbnail Preview */}
         {thumbnailUrl && (
-          <div className="bg-[#08080f] border border-white/5 rounded-xl p-3 flex flex-col items-center justify-center min-h-[100px]">
-            {imageLoading && (
-              <div className="flex items-center gap-2 text-xs text-[#888899] mb-2">
-                <Loader2 size={14} className="animate-spin" />
-                Loading preview...
-              </div>
-            )}
-            {objectUrl && (
-              <img
-                src={objectUrl}
-                alt="Thumbnail preview"
-                className="max-w-full max-h-[300px] object-contain rounded-lg"
-                onLoad={() => setImageLoaded("success")}
-                onError={() => setImageLoaded("error")}
-              />
-            )}
-            {!objectUrl &&
-              thumbnailUrl &&
-              !imageLoading &&
-              imageLoaded !== "success" && (
-                <BlogImage
-                  src={thumbnailUrl}
-                  alt="Thumbnail preview"
-                  className="max-w-full max-h-[300px] object-contain rounded-lg"
-                />
-              )}
-            {imageLoaded === "error" && !objectUrl && (
-              <p className="text-xs text-red-400">
-                Unable to load image preview
-              </p>
-            )}
+          <div className="bg-[#08080f] border border-white/5 rounded-xl p-3 flex items-center justify-center min-h-[100px]">
+            <BlogImage
+              src={getFileUrl(thumbnailUrl)}
+              alt="Thumbnail preview"
+              className="max-w-full max-h-[300px] object-contain rounded-lg"
+            />
           </div>
         )}
       </motion.div>

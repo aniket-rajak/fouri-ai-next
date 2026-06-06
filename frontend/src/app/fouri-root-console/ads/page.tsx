@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useOwnerApi } from "@/lib/owner-auth";
 import { motion, AnimatePresence } from "framer-motion";
@@ -56,8 +56,6 @@ export default function OwnerAdsPage() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [thumbnailMode, setThumbnailMode] = useState<"url" | "upload">("url");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [objectUrl, setObjectUrl] = useState<string>("");
-  const objectUrlRef = useRef("");
 
   // Media library picker
   const [showMediaPicker, setShowMediaPicker] = useState(false);
@@ -81,36 +79,6 @@ export default function OwnerAdsPage() {
 
   const ads = data || [];
 
-  // Preview blob URL for image
-  useEffect(() => {
-    if (!imageUrl) {
-      if (objectUrlRef.current) {
-        URL.revokeObjectURL(objectUrlRef.current);
-        objectUrlRef.current = "";
-      }
-      setObjectUrl("");
-      return;
-    }
-
-    if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
-    (async () => {
-      try {
-        const res = await fetch(getFileUrl(imageUrl));
-        if (!res.ok) return;
-        const blob = await res.blob();
-        const blobUrl = URL.createObjectURL(blob);
-        objectUrlRef.current = blobUrl;
-        setObjectUrl(blobUrl);
-      } catch {
-        // fallback
-      }
-    })();
-
-    return () => {
-      if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
-    };
-  }, [imageUrl]);
-
   const resetForm = () => {
     setTitle("");
     setDescription("");
@@ -125,11 +93,6 @@ export default function OwnerAdsPage() {
     setShowForm(false);
     setShowAiPrompt(false);
     setAiInstructions("");
-    if (objectUrlRef.current) {
-      URL.revokeObjectURL(objectUrlRef.current);
-      objectUrlRef.current = "";
-    }
-    setObjectUrl("");
   };
 
   const handleEdit = (ad: Ad) => {
@@ -523,15 +486,7 @@ export default function OwnerAdsPage() {
                 {/* Image Preview */}
                 {imageUrl && (
                   <div className="mt-2 bg-[#08080f] border border-white/5 rounded-xl p-2 flex items-center justify-center min-h-[80px]">
-                    {objectUrl ? (
-                      <img
-                        src={objectUrl}
-                        alt="Preview"
-                        className="max-w-full max-h-[200px] object-contain rounded-lg"
-                      />
-                    ) : (
-                      <BlogImage src={imageUrl} alt="Preview" className="max-w-full max-h-[200px] object-contain rounded-lg" />
-                    )}
+                    <BlogImage src={getFileUrl(imageUrl)} alt="Preview" className="max-w-full max-h-[200px] object-contain rounded-lg" />
                   </div>
                 )}
               </div>
