@@ -9,7 +9,9 @@ export function getFileUrl(url: string): string {
     if (urlObj.host !== currentHost) {
       urlObj.host = currentHost;
       urlObj.protocol = new URL(apiBase).protocol;
-      return urlObj.toString();
+      const rewritten = urlObj.toString();
+      console.log("[getFileUrl] Rewrote", url, "→", rewritten);
+      return rewritten;
     }
   } catch {}
   return url;

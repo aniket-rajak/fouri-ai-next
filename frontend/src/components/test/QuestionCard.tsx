@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Bookmark } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { MathContent } from "@/components/ui/MathContent";
 
 interface Question {
   id: string;
@@ -55,7 +56,7 @@ export function QuestionCard({
           Question {question.order}
         </span>
         <h2 className="text-lg font-medium text-zinc-900 leading-relaxed break-words">
-          {question.questionText}
+          <MathContent text={question.questionText} />
         </h2>
       </div>
 
@@ -94,7 +95,7 @@ export function QuestionCard({
                 >
                   {label}
                 </span>
-                <span className="text-sm text-zinc-900 leading-relaxed whitespace-normal break-words">{option}</span>
+                <span className="text-sm text-zinc-900 leading-relaxed whitespace-normal break-words"><MathContent text={option} /></span>
               </button>
             );
           })

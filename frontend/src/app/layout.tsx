@@ -96,12 +96,7 @@ export default function RootLayout({
           <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
           <link rel="dns-prefetch" href="https://www.googletagmanager.com" />
           <link rel="dns-prefetch" href="https://pagead2.googlesyndication.com" />
-          <link
-            rel="preload"
-            as="image"
-            href="/assets/images/hero/hero-1.jpg"
-            fetchPriority="high"
-          />
+
           <JsonLd
           data={{
             "@context": "https://schema.org",

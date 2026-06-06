@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { prisma } from "../lib/prisma.js";
+import { prisma, withRetry } from "../lib/prisma.js";
 import { getTelegramFileUrl, downloadTelegramFile } from "../services/telegramStorage.js";
 
 const router = Router();
@@ -49,18 +49,17 @@ async function fetchWithRetry(
 async function resolveImage(
   fileId: string
 ): Promise<{ buffer: Buffer; mime: string } | null> {
-  const media = await prisma.mediaFile.findFirst({
-    where: { fileId },
-    select: { mimeType: true, cdnUrl: true },
-  });
+  const media = await withRetry(() =>
+    prisma.mediaFile.findFirst({
+      where: { fileId },
+      select: { mimeType: true, cdnUrl: true },
+    })
+  );
 
   if (media?.cdnUrl) {
     try {
       const result = await fetchWithRetry(media.cdnUrl);
-      if (!result.mime.startsWith("image/")) {
-        const ext = (media.cdnUrl.split(".").pop() || "").toLowerCase();
-        result.mime = EXT_MIME[ext] || media.mimeType;
-      }
+      result.mime = media.mimeType || (result.mime.startsWith("image/") ? result.mime : "image/png");
       return result;
     } catch (err) {
       console.error(

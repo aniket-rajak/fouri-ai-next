@@ -67,7 +67,7 @@ export function AIAnalysisCreditDialog({
               How it works
             </p>
             <p className="text-xs text-blue-600/80 leading-relaxed">
-              Credits are used because AI processing requires computing resources and API usage. Each user receives {dailyCredits} credits per day, and AI Analysis consumes credits based on the processing required. Your daily credits reset automatically every 24 hours.
+              Credits are used because AI processing requires computing resources and API usage. Each user receives {dailyCredits} credits per day, and AI Analysis consumes credits based on the processing required. Your daily credits reset automatically at midnight (12:00 AM).
             </p>
           </div>
         </div>

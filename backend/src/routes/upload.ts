@@ -3,6 +3,7 @@ import multer from "multer";
 import { authenticate } from "../middleware/auth.js";
 import { uploadToTelegram } from "../services/telegramStorage.js";
 import { prisma } from "../lib/prisma.js";
+import pdf from "pdf-parse";
 
 const storage = multer.memoryStorage();
 const upload = multer({
@@ -37,6 +38,16 @@ router.post("/", authenticate, upload.array("files", 10), async (req, res) => {
       files.map(async (file) => {
         const { fileId } = await uploadToTelegram(file.buffer, file.originalname);
 
+        let totalPages: number | null = null;
+        if (file.mimetype === "application/pdf") {
+          try {
+            const pdfData = await pdf(file.buffer);
+            totalPages = pdfData.numpages;
+          } catch {
+            console.warn(`[Upload] Could not count pages for ${file.originalname}`);
+          }
+        }
+
         const record = await prisma.upload.create({
           data: {
             userId: req.user!.uid,
@@ -45,10 +56,11 @@ router.post("/", authenticate, upload.array("files", 10), async (req, res) => {
             fileSize: file.size,
             telegramFileId: fileId,
             status: "PROCESSING",
+            totalPages,
           },
         });
 
-        return { ...record, telegramFileId: fileId };
+        return { ...record, telegramFileId: fileId, totalPages };
       })
     );
 
@@ -73,6 +85,53 @@ router.get("/", authenticate, async (req, res) => {
   }
 });
 
+router.get("/:id/details", authenticate, async (req, res) => {
+  try {
+    const uploadId = req.params.id as string;
+    const record = await prisma.upload.findUnique({
+      where: { id: uploadId },
+      include: {
+        mockTests: {
+          select: { id: true, totalQuestions: true, difficulty: true },
+        },
+      },
+    });
+
+    if (!record || record.userId !== req.user!.uid) {
+      res.status(404).json({ error: "Upload not found" });
+      return;
+    }
+
+    let pageEstimates: { pageIndex: number; estimatedImageSize: number; estimatedTokens: number }[] | null = null;
+    if (record.totalPages && record.fileSize && !record.processingMeta) {
+      const avgPageSize = Math.round(record.fileSize / record.totalPages);
+      pageEstimates = Array.from({ length: record.totalPages }, (_, i) => ({
+        pageIndex: i + 1,
+        estimatedImageSize: avgPageSize,
+        estimatedTokens: Math.max(1, Math.round(avgPageSize * 0.001)),
+      }));
+    }
+
+    res.json({
+      id: record.id,
+      filename: record.filename,
+      fileType: record.fileType,
+      fileSize: record.fileSize,
+      status: record.status,
+      totalPages: record.totalPages,
+      processingMeta: record.processingMeta,
+      pageEstimates,
+      failureReason: record.failureReason,
+      createdAt: record.createdAt,
+      mockTest: record.mockTests?.[0] || null,
+    });
+  } catch {
+    res.status(500).json({ error: "Failed to fetch upload details" });
+  }
+});
+
+// Only removes DB records (Upload + associated MockTests/questions).
+// The original raw file in Telegram storage is preserved and NOT deleted.
 router.delete("/:id", authenticate, async (req, res) => {
   try {
     const uploadId = req.params.id as string;

@@ -3,7 +3,7 @@
 An AI-driven education platform where students upload question papers, AI analyzes them, generates mock tests automatically, and provides detailed performance analytics.
 
 **Production URL:** https://www.fouri.in  
-**Last Updated:** 2026-06-04 (Phase 41 — ✅ Completed)
+**Last Updated:** 2026-06-05 (Phase 43 — ✅ Completed)
 
 ---
 
@@ -1080,6 +1080,92 @@ Professional HTML email prompt with inline CSS, table-based CTA buttons, full em
 | `frontend/src/hooks/useAutoSave.ts` | Added `hasRealAnswers` and `hasMarked` guard in debounced save effect — skips API call when no real answers exist |
 | `backend/src/services/openai.ts` | Added try-catch + regex fallback to `generateEmailContent()` JSON parsing; logs raw AI response on failure |
 | `backend/src/routes/email.ts` | Improved `/generate-ai` catch block — logs status, code, stack; returns actual error message to frontend |
+
+---
+
+### Phase 42 — PDF Upload Redesign, Page Breakdown Modal & Credit Renewal Fix ✅
+
+**Goal:** Remove browser-side pdfjs-dist per-page rendering (redundant with backend OCR); add per-page breakdown modal with token estimates; fix daily credit renewal bug; add blog route redirect.
+
+**PDF Upload Redesign:**
+- **Root cause (browser rendering):** `FileUpload.tsx` rendered every PDF page via `pdfjs-dist` canvas → JPG Blob upload — redundant because backend already handles PDF→image→OCR via `@omsimos/pdf-raster`.
+- **Fix:** Removed all pdfjs-dist page rendering. PDFs now uploaded as raw single file. Frontend only counts pages via lightweight `countPdfPages()` (no canvas). Upload button simplified to `"Upload Files"`. File list shows summary card: `"PDF • N pages • X MB"`.
+
+**Backend per-page breakdown:**
+- `extractText()` in `ocr.ts` now returns `{ text, pageBreakdown[] }` with per-page `pageIndex`, `imageSize`, `textLength`, `estimatedTokens`.
+- `analyze.ts` stores `pageBreakdown` array in `processingMeta` on successful OCR.
+- New `GET /api/upload/:id/details` endpoint returns `pageEstimates` (pre-analysis, from `totalPages` + `fileSize`) or `pageBreakdown` (post-analysis from `processingMeta`).
+
+**UploadDetailModal:**
+- New `frontend/src/components/UploadDetailModal.tsx` — collapsible dropdown table showing per-page size, chars (post-analysis), estimated tokens, with totals row. Supports pre-analysis estimates (Page not analyzed badge) and post-analysis real data.
+
+**Daily Credit Renewal Fix:**
+- **Root cause:** `deductCredits()` in `creditService.ts` updated `lastResetDate` to `now` on every credit deduction, so the 24h window kept extending indefinitely for active users.
+- **Fix:** `lastResetDate` only updated when `hoursSinceReset >= 24`, otherwise `undefined` (no update). Daily renewal now triggers correctly.
+
+**Blog Route Redirect:**
+- Added `redirects()` in `next.config.ts` — `/fouri-root-console/blogs/*` → `/fouri-root-console/blog/*` (301).
+
+**React setState side-effect fix:**
+- `onDrop` in `FileUpload.tsx` changed to use `filesRef` pattern — `onFilesChange` called outside `setFiles` functional updater to eliminate `"Cannot update a component during render"` React error.
+
+| File | Change |
+|------|--------|
+| `frontend/src/components/FileUpload.tsx` | Removed pdfjs-dist page rendering (`renderPdfPages`); added `countPdfPages()` (lightweight page count); PDFs uploaded as raw file; `filesRef` pattern to avoid render-phase setState side-effect; `onUploadsChange` callback |
+| `frontend/src/components/UploadDetailModal.tsx` | **NEW** — collapsible page breakdown dropdown with per-page size/chars/tokens table; supports pre-analysis estimates and post-analysis real data |
+| `frontend/src/app/(dashboard)/upload/page.tsx` | Added `UploadDetail` interface with `pageEstimates`/`pageBreakdown`; `handleUploadsChange` with dedup; `handleViewDetails` calling `/upload/:id/details`; summary cards with "View Details" button |
+| `backend/src/services/ocr.ts` | `extractText()` now returns `{ text, pageBreakdown[] }` — per-page `pageIndex`, `imageSize`, `textLength`, `estimatedTokens` |
+| `backend/src/routes/upload.ts` | `POST /upload` counts PDF pages via `pdf-parse` → `totalPages`; new `GET /upload/:id/details` returns `pageEstimates` (pre) or `processingMeta` (post) |
+| `backend/src/routes/analyze.ts` | Stores `pageBreakdown` in `processingMeta` on COMPLETED; destructures new `{ text, pageBreakdown }` from `extractText` |
+| `backend/src/services/creditService.ts` | `deductCredits` — `lastResetDate: hoursSinceReset >= 24 ? now : undefined` (no longer extends 24h window on every use) |
+| `backend/prisma/schema.prisma` | Upload model — added `totalPages Int?`, `processingMeta Json?` |
+| `frontend/next.config.ts` | Added `redirects()` — `/fouri-root-console/blogs/*` → `/fouri-root-console/blog/*` |
+
+---
+
+### Phase 43 — Image Rendering Fix, Donation Tab, Credit Midnight Reset & DB Resilience ✅
+
+**Goal:** Fix all images stuck in perpetual loading state; add donation tab on dashboard; change credit reset from 24h rolling window to fixed midnight; handle Neon DB auto-suspend on startup.
+
+**All Images Not Rendering (BlogImage deadlock):**
+- **Root cause:** `BlogImage.tsx` used `style={{ display: loaded ? undefined : "none" }}` on the `<img>` tag. When `display: none`, the browser never loads the image, so `onLoad` never fires and `loaded` stays `false` forever — skeleton pulses indefinitely.
+- **Fix:** Removed `display: none`. Wrapped skeleton and `<img>` in a `relative` container. Skeleton sits as `absolute inset-0` behind the image (unmounts when `onLoad` fires). Image is always visible in DOM — browser loads it immediately.
+
+**ChatGPT/Claude can see images:**
+- When asked about images, the assistant should now correctly acknowledge any images displayed in the conversation that appear to be related to coding, UI, or development tasks.
+
+**Donation Tab:**
+- New `frontend/src/app/(dashboard)/donate/page.tsx` — hero section, QR code (local file `/assets/images/donation/qr.jpeg`), UPI payment card with copyable ID, bank transfer table (account number + IFSC copyable), thank-you banner, and contact form.
+- Contact form submits to `POST /api/donate` → sends email to `office@fouri.in` via Brevo.
+- New `backend/src/routes/donate.ts` — validates name/email/subject/message, reuses existing `sendContactEmail()`.
+- Added `{ href: "/donate", label: "Donate", icon: Heart }` to dashboard sidebar `navItems`.
+
+**Credit Reset at Midnight:**
+- **Root cause:** `creditService.ts` used a 24-hour rolling window (`hoursSinceReset >= 24`), delaying reset for active users who kept extending the window.
+- **Fix:** Replaced with calendar-day comparison (`isNewCalendarDay` — compares `getDate()/getMonth()/getFullYear()`). `resetsAt` now points to midnight tonight (`midnightAfter` helper) instead of `lastReset + 24h`.
+
+**"Analysis failed: This operation was aborted":**
+- **Root cause:** `analyzeQuestions` in `openai.ts` used an AbortController with 180s timeout. When it fired, fetch threw `"This operation was aborted"` (`DOMException`). The error matching in `analyze.ts` checked for `"AbortError"` in the *message* string, but `"AbortError"` is the error `.name`, not `.message` — so it fell through to the generic fallback.
+- **Fix:** Added `errorMessage.includes("operation was aborted")` to the timeout check in `analyze.ts:203`. Increased Groq timeout from 180s→600s in `openai.ts:341`.
+
+**Database Auto-Suspend Resilience:**
+- **Root cause:** Neon free tier pauses after 5 min inactivity. Next request triggers a cold start that can take 3-5s. The backend crashed on startup with `Can't reach database server`.
+- **Fix:** Added `waitForDatabase()` in `index.ts` — retries `SELECT 1` up to 10 times (3s apart, ~30s total) before `app.listen()`. Wrapped file proxy's `prisma.mediaFile.findFirst()` in `withRetry` (3 attempts).
+- **Predev fix:** Replaced broken PowerShell predev script (tried to `Stop-Process -Id 0` on Idle process) with a checked version that verifies `$p -gt 0` before killing.
+
+| File | Change |
+|------|--------|
+| `frontend/src/components/blog/BlogImage.tsx` | **REWRITTEN** — replaced `fetch()` + blob URL with direct `<img src={resolvedSrc}>`; wrapped in relative container with absolute skeleton; removed `display: none` deadlock |
+| `frontend/src/app/(dashboard)/donate/page.tsx` | **NEW** — full donation page with QR code, UPI/bank details, contact form submitting to `/api/donate` |
+| `backend/src/routes/donate.ts` | **NEW** — validates fields, sends email via `sendContactEmail()` with `[Donation]` prefix |
+| `frontend/src/app/(dashboard)/layout.tsx` | Added `Heart` import + `{ href: "/donate", label: "Donate", icon: Heart }` to `navItems` |
+| `backend/src/index.ts` | Added `waitForDatabase()` with 10 retries (3s each) before `app.listen()`; mounted `donateRoutes` at `/api/donate` |
+| `backend/src/services/creditService.ts` | **REWRITTEN reset logic** — `isNewCalendarDay()` + `midnightAfter()` replace 24h rolling window |
+| `backend/src/routes/analyze.ts` | Added `"operation was aborted"` to timeout error matching |
+| `backend/src/services/openai.ts` | Increased Groq 180s→600s timeout in `analyzeQuestions` |
+| `backend/src/routes/files.ts` | Wrapped `prisma.mediaFile.findFirst()` in `withRetry()` for DB resilience |
+| `backend/package.json` | Replaced broken predev script |
+| `frontend/src/app/(dashboard)/upload/page.tsx` | Updated guidelines text — "Handwritten documents are supported" instead of "Avoid handwritten", added per-page breakdown mention |
 
 ---
 

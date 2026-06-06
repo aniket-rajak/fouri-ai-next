@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { useTestTimer } from "@/hooks/useTestTimer";
@@ -146,7 +146,7 @@ export default function TestAttemptPage() {
         setTest(testRes.data.test);
         const att = attemptRes.data.attempt;
         setAttemptId(att.id);
-        setStartTime(att.startedAt || new Date().toISOString());
+        setStartTime(new Date().toISOString());
 
         // Restore from localStorage
         const stored = localStorage.getItem(`fouri_attempt_${att.id}`);
@@ -183,6 +183,7 @@ export default function TestAttemptPage() {
   }, [params.id, router]);
 
   const handleSubmit = async (isTimeout = false) => {
+    console.log("[Submit] handleSubmit called", { isTimeout, attemptId, submitting, submitCooldown, submittingRef: submittingRef.current });
     if (!attemptId || submitting || submitCooldown || submittingRef.current) return;
     submittingRef.current = true;
     setSubmitting(true);
@@ -263,6 +264,7 @@ export default function TestAttemptPage() {
   handleSubmitRef.current = handleSubmit;
 
   const handleTimeUp = useCallback(() => {
+    console.log("[TimeUp] handleTimeUp called, attemptId:", handleSubmitRef.current ? "ref set" : "ref null");
     handleSubmitRef.current?.(true);
   }, []);
 
@@ -315,10 +317,12 @@ export default function TestAttemptPage() {
 
   const durationParam = searchParams.get("duration");
   const resumeRemaining = searchParams.get("resumeRemaining");
-  const resumeDuration = resumeRemaining ? Number(resumeRemaining) : null;
+  const resumeDuration = resumeRemaining && Number(resumeRemaining) > 0 ? Number(resumeRemaining) : null;
+
+  const timerStartTime = useMemo(() => startTime || new Date().toISOString(), [startTime]);
 
   const timer = useTestTimer({
-    startTime: startTime || new Date().toISOString(),
+    startTime: timerStartTime,
     duration: resumeDuration ?? (durationParam ? Number(durationParam) : test?.duration || 1800),
     onTimeUp: handleTimeUp,
     onTabSwitch: handleTabSwitch,
@@ -400,7 +404,7 @@ export default function TestAttemptPage() {
     return () => window.removeEventListener("keydown", handleKey);
   }, [currentIndex, currentQuestion, showConfirm, test]);
 
-  if (loading || !test || !attemptId) {
+  if (loading || !test) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-zinc-300 border-t-zinc-900" />

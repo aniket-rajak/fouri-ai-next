@@ -11,6 +11,18 @@ const MODE_MULTIPLIERS = {
 
 export type AnalysisMode = keyof typeof MODE_MULTIPLIERS;
 
+function isNewCalendarDay(lastReset: Date, now: Date): boolean {
+  return (
+    now.getFullYear() > lastReset.getFullYear() ||
+    now.getMonth() > lastReset.getMonth() ||
+    now.getDate() > lastReset.getDate()
+  );
+}
+
+function midnightAfter(date: Date): Date {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1, 0, 0, 0);
+}
+
 export async function getUserCredits(uid: string) {
   const user = await prisma.user.findUnique({ where: { firebaseUid: uid } });
   if (!user) throw new Error("User not found");
@@ -19,9 +31,8 @@ export async function getUserCredits(uid: string) {
   const usedCredits = user.usedCredits ?? 0;
   const now = new Date();
   const lastReset = new Date(user.lastResetDate);
-  const hoursSinceReset = (now.getTime() - lastReset.getTime()) / (1000 * 60 * 60);
 
-  if (hoursSinceReset >= 24) {
+  if (isNewCalendarDay(lastReset, now)) {
     await prisma.user.update({
       where: { firebaseUid: uid },
       data: { usedCredits: 0, lastResetDate: now },
@@ -30,7 +41,7 @@ export async function getUserCredits(uid: string) {
       dailyCredits,
       usedCredits: 0,
       remaining: dailyCredits,
-      resetsAt: new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(),
+      resetsAt: midnightAfter(now).toISOString(),
     };
   }
 
@@ -38,7 +49,7 @@ export async function getUserCredits(uid: string) {
     dailyCredits,
     usedCredits,
     remaining: Math.max(0, dailyCredits - usedCredits),
-    resetsAt: new Date(lastReset.getTime() + 24 * 60 * 60 * 1000).toISOString(),
+    resetsAt: midnightAfter(lastReset).toISOString(),
   };
 }
 
@@ -67,10 +78,10 @@ export async function deductCredits(uid: string, amount: number) {
   const dailyCredits = user.dailyCredits ?? 100;
   const now = new Date();
   const lastReset = new Date(user.lastResetDate);
-  const hoursSinceReset = (now.getTime() - lastReset.getTime()) / (1000 * 60 * 60);
 
   let usedCredits = user.usedCredits ?? 0;
-  if (hoursSinceReset >= 24) {
+  const resetDue = isNewCalendarDay(lastReset, now);
+  if (resetDue) {
     usedCredits = 0;
   }
 
@@ -83,7 +94,7 @@ export async function deductCredits(uid: string, amount: number) {
     where: { firebaseUid: uid },
     data: {
       usedCredits: usedCredits + amount,
-      lastResetDate: now,
+      lastResetDate: resetDue ? now : undefined,
     },
   });
 

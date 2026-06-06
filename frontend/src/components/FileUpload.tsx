@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useState, useRef } from "react";
 import { useDropzone } from "react-dropzone";
-import { Upload, File as FileIcon, X, CheckCircle2, AlertCircle } from "lucide-react";
+import { Upload, File as FileIcon, X, CheckCircle2, AlertCircle, Loader2, BookOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { api } from "@/lib/api";
 
@@ -11,17 +11,18 @@ interface UploadedFile {
   filename: string;
   fileType: string;
   fileSize: number;
-  cloudinaryUrl: string | null;
   status: string;
+  totalPages?: number | null;
 }
 
 interface FileWithPreview extends File {
-  preview?: string;
+  pageCount?: number;
 }
 
 interface FileUploadProps {
-  onUploadComplete?: (uploadId: string, fileSize: number) => void;
+  onUploadComplete?: (uploadId: string, fileSize: number, totalPages?: number | null) => void;
   onFilesChange?: (files: File[]) => void;
+  onUploadsChange?: (uploads: UploadedFile[]) => void;
   disabled?: boolean;
   creditInfo?: {
     estimatedCost: number;
@@ -30,22 +31,73 @@ interface FileUploadProps {
   } | null;
 }
 
-export function FileUpload({ onUploadComplete, onFilesChange, disabled, creditInfo }: FileUploadProps) {
+function formatSize(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+async function countPdfPages(file: File): Promise<number> {
+  const pdfjsLib = await import("pdfjs-dist");
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    return pdf.numPages;
+  } finally {
+    console.warn = warn;
+  }
+}
+
+const dedupeFiles = (prev: FileWithPreview[], incoming: FileWithPreview[]) => {
+  const seen = new Set(prev.map(f => `${f.name}-${f.size}-${f.lastModified}`));
+  const unique = incoming.filter(f => !seen.has(`${f.name}-${f.size}-${f.lastModified}`));
+  if (unique.length === 0) return prev;
+  return [...prev, ...unique];
+};
+
+export function FileUpload({ onUploadComplete, onFilesChange, onUploadsChange, disabled, creditInfo }: FileUploadProps) {
   const [files, setFiles] = useState<FileWithPreview[]>([]);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const processingRef = useRef(false);
+  const filesRef = useRef(files);
+  filesRef.current = files;
 
-  const onDrop = useCallback((accepted: FileWithPreview[]) => {
+  const onDrop = useCallback(async (accepted: FileWithPreview[]) => {
     setError(null);
-    const next = [...files, ...accepted];
-    setFiles(next);
-    onFilesChange?.(next);
-  }, [onFilesChange, files]);
+    if (processingRef.current) return;
+    processingRef.current = true;
+
+    try {
+      const enriched: FileWithPreview[] = [];
+      for (const file of accepted) {
+        if (file.type === "application/pdf") {
+          let pages = 0;
+          try {
+            pages = await countPdfPages(file);
+          } catch {
+            pages = 0;
+          }
+          (file as FileWithPreview).pageCount = pages;
+        }
+        enriched.push(file);
+      }
+
+      const next = dedupeFiles(filesRef.current, enriched);
+      setFiles(next);
+      onFilesChange?.(next);
+    } finally {
+      processingRef.current = false;
+    }
+  }, [onFilesChange]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
+    noDragEventsBubbling: true,
     accept: {
       "image/jpeg": [".jpg", ".jpeg"],
       "image/png": [".png"],
@@ -81,12 +133,13 @@ export function FileUpload({ onUploadComplete, onFilesChange, disabled, creditIn
           }
         },
       });
-      const uploads = res.data.uploads;
+      const uploads = res.data.uploads as UploadedFile[];
       setUploadedFiles(uploads);
       setFiles([]);
       setProgress(100);
+      onUploadsChange?.(uploads);
       if (onUploadComplete && uploads?.[0]?.id) {
-        onUploadComplete(uploads[0].id, uploads[0].fileSize);
+        onUploadComplete(uploads[0].id, uploads[0].fileSize, uploads[0].totalPages);
       }
     } catch (err: any) {
       const serverMsg = err?.response?.data?.error;
@@ -96,10 +149,7 @@ export function FileUpload({ onUploadComplete, onFilesChange, disabled, creditIn
     }
   };
 
-  const formatSize = (bytes: number) => {
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  };
+  const hasPdf = files.some((f) => f.type === "application/pdf");
 
   return (
     <div className="space-y-6">
@@ -127,7 +177,7 @@ export function FileUpload({ onUploadComplete, onFilesChange, disabled, creditIn
                 Drag & drop files or <span className="text-blue-600">browse</span>
               </p>
               <p className="text-xs text-zinc-500">
-                JPG, PNG, JPEG, PDF · Max 20MB each
+                PDF, JPG, PNG · Max 20MB each
               </p>
             </>
           )}
@@ -152,15 +202,24 @@ export function FileUpload({ onUploadComplete, onFilesChange, disabled, creditIn
                 key={`${file.name}-${i}`}
                 className="flex items-center gap-3 p-3 bg-white rounded-lg border border-zinc-200"
               >
-                <div className="p-1.5 rounded bg-zinc-100">
-                  <FileIcon size={16} className="text-zinc-600" />
+                <div className={cn(
+                  "p-1.5 rounded shrink-0",
+                  file.type === "application/pdf" ? "bg-amber-100" : "bg-zinc-100"
+                )}>
+                  {file.type === "application/pdf"
+                    ? <BookOpen size={16} className="text-amber-700" />
+                    : <FileIcon size={16} className="text-zinc-600" />
+                  }
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-zinc-900 truncate">
                     {file.name}
                   </p>
                   <p className="text-xs text-zinc-500">
-                    {formatSize(file.size)}
+                    {file.type === "application/pdf"
+                      ? `PDF${(file as FileWithPreview).pageCount ? ` \u00b7 ${(file as FileWithPreview).pageCount} pages` : ""} \u00b7 ${formatSize(file.size)}`
+                      : formatSize(file.size)
+                    }
                   </p>
                 </div>
                 <button
@@ -185,8 +244,8 @@ export function FileUpload({ onUploadComplete, onFilesChange, disabled, creditIn
               <p className="text-xs mt-0.5">
                 Available: {creditInfo.availableCredits} Credits
                 {creditInfo.hasEnoughCredits
-                  ? ` → ${Math.max(0, creditInfo.availableCredits - creditInfo.estimatedCost)} after analysis`
-                  : " — Insufficient"}
+                  ? ` \u2192 ${Math.max(0, creditInfo.availableCredits - creditInfo.estimatedCost)} after analysis`
+                  : " \u2014 Insufficient"}
               </p>
             </div>
           )}
@@ -213,7 +272,7 @@ export function FileUpload({ onUploadComplete, onFilesChange, disabled, creditIn
         </div>
       )}
 
-      {uploadedFiles.length > 0 && (
+      {uploadedFiles.length > 0 && uploadedFiles.some(f => f.status === "PROCESSING" || f.status === "COMPLETED") && (
         <div className="space-y-3">
           <h3 className="text-sm font-medium text-green-700 flex items-center gap-2">
             <CheckCircle2 size={16} />
@@ -225,15 +284,24 @@ export function FileUpload({ onUploadComplete, onFilesChange, disabled, creditIn
                 key={f.id}
                 className="flex items-center gap-3 p-3 bg-green-50 rounded-lg border border-green-200"
               >
-                <div className="p-1.5 rounded bg-green-100">
-                  <CheckCircle2 size={16} className="text-green-600" />
+                <div className={cn(
+                  "p-1.5 rounded shrink-0",
+                  f.fileType === "application/pdf" ? "bg-green-100" : "bg-green-100"
+                )}>
+                  {f.fileType === "application/pdf"
+                    ? <BookOpen size={16} className="text-green-600" />
+                    : <CheckCircle2 size={16} className="text-green-600" />
+                  }
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-zinc-900 truncate">
                     {f.filename}
                   </p>
-                  <p className="text-xs text-zinc-500 capitalize">
-                    {f.status.toLowerCase()}
+                  <p className="text-xs text-zinc-500">
+                    {f.fileType === "application/pdf"
+                      ? `PDF${f.totalPages ? ` \u00b7 ${f.totalPages} pages` : ""} \u00b7 ${formatSize(f.fileSize)}`
+                      : formatSize(f.fileSize)
+                    }
                   </p>
                 </div>
               </div>

@@ -58,7 +58,8 @@ export function QuestionPalette({
 
       {/* All Questions Grid */}
       <h3 className="text-sm font-medium text-zinc-900 mb-3">All Questions</h3>
-      <div className="grid grid-cols-4 sm:grid-cols-5 gap-1.5 sm:gap-2">
+      <div className="max-h-[60vh] overflow-y-auto pr-0.5 -mr-0.5">
+        <div className="grid grid-cols-4 sm:grid-cols-5 gap-1.5 sm:gap-2">
         {questions.map((q, i) => {
           const isCurrent = i === currentIndex;
           const isAnswered = answeredIds.has(q.id);
@@ -81,6 +82,7 @@ export function QuestionPalette({
             </button>
           );
         })}
+        </div>
       </div>
 
       {/* Legend */}

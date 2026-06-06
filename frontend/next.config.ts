@@ -1,6 +1,20 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  async redirects() {
+    return [
+      {
+        source: "/fouri-root-console/blogs",
+        destination: "/fouri-root-console/blog",
+        permanent: true,
+      },
+      {
+        source: "/fouri-root-console/blogs/:path*",
+        destination: "/fouri-root-console/blog/:path*",
+        permanent: true,
+      },
+    ];
+  },
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "res.cloudinary.com" },

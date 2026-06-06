@@ -2,13 +2,55 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { FileUpload } from "@/components/FileUpload";
+import { UploadDetailModal } from "@/components/UploadDetailModal";
 import { ProcessingStatus } from "@/components/ProcessingStatus";
 import { Card, CardHeader, CardTitle } from "@/components/ui/Card";
 import { AnalysisModeSelector } from "@/components/credits/AnalysisModeSelector";
 import { InsufficientCreditsModal } from "@/components/credits/InsufficientCreditsModal";
 import type { AnalysisMode } from "@/components/credits/AnalysisModeSelector";
 import { api } from "@/lib/api";
-import { AlertTriangle, Clock, Zap, X } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { AlertTriangle, Clock, Zap, X, Eye } from "lucide-react";
+
+interface PageEstimate {
+  pageIndex: number;
+  estimatedImageSize: number;
+  estimatedTokens: number;
+}
+
+interface UploadDetail {
+  id: string;
+  filename: string;
+  fileType: string;
+  fileSize: number;
+  status: string;
+  totalPages: number | null;
+  processingMeta: {
+    creditsUsed: number;
+    creditsPerPage: number | null;
+    pagesProcessed: number | null;
+    ocrCompletedAt: string;
+    pageBreakdown?: { pageIndex: number; imageSize?: number; textLength?: number; estimatedTokens: number }[];
+  } | null;
+  pageEstimates?: PageEstimate[] | null;
+  failureReason: string | null;
+  createdAt: string;
+  mockTest: { id: string; totalQuestions: number; difficulty: string } | null;
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function dedupeUploads(arr: UploadDetail[]): UploadDetail[] {
+  const seen = new Set<string>();
+  return arr.filter((u) => {
+    if (seen.has(u.id)) return false;
+    seen.add(u.id);
+    return true;
+  });
+}
 
 const MAX_CHUNK_CHARS = 3000;
 const AI_TIME_PER_CHUNK_MS = 5000;
@@ -54,17 +96,16 @@ const guidelines = [
   {
     title: "Tips for Better Results",
     items: [
-      "Use English question papers whenever possible.",
       "Upload the original PDF instead of screenshots.",
       "Ensure page numbers and question numbers are clearly visible.",
-      "Avoid handwritten documents.",
+      "Handwritten documents are supported; printed text yields higher accuracy.",
       "Verify that questions are properly aligned and not overlapping.",
     ],
   },
   {
     title: "Processing Time",
     items: [],
-    note: "Processing time depends on file size, number of pages, number of questions, and language used. Larger files may require additional time for AI analysis and answer generation.",
+    note: "Processing time depends on file size, number of pages, number of questions, and language used. Larger files may require additional time for AI analysis and answer generation. After processing, click \"View Details\" on an upload to see per-page breakdown with character counts and estimated token usage.",
   },
 ];
 
@@ -85,6 +126,8 @@ export default function UploadPage() {
   const [pendingUploadId, setPendingUploadId] = useState<string | null>(null);
   const [analyzingId, setAnalyzingId] = useState<string | null>(null);
   const [estimatedTime, setEstimatedTime] = useState<{ minutes: number; chunks: number } | null>(null);
+  const [uploadedList, setUploadedList] = useState<UploadDetail[]>([]);
+  const [selectedUpload, setSelectedUpload] = useState<UploadDetail | null>(null);
 
   const handleFilesChange = useCallback(async (files: File[]) => {
     const totalSize = files.reduce((sum, f) => sum + f.size, 0);
@@ -109,9 +152,34 @@ export default function UploadPage() {
     }
   }, []);
 
-  const handleUploadComplete = (uploadId: string, fileSize: number) => {
+  const handleUploadComplete = (uploadId: string, fileSize: number, totalPages?: number | null) => {
     setPendingUploadId(uploadId);
     setAnalysisMode("full");
+  };
+
+  const handleUploadsChange = useCallback((uploads: any[]) => {
+    const mapped: UploadDetail[] = uploads.map((u) => ({
+      id: u.id,
+      filename: u.filename,
+      fileType: u.fileType,
+      fileSize: u.fileSize,
+      status: u.status,
+      totalPages: u.totalPages ?? null,
+      processingMeta: null,
+      failureReason: null,
+      createdAt: u.createdAt,
+      mockTest: null,
+    }));
+    setUploadedList((prev) => dedupeUploads([...prev, ...mapped]));
+  }, []);
+
+  const handleViewDetails = async (uploadId: string) => {
+    try {
+      const res = await api.get(`/upload/${uploadId}/details`);
+      setSelectedUpload(res.data);
+    } catch {
+      setSelectedUpload(null);
+    }
   };
 
   const handleStartAnalysis = () => {
@@ -222,6 +290,7 @@ export default function UploadPage() {
         <FileUpload
           onUploadComplete={handleUploadComplete}
           onFilesChange={handleFilesChange}
+          onUploadsChange={handleUploadsChange}
           disabled={!hasEnoughCredits && selectedFileSize > 0}
           creditInfo={
             creditCheckLoading
@@ -341,6 +410,52 @@ export default function UploadPage() {
         )}
       </Card>
 
+      {uploadedList.length > 0 && (
+        <div className="space-y-3">
+          {uploadedList.map((u) => (
+            <div key={u.id} className="bg-white rounded-2xl border border-zinc-200 p-4 sm:p-5 flex items-center gap-4">
+              <div className="p-2 rounded-xl bg-amber-100 shrink-0">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-amber-700">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <line x1="16" y1="13" x2="8" y2="13" />
+                  <line x1="16" y1="17" x2="8" y2="17" />
+                </svg>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-zinc-900 truncate">{u.filename}</p>
+                <p className="text-xs text-zinc-500 mt-0.5">
+                  PDF{u.totalPages ? ` \u00b7 ${u.totalPages} pages` : ""} \u00b7 {formatBytes(u.fileSize)} \u00b7 Status:{" "}
+                  <span className={cn(
+                    "font-medium",
+                    u.status === "COMPLETED" ? "text-green-600" :
+                    u.status === "FAILED" ? "text-red-600" :
+                    u.status === "ANALYZING" ? "text-amber-600" :
+                    "text-blue-600"
+                  )}>
+                    {u.status}
+                  </span>
+                </p>
+              </div>
+              <button
+                onClick={() => handleViewDetails(u.id)}
+                className="h-9 px-4 rounded-lg border border-zinc-300 text-zinc-700 text-sm font-medium hover:bg-zinc-50 flex items-center gap-2 cursor-pointer shrink-0"
+              >
+                <Eye size={15} />
+                View Details
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {selectedUpload && (
+        <UploadDetailModal
+          upload={selectedUpload}
+          onClose={() => setSelectedUpload(null)}
+        />
+      )}
+
       <details className="group">
         <summary className="flex items-center gap-2 text-sm font-medium text-zinc-500 hover:text-zinc-900 cursor-pointer select-none py-2">
           <span className="transition-transform group-open:rotate-90">›</span>
@@ -372,7 +487,7 @@ export default function UploadPage() {
             </div>
           ))}
           <p className="text-xs text-zinc-400 border-t border-zinc-100 pt-4">
-            FOURI will automatically extract questions, identify question types, and generate mock tests from your uploaded document.
+            FOURI processes your document page by page — extracting text via OCR, analyzing content with AI, and generating mock tests automatically.
           </p>
         </div>
       </details>

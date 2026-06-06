@@ -4,12 +4,13 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { BlogImage } from "@/components/blog/BlogImage";
+import { getFileUrl } from "@/lib/getFileUrl";
 import { useEffect, useState, useRef } from "react";
 import { logout } from "@/lib/firebase";
 import {
   LayoutDashboard, RotateCcw, Upload, Search, FileText, BarChart3,
   Menu, X, LogOut, ChevronDown, User, ArrowLeft,
-  Bookmark, ExternalLink, ChevronRight, Clock, TrendingUp,
+  Bookmark, ExternalLink, ChevronRight, Clock, TrendingUp, Heart,
 } from "lucide-react";
 import { AdSlot } from "@/components/AdSlot";
 
@@ -37,6 +38,7 @@ const navItems = [
   { href: "/bookmarks", label: "Bookmarks", icon: Bookmark },
   { href: "/progress", label: "Progress", icon: TrendingUp },
   { href: "/results", label: "Results", icon: BarChart3 },
+  { href: "/donate", label: "Donate", icon: Heart },
 ];
 
 function DashboardShell({ children }: { children: React.ReactNode }) {

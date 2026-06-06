@@ -82,7 +82,7 @@ async function processUpload(uploadId: string, mode: AnalysisMode = "full"): Pro
     await Promise.race([
       (async () => {
         const fileBuffer = await downloadTelegramFile(telegramFileId);
-        const rawText = await extractText(fileBuffer, fileType);
+        const { text: rawText, pageBreakdown } = await extractText(fileBuffer, fileType);
         if (!rawText || rawText.trim().length === 0) {
           throw new Error("OCR returned empty text - could not extract any content from the file");
         }
@@ -124,6 +124,21 @@ async function processUpload(uploadId: string, mode: AnalysisMode = "full"): Pro
 
         const calculatedDuration = Math.max(count * 120, 600);
 
+        const latexRegex = /\$\$[\s\S]*?\$\$|\$[^$]*?\$/g;
+
+        const questionsData = questions.map((q, i) => {
+          const latexMatches = q.question.match(latexRegex);
+          return {
+            questionText: q.question,
+            latexContent: latexMatches ? latexMatches.join("\n") : null,
+            options: q.options,
+            correctAnswer: q.correctAnswer,
+            type: q.type,
+            difficulty: q.difficulty,
+            order: i + 1,
+          };
+        });
+
         const mockTest = await prisma.mockTest.create({
           data: {
             title: `${subject} Mock Test`,
@@ -133,22 +148,26 @@ async function processUpload(uploadId: string, mode: AnalysisMode = "full"): Pro
             duration: calculatedDuration,
             totalQuestions: count,
             difficulty: dominantDifficulty as "EASY" | "MEDIUM" | "HARD",
-            questions: {
-              create: questions.map((q, i) => ({
-                questionText: q.question,
-                options: q.options,
-                correctAnswer: q.correctAnswer,
-                type: q.type,
-                difficulty: q.difficulty,
-                order: i + 1,
-              })),
-            },
+            questions: { create: questionsData },
           },
         });
 
+        const pagesProcessed = upload?.totalPages || null;
+
+        // OCR processing complete. All in-memory page buffers were released.
+        // Only the original raw file remains in Telegram storage.
         await prisma.upload.update({
           where: { id: uploadId },
-          data: { status: "COMPLETED" },
+          data: {
+            status: "COMPLETED",
+            processingMeta: {
+              creditsUsed: required,
+              creditsPerPage: pagesProcessed ? Math.ceil(required / pagesProcessed) : null,
+              pagesProcessed,
+              ocrCompletedAt: new Date().toISOString(),
+              pageBreakdown: pageBreakdown as any,
+            },
+          },
         });
 
         console.log(
@@ -189,10 +208,10 @@ async function processUpload(uploadId: string, mode: AnalysisMode = "full"): Pro
     }
 
     const failureReason = (() => {
-      if (errorMessage.includes("Timed out") || errorMessage.includes("timeout after") || errorMessage.includes("AbortError")) {
+      if (errorMessage.includes("Timed out") || errorMessage.includes("timeout after") || errorMessage.includes("AbortError") || errorMessage.includes("operation was aborted")) {
         return "Analysis timed out. The file may be too large or the AI service is slow. Please try again with a smaller file or during off-peak hours.";
       }
-      if (errorMessage.includes("OCR") || errorMessage.includes("extract text") || errorMessage.includes("Tesseract")) {
+      if (errorMessage.includes("OCR") || errorMessage.includes("extract text") || errorMessage.includes("Tesseract") || errorMessage.includes("unsupported image format")) {
         return "Could not read text from the file. Ensure the image is clear or the PDF is not scanned poorly.";
       }
       if (
@@ -235,7 +254,7 @@ async function processUpload(uploadId: string, mode: AnalysisMode = "full"): Pro
 
     await prisma.upload.update({
       where: { id: uploadId },
-      data: { status: "FAILED", failureReason },
+      data: { status: "FAILED", failureReason, processingMeta: upload?.processingMeta || {} },
     });
   }
 }
@@ -262,8 +281,14 @@ router.get("/:uploadId/status", analyzeStatusLimiter, authenticate, async (req, 
     res.json({
       status: upload.status,
       uploadId: upload.id,
-      mockTest,
+      filename: upload.filename,
+      fileType: upload.fileType,
+      fileSize: upload.fileSize,
+      totalPages: upload.totalPages,
+      processingMeta: upload.processingMeta,
       failureReason: upload.failureReason,
+      createdAt: upload.createdAt,
+      mockTest,
     });
   } catch {
     res.status(500).json({ error: "Failed to fetch status" });

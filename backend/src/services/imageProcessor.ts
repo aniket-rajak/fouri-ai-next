@@ -4,6 +4,7 @@ export interface ProcessOptions {
   maxWidth?: number;
   maxHeight?: number;
   enhance?: boolean;
+  threshold?: number;
 }
 
 export async function preprocessImage(
@@ -33,10 +34,16 @@ export async function preprocessImage(
   if (enhance) {
     pipeline = pipeline
       .grayscale()
+      .median(1)
       .normalize()
-      .sharpen()
-      .modulate({ brightness: 1.1 });
+      .sharpen({ sigma: 1.2 })
+      .gamma(1.1)
+      .linear(1.15, -15);
   }
 
-  return pipeline.jpeg({ quality: 80 }).toBuffer();
+  if (options.threshold !== undefined) {
+    pipeline = pipeline.threshold(options.threshold);
+  }
+
+  return pipeline.jpeg({ quality: 95 }).toBuffer();
 }

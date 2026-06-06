@@ -31,8 +31,130 @@ CRITICAL RULES:
 - If a subjective question does NOT have an answer provided in the paper, set correctAnswer to "" (empty string).
 - Do NOT hallucinate answers or generate options that aren't in the text.
 - Assign difficulty based on the question type: "EASY" for basic recall, "MEDIUM" for application, "HARD" for complex problems.
-- Preserve mathematical expressions exactly as written (e.g., "x^2 + y^2 = r^2").
 - Fix only obvious OCR spacing/encoding artifacts (e.g., merged words).
+
+MATHEMATICAL NOTATION RECONSTRUCTION — CRITICAL:
+The OCR text often contains garbled mathematical expressions. You MUST identify
+these and reconstruct them into proper LaTeX using $...$ delimiters.
+
+Context clues that indicate math: presence of "Solve", "Find", "Evaluate",
+"Show that", "Prove", "Calculate", "If", "Then", numbers with operators like
+"=", "+", "-", "x" (multiplication), variables (x, y, z), parenthesized
+expressions, numbers adjacent to variables, or any of the patterns below.
+
+Reconstruct these common OCR errors:
+
+SUPERSCRIPTS (exponents, powers):
+  "x 2" or "x2" (with space or no space) → "$x^2$"
+  "x 3" → "$x^3$"
+  "x n" → "$x^n$"
+  "x (n+1)" → "$x^{n+1}$"
+  "x 2 + y 2 = r 2" → "$x^2 + y^2 = r^2$"
+  "e x" → "$e^{x}$"
+  "2 x" (in exponent context) → "$2^x$"
+
+SUBSCRIPTS:
+  "H 2 O" or "H2O" → "$H_2O$"
+  "x 1" (when clearly a variable index) → "$x_1$"
+  "a n" → "$a_n$"
+
+FRACTIONS:
+  "1/2" or "1 / 2" → "$\\frac{1}{2}$"
+  "a/b" → "$\\frac{a}{b}$"
+  "(a + b)/c" → "$\\frac{a + b}{c}$"
+  "x/y" → "$\\frac{x}{y}$"
+
+SQUARE ROOTS AND ROOTS:
+  "sqrt(x)" or "sq root(x)" or "square root of x" → "$\\sqrt{x}$"
+  "Vx" (capital V used as root symbol) → "$\\sqrt{x}$"
+  "cube root of x" → "$\\sqrt[3]{x}$"
+
+INTEGRALS:
+  "integral f(x) dx" → "$\\int f(x) dx$"
+  "integral from a to b f(x) dx" → "$\\int_{a}^{b} f(x) dx$"
+  "S" or "I" used as integral symbol → "$\\int$"
+
+SUMS AND PRODUCTS:
+  "sum i=1 to n" → "$\\sum_{i=1}^{n}$"
+  "product i=1 to n" → "$\\prod_{i=1}^{n}$"
+  "E" used as summation symbol → "$\\sum$"
+
+OPERATORS:
+  "=" (keep as is) → "="
+  "=!" or "= /" or "not =" → "$\\neq$"
+  "+ -" or "+-" → "$\\pm$"
+  "x" (between numbers, as multiply) → "$\\times$"
+  "/" (as divide between expressions) → "$\\div$"
+  "<=" → "$\\leq$"
+  ">=" → "$\\geq$"
+  "- >" or "arrow" → "$\\to$" or "$\\rightarrow$"
+
+GREEK LETTERS:
+  "pi" → "$\\pi$"
+  "theta" → "$\\theta$"
+  "alpha" → "$\\alpha$"
+  "beta" → "$\\beta$"
+  "sigma" → "$\\sigma$"
+  "delta" → "$\\delta$"
+  "gamma" → "$\\gamma$"
+  "mu" → "$\\mu$"
+  "lambda" → "$\\lambda$"
+  "omega" → "$\\omega$"
+
+OTHER MATH SYMBOLS:
+  "oo" or "infinity" or "inf" → "$\\infty$"
+  "|x|" → "$|x|$"
+  "in" or "element of" → "$\\in$"
+  "subset" → "$\\subset$"
+  "union" → "$\\cup$"
+  "intersection" → "$\\cap$"
+  "empty set" → "$\\emptyset$"
+  "dot" or "cdot" → "$\\cdot$"
+  "V" as "for all" → "$\\forall$"
+  "there exists" → "$\\exists$"
+
+FUNCTIONS:
+  "sin x" → "$\\sin x$"
+  "cos x" → "$\\cos x$"
+  "tan x" → "$\\tan x$"
+  "log x" → "$\\log x$"
+  "ln x" → "$\\ln x$"
+  "lim" → "$\\lim$"
+  "f(x)" → "$f(x)$"
+
+IMPORTANT RULES:
+1. Wrap every reconstructed math expression in $...$ or $$...$$
+2. Use $ for inline math, $$ for display math (centered equations like integrals, sums)
+3. If a text contains both math and words, use inline $...$ for just the math parts
+4. For multi-character superscripts use curly braces: $x^{12}$, $e^{2x}$
+5. Preserve equation structure: if the OCR has "x = (-b +- sqrt(b 2 - 4ac))/2a",
+   reconstruct as "$x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$"
+6. When in doubt between two interpretations of a number/variable spacing,
+   prefer the mathematically meaningful interpretation
+7. Pay attention to context: if a word like "Solve" or "Find the value of"
+   precedes garbled text, it is almost certainly a mathematical expression
+8. For answer options that look numeric or algebraic, wrap them in $...$
+9. Do NOT wrap plain English text in $...$ — only wrap mathematical expressions
+
+BENGALI (বাংলা) AND HINDI (हिन्दी) TEXT CORRECTION:
+The OCR text may contain errors in Bengali and Hindi characters. Correct these based on context:
+
+Common Bengali OCR errors (fix when context makes it clear):
+  - ত↔দ (to↔do): These look similar in many fonts
+  - ভ↔ব (bho↔bo): Frequently confused
+  - ন↔ণ (no↔no): Different n sounds, often swapped
+  - স↔শ (so↔sho): Common confusion
+  - ষ↔স (sho↔so): Another sibilant confusion
+  - র↔য (ro↔yo): Similar shapes
+
+Common Hindi/Devanagari OCR errors (fix when context makes it clear):
+  - ि (combining)↔ि (separate): Vowel sign i often detaches from consonant
+  - ी↔◌ी (long i): Length distinction may be lost
+  - ो↔◌ो (long o): Similar shape confusion
+  - ौ↔◌ौ (au): Often misrecognized
+  - त↔त्र (ta↔tra): Conjunct vs simple consonant
+
+Preserve the correct script (Bengali/Hindi/English) for each question. Do NOT transliterate Bengali or Hindi text to English. Keep each question in its original script.
 
 Output format:
 {
@@ -72,8 +194,9 @@ function shuffleArray<T>(arr: T[]): T[] {
   return shuffled;
 }
 
-const MAX_CHUNK_CHARS = 3000;
-const CHUNK_OUTPUT_TOKENS = 3000;
+const MAX_CHUNK_CHARS = 1200;
+const CHUNK_OUTPUT_TOKENS = 2000;
+const MAX_REQUEST_TOKENS = 5500;
 const OVERLAP_LINES = 5;
 
 function chunkText(text: string): string[] {
@@ -134,18 +257,27 @@ function normalizeQuestion(q: Record<string, unknown>): ParsedQuestion {
 const CHUNK_RETRY_FALLBACK_PROMPT = `Extract questions from the text below. Return ONLY a valid JSON object with a "questions" array. Each question must have: question, options (array of strings, empty for subjective), correctAnswer (string), type ("MCQ" or "SUBJECTIVE"), difficulty ("EASY", "MEDIUM", or "HARD"). No markdown, no explanation, no code fences.`;
 
 async function analyzeChunk(text: string): Promise<ParsedQuestion[]> {
-  const attempt = async (prompt: string, signal?: AbortSignal) => {
+  const attempt = async (prompt: string, model: string, signal?: AbortSignal) => {
+    const estimatedPromptTokens = Math.ceil((prompt.length + text.length) / 2);
+    const maxTokens = Math.min(
+      CHUNK_OUTPUT_TOKENS,
+      Math.max(1500, MAX_REQUEST_TOKENS - estimatedPromptTokens)
+    );
+    if (maxTokens < CHUNK_OUTPUT_TOKENS) {
+      console.log(`[openai] Reducing max_tokens to ${maxTokens} (estimated ${estimatedPromptTokens} prompt tokens, limit ${MAX_REQUEST_TOKENS})`);
+    }
+
     const response = await callWithRetry(
       (s) =>
         client.chat.completions.create(
           {
-            model: "llama-3.1-8b-instant",
+            model,
             messages: [
               { role: "system", content: prompt },
               { role: "user", content: text },
             ],
             temperature: 0.1,
-            max_tokens: CHUNK_OUTPUT_TOKENS,
+            max_tokens: maxTokens,
             response_format: { type: "json_object" },
           },
           s ? { signal: s } : undefined
@@ -193,18 +325,30 @@ async function analyzeChunk(text: string): Promise<ParsedQuestion[]> {
     return questions.map(normalizeQuestion);
   };
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 180_000);
-
-  try {
-    const raw = await attempt(SYSTEM_PROMPT, controller.signal);
+  const attemptWithModel = async (prompt: string, model: string, signal?: AbortSignal): Promise<ParsedQuestion[]> => {
+    const raw = await attempt(prompt, model, signal);
     try {
       return parseQuestions(raw);
     } catch (err) {
-      console.error(`[openai] Chunk parsing failed with primary prompt. Raw response (first 500 chars): ${raw.slice(0, 500)}`);
-      console.log(`[openai] Retrying chunk with simplified fallback prompt...`);
-      const fallbackRaw = await attempt(CHUNK_RETRY_FALLBACK_PROMPT, controller.signal);
+      console.error(`[openai] ${model} parse failed. Raw (first 500): ${raw.slice(0, 500)}`);
+      console.log(`[openai] Retrying ${model} with simplified fallback prompt...`);
+      const fallbackRaw = await attempt(CHUNK_RETRY_FALLBACK_PROMPT, model, signal);
       return parseQuestions(fallbackRaw);
+    }
+  };
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 600_000);
+
+  try {
+    try {
+      return await attemptWithModel(SYSTEM_PROMPT, "llama-3.1-8b-instant", controller.signal);
+    } catch (err: any) {
+      if (err?.status === 400 || err?.message?.includes("Failed to generate JSON")) {
+        console.log(`[openai] 8B model failed (400), falling back to 70B...`);
+        return await attemptWithModel(SYSTEM_PROMPT, "llama-3.3-70b-versatile", controller.signal);
+      }
+      throw err;
     }
   } finally {
     clearTimeout(timeout);
@@ -398,6 +542,7 @@ async function callWithRetry<T>(fn: (signal?: AbortSignal) => Promise<T>, signal
       if (error?.name === "AbortError") throw error;
       const isRetryable =
         error?.status === 429 ||
+        error?.status === 400 ||
         error?.code === "rate_limit" ||
         error?.message?.includes("429") ||
         error?.message?.includes("rate limit") ||

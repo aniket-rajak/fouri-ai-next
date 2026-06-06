@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import Link from "next/link";
+import { MathContent } from "@/components/ui/MathContent";
 import {
   CheckCircle2, XCircle, Clock, Target, ArrowLeft,
   Loader2, AlertCircle, Bookmark,
@@ -306,7 +307,7 @@ export default function ResultDetailPage() {
                         Marked
                       </span>
                     )}
-                    {ans.question.questionText}
+                    <MathContent text={ans.question.questionText} />
                   </p>
 
                   {ans.question.type === "SUBJECTIVE" ? (
@@ -314,9 +315,9 @@ export default function ResultDetailPage() {
                       {/* User's answer */}
                       <div className="text-xs px-3 py-2 rounded-lg border border-zinc-200 bg-zinc-50 text-zinc-700">
                         <span className="font-medium shrink-0">Your answer:</span>
-                        <span className="ml-1 whitespace-pre-wrap break-words">
-                          {ans.selectedOption || <span className="italic text-zinc-400">Not answered</span>}
-                        </span>
+                          <span className="ml-1 whitespace-pre-wrap break-words">
+                            {ans.selectedOption ? <MathContent text={ans.selectedOption} /> : <span className="italic text-zinc-400">Not answered</span>}
+                          </span>
                       </div>
 
                       {/* Evaluating state */}
@@ -399,7 +400,7 @@ export default function ResultDetailPage() {
                             <>
                               <span className="font-medium shrink-0">✗ Correct answer:</span>
                               <span className="whitespace-pre-wrap break-words">
-                                {ans.question.correctAnswer || "Not available"}
+                                {ans.question.correctAnswer ? <MathContent text={ans.question.correctAnswer} /> : "Not available"}
                               </span>
                             </>
                           )}
@@ -422,7 +423,7 @@ export default function ResultDetailPage() {
                                 : "border-zinc-200 text-zinc-600"
                             }`}
                           >
-                            {opt}
+                            <MathContent text={opt} />
                             {isCorrectOpt && (
                               <span className="ml-2 text-green-600 font-medium">
                                 ✓ Correct answer

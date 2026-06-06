@@ -51,6 +51,7 @@ export function useTestTimer({
   );
 
   useEffect(() => {
+    if (!attemptId || duration <= 0) return;
     const start = new Date(startTime).getTime();
     const end = start + duration * 1000;
 
@@ -62,6 +63,7 @@ export function useTestTimer({
 
       if (remaining <= 300) setIsWarning(true);
       if (remaining <= 0 && !submittedRef.current) {
+        console.log("[Timer] remaining <= 0, calling onTimeUp", { startTime, duration, start, end, now });
         submittedRef.current = true;
         clearTimer();
         onTimeUp();
@@ -72,7 +74,7 @@ export function useTestTimer({
     intervalRef.current = setInterval(tick, 1000);
 
     return clearTimer;
-  }, [startTime, duration, onTimeUp, clearTimer]);
+  }, [startTime, duration, onTimeUp, clearTimer, attemptId]);
 
   useEffect(() => {
     const handleVisibility = () => {

@@ -114,6 +114,9 @@ app.use("/api/users/history", standardLimiter, historyRoutes);
 import contactRoutes from "./routes/contact.js";
 app.use("/api/contact", contactLimiter, contactRoutes);
 
+import donateRoutes from "./routes/donate.js";
+app.use("/api/donate", standardLimiter, donateRoutes);
+
 app.get("/", (_req, res) => {
   res.json({
     status: "Backend Running Successfully",
@@ -122,6 +125,20 @@ app.get("/", (_req, res) => {
 });
 
 import { prisma } from "./lib/prisma.js";
+
+async function waitForDatabase(maxRetries = 10): Promise<void> {
+  for (let i = 1; i <= maxRetries; i++) {
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      console.log("[DB] Connected");
+      return;
+    } catch {
+      console.log(`[DB] Waiting for database (attempt ${i}/${maxRetries})...`);
+      await new Promise((r) => setTimeout(r, 3000));
+    }
+  }
+  console.warn("[DB] Could not connect after all retries — starting anyway");
+}
 
 app.get("/api/health", async (_req, res) => {
   try {
@@ -153,8 +170,10 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
   res.status(500).json({ error: "Internal server error" });
 });
 
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
+waitForDatabase().then(() => {
+  app.listen(port, () => {
+    console.log(`Server running on port ${port}`);
+  });
 });
 
 export default app;

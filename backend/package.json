@@ -3,7 +3,6 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "predev": "powershell -Command \"try { $p = (Get-NetTCPConnection -LocalPort 4000 -ErrorAction Stop).OwningProcess; Stop-Process -Id $p -Force } catch {}; exit 0\"",
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "prisma generate && prisma db push && node dist/index.js",
@@ -14,6 +13,7 @@
     "db:studio": "prisma studio"
   },
   "dependencies": {
+    "@omsimos/pdf-raster": "^0.1.1",
     "@prisma/client": "^6",
     "@sentry/node": "^10.53.1",
     "cors": "^2",
