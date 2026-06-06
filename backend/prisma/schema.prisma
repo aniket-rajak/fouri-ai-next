@@ -70,6 +70,8 @@ model Upload {
   telegramFileId String?
   status         UploadStatus @default(PROCESSING)
   failureReason  String?
+  totalPages     Int?
+  processingMeta Json?
   createdAt      DateTime     @default(now())
 
   user      User       @relation(fields: [userId], references: [firebaseUid], onDelete: Cascade)
