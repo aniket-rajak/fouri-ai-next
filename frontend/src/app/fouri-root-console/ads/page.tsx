@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useOwnerApi } from "@/lib/owner-auth";
 import { motion, AnimatePresence } from "framer-motion";
 import { BlogImage } from "@/components/blog/BlogImage";
+import { getFileUrl } from "@/lib/getFileUrl";
 import {
   Plus, Trash2, Eye, EyeOff, Loader2, Sparkles, Upload, Link as LinkIcon, Images, X, ExternalLink,
 } from "lucide-react";
@@ -94,7 +95,7 @@ export default function OwnerAdsPage() {
     if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
     (async () => {
       try {
-        const res = await fetch(imageUrl);
+        const res = await fetch(getFileUrl(imageUrl));
         if (!res.ok) return;
         const blob = await res.blob();
         const blobUrl = URL.createObjectURL(blob);
