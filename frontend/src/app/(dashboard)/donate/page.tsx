@@ -151,7 +151,7 @@ export default function DonatePage() {
                 ["Bank Name", "STATE BANK OF INDIA (SBI)"],
                 ["Branch", "HARIDEVPUR"],
                 ["Account Number", "33816877163"],
-                ["IFSC Code", "SBIN001530"],
+                ["IFSC Code", "SBIN0011530"],
               ].map(([label, value]) => (
                 <tr key={label} className="border-b border-zinc-200 last:border-b-0">
                   <td className="px-4 py-3 text-zinc-500 font-medium w-40">{label}</td>

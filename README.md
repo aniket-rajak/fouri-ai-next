@@ -3,7 +3,7 @@
 An AI-driven education platform where students upload question papers, AI analyzes them, generates mock tests automatically, and provides detailed performance analytics.
 
 **Production URL:** https://www.fouri.in  
-**Last Updated:** 2026-06-05 (Phase 43 — ✅ Completed)
+**Last Updated:** 2026-06-06 (Phase 44 — ✅ Completed)
 
 ---
 
@@ -486,6 +486,8 @@ Hidden `/fouri-root-console` admin panel, JWT owner auth, user CSV export, uploa
 - Upload error handling — meaningful server error messages shown instead of generic "Upload failed"; 20MB file size limit returns clear "File too large" error; 120s Telegram upload timeout; 5min axios timeout prevents indefinite hanging
 - Analysis task dismiss — ✕ button on Dashboard ActiveUploadCard and Upload page ProcessingStatus to cancel stuck/invalid analysis tasks; optimistically clears state and deletes backend record
 - Independently scrollable question area — test attempt page question section scrolls independently (timer bar + sidebar remain fixed)
+- Independently scrollable question palette — `max-h-[60vh]` grid with overflow-y-auto keeps legend always visible
+- Dynamic image URL rewriting — all stored file URLs (blog thumbs, ad images, avatars) rewritten to current server's host at response time via `resolveFileUrl()`
 
 ### What Is Not Finished
 - Google Maps API key — embedded map uses placeholder key, needs real key for production
@@ -618,6 +620,8 @@ Hidden `/fouri-root-console` admin panel, JWT owner auth, user CSV export, uploa
 | AdSense CSP sodar2.js blocked | `ep2.adtrafficquality.google` missing from script-src/connect-src | Added AdSense measurement/quality domains to all CSP directives |
 | Stored localhost image URLs in production | Old uploads saved URLs with `localhost:4000` during dev | Created `getFileUrl()` frontend helper and `resolveFileUrl()` backend helper to sanitize URLs |
 | Email template branding URLs contain localhost | Templates saved during dev stored absolute localhost URLs | Backend `resolveFileUrl()` sanitizes logoUrl/headerImage/footerLogo on all template CRUD responses |
+| Blog/ad image URLs contain localhost | Upload endpoints stored `http://localhost:4000/api/files/...` in DB during local dev | `resolveFileUrl()` now rewrites ALL stored file URLs (blog thumbs, ad images, avatars) to current server host at response time |
+| Question palette overflows viewport | Grid with 419 questions had no height constraint | Wrapped grid in `max-h-[60vh] overflow-y-auto` — scrollable while legend stays visible |
 
 ---
 
@@ -1167,6 +1171,27 @@ Professional HTML email prompt with inline CSS, table-based CTA buttons, full em
 | `backend/package.json` | Replaced broken predev script |
 | `frontend/src/app/(dashboard)/upload/page.tsx` | Updated guidelines text — "Handwritten documents are supported" instead of "Avoid handwritten", added per-page breakdown mention |
 
+### Phase 44 — URL Rewriting & Question Palette Scroll Fix ✅
+
+**Goal:** Fix all stored image URLs containing hardcoded `localhost:4000` by rewriting them to the current server's host at response time, and make the question palette grid independently scrollable with a fixed height.
+
+**Backend URL Rewriting:**
+- **Root cause:** All upload endpoints constructed absolute URLs using `req.protocol://req.get("host")` at upload time. During local development these URLs were `http://localhost:4000/api/files/...` and got stored permanently in the database (blog thumbnails, ad images, user avatars). In production, the frontend tried to fetch from `localhost:4000` — unreachable.
+- **Fix:** Upgraded `resolveFileUrl.ts` to accept an optional `req` parameter — rewrites the host portion of any URL to the current server's host (from `req` or `API_BASE_URL` env var). Applied to all response endpoints returning stored file URLs.
+
+**Question Palette Scrolling:**
+- **Root cause:** The question grid had no height constraint — with 419 questions in a 5-column grid (~84 rows), the palette overflowed the viewport entirely, pushing the legend off-screen with no scrollbar.
+- **Fix:** Wrapped the grid in `max-h-[60vh] overflow-y-auto` — grid scrolls independently while the legend stays visible.
+
+| File | Change |
+|------|--------|
+| `backend/src/lib/resolveFileUrl.ts` | Accepts `(url, req?)` — rewrites any host to current server's host instead of only replacing localhost |
+| `backend/src/routes/blog.ts` | Applied `resolveFileUrl(thumbnailUrl, req)` to all 6 response points (public list, public single, owner list, owner single, create, update) |
+| `backend/src/routes/ads.ts` | Renamed `_req` → `req` in GET routes; applied `resolveFileUrl(imageUrl, req)` to all 4 response points (list, active, create, update) |
+| `backend/src/routes/owner.ts` | Applied `resolveFileUrl(avatarUrl, req)` to `GET /api/owner/users` response |
+| `backend/src/routes/auth.ts` | Applied `resolveFileUrl(avatarUrl, req)` to `GET /api/auth/me` response |
+| `frontend/src/components/test/QuestionPalette.tsx` | Wrapped grid div in `max-h-[60vh] overflow-y-auto pr-0.5 -mr-0.5` for independent scrolling with legend visible |
+
 ---
 
 ## Important Files
@@ -1233,7 +1258,8 @@ Professional HTML email prompt with inline CSS, table-based CTA buttons, full em
 | `frontend/src/components/ui/MultiSelect.tsx` | Searchable multi-select dropdown with checkboxes, chips, click-outside close |
 | `frontend/src/components/FilterPanel.tsx` | 4-way filter grid (subject, exam, difficulty, sort) used on public test listing |
 | `frontend/src/lib/getFileUrl.ts` | URL sanitizer — replaces localhost with production base in stored image URLs |
-| `backend/src/lib/resolveFileUrl.ts` | Backend URL sanitizer — replaces localhost with production base in stored template URLs |
+| `backend/src/lib/resolveFileUrl.ts` | Backend URL sanitizer — rewrites any host to current server's host in stored file URLs |
+| `frontend/src/components/test/QuestionPalette.tsx` | Question palette with `max-h-[60vh]` scrollable grid and color legend |
 | `frontend/src/components/blog/BlogImage.tsx` | CSP-safe image loader — fetches via blob URL to bypass `img-src` restrictions |
 | `frontend/src/components/dashboard/ActiveUploadCard.tsx` | Live polling card showing active analysis uploads |
 | `frontend/src/components/dashboard/GreetingSection.tsx` | Animated dashboard greeting with stat counters |
