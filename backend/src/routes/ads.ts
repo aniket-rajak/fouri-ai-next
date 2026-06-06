@@ -5,6 +5,7 @@ import { ownerAuth } from "../middleware/ownerAuth.js";
 import { validate, schemas } from "../middleware/validate.js";
 import { generateAdContent } from "../services/openai.js";
 import { uploadToTelegram } from "../services/telegramStorage.js";
+import { resolveFileUrl } from "../lib/resolveFileUrl.js";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -21,19 +22,19 @@ const upload = multer({
 
 const router = Router();
 
-router.get("/", async (_req, res) => {
+router.get("/", async (req, res) => {
   try {
     const ads = await prisma.ad.findMany({
       orderBy: { createdAt: "desc" },
     });
-    res.json({ ads });
+    res.json({ ads: ads.map((a) => ({ ...a, imageUrl: resolveFileUrl(a.imageUrl, req) })) });
   } catch (error) {
     console.error("Fetch ads error:", error);
     res.status(500).json({ error: "Failed to fetch ads" });
   }
 });
 
-router.get("/active", async (_req, res) => {
+router.get("/active", async (req, res) => {
   try {
     const ads = await prisma.ad.findMany({
       where: {
@@ -44,7 +45,7 @@ router.get("/active", async (_req, res) => {
       },
       orderBy: { createdAt: "desc" },
     });
-    res.json({ ads });
+    res.json({ ads: ads.map((a) => ({ ...a, imageUrl: resolveFileUrl(a.imageUrl, req) })) });
   } catch (error) {
     console.error("Fetch active ads error:", error);
     res.status(500).json({ error: "Failed to fetch ads" });
@@ -73,7 +74,7 @@ router.post("/", ownerAuth, validate(schemas.adCreate), async (req, res) => {
       },
     });
 
-    res.status(201).json({ ad });
+    res.status(201).json({ ad: { ...ad, imageUrl: resolveFileUrl(ad.imageUrl, req) } });
   } catch (error) {
     console.error("Create ad error:", error);
     res.status(500).json({ error: "Failed to create ad" });
@@ -112,7 +113,7 @@ router.put("/:id", ownerAuth, validate(schemas.adUpdate), async (req, res) => {
       },
     });
 
-    res.json({ ad });
+    res.json({ ad: { ...ad, imageUrl: resolveFileUrl(ad.imageUrl, req) } });
   } catch (error) {
     console.error("Update ad error:", error);
     res.status(500).json({ error: "Failed to update ad" });

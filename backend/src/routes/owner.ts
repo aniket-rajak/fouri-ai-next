@@ -5,6 +5,7 @@ import { env } from "../config/env.js";
 import { prisma, withRetry } from "../lib/prisma.js";
 import { ownerAuth } from "../middleware/ownerAuth.js";
 import { validate, schemas } from "../middleware/validate.js";
+import { resolveFileUrl } from "../lib/resolveFileUrl.js";
 
 const router = Router();
 
@@ -146,7 +147,7 @@ router.get("/users", ownerAuth, async (req, res) => {
     ]);
 
     res.json({
-      users,
+      users: users.map((u) => ({ ...u, avatarUrl: resolveFileUrl(u.avatarUrl, req) })),
       pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     });
   } catch (error) {

@@ -4,6 +4,7 @@ import { prisma } from "../lib/prisma.js";
 import { validate, schemas } from "../middleware/validate.js";
 import { generateBlogContent } from "../services/openai.js";
 import { uploadToTelegram } from "../services/telegramStorage.js";
+import { resolveFileUrl } from "../lib/resolveFileUrl.js";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -101,7 +102,7 @@ router.get("/", async (req, res) => {
       slug: b.slug,
       excerpt: b.excerpt,
       content: b.content,
-      thumbnailUrl: b.thumbnailUrl,
+      thumbnailUrl: resolveFileUrl(b.thumbnailUrl, req),
       authorName: b.authorName,
       status: b.status,
       publishedAt: b.publishedAt,
@@ -149,7 +150,7 @@ router.get("/:slug", async (req, res) => {
         slug: blog.slug,
         excerpt: blog.excerpt,
         content: blog.content,
-        thumbnailUrl: blog.thumbnailUrl,
+        thumbnailUrl: resolveFileUrl(blog.thumbnailUrl, req),
         authorName: blog.authorName,
         status: blog.status,
         publishedAt: blog.publishedAt,
@@ -162,19 +163,6 @@ router.get("/:slug", async (req, res) => {
   } catch (error) {
     console.error("Get blog error:", error);
     res.status(500).json({ error: "Failed to get blog" });
-  }
-});
-
-// GET /api/blog/categories — All categories
-router.get("/categories/list", async (_req, res) => {
-  try {
-    const categories = await prisma.blogCategory.findMany({
-      orderBy: { name: "asc" },
-    });
-    res.json({ categories });
-  } catch (error) {
-    console.error("List categories error:", error);
-    res.status(500).json({ error: "Failed to list categories" });
   }
 });
 
@@ -230,7 +218,7 @@ ownerRouter.get("/", async (req, res) => {
       slug: b.slug,
       excerpt: b.excerpt,
       content: b.content,
-      thumbnailUrl: b.thumbnailUrl,
+      thumbnailUrl: resolveFileUrl(b.thumbnailUrl, req),
       authorName: b.authorName,
       status: b.status,
       scheduledAt: b.scheduledAt,
@@ -274,7 +262,7 @@ ownerRouter.get("/:id", async (req, res) => {
         slug: blog.slug,
         excerpt: blog.excerpt,
         content: blog.content,
-        thumbnailUrl: blog.thumbnailUrl,
+        thumbnailUrl: resolveFileUrl(blog.thumbnailUrl, req),
         authorName: blog.authorName,
         status: blog.status,
         scheduledAt: blog.scheduledAt,
@@ -320,7 +308,7 @@ ownerRouter.post("/", validate(schemas.blogCreate), async (req, res) => {
       include: blogInclude,
     });
 
-    res.status(201).json({ blog });
+    res.status(201).json({ blog: { ...blog, thumbnailUrl: resolveFileUrl(blog.thumbnailUrl, req) } });
   } catch (error) {
     console.error("Create blog error:", error);
     res.status(500).json({ error: error instanceof Error ? error.message : "Failed to create blog" });
@@ -384,7 +372,7 @@ ownerRouter.put("/:id", validate(schemas.blogUpdate), async (req, res) => {
       include: blogInclude,
     });
 
-    res.json({ blog });
+    res.json({ blog: { ...blog, thumbnailUrl: resolveFileUrl(blog.thumbnailUrl, req) } });
   } catch (error) {
     console.error("Update blog error:", error);
     res.status(500).json({ error: error instanceof Error ? error.message : "Failed to update blog" });

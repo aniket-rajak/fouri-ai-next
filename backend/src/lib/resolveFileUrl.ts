@@ -1,14 +1,18 @@
+import type { Request } from "express";
+
 /**
- * Resolves a stored file/image URL by replacing any hardcoded localhost hostname
- * with the production API base URL. This is used on the backend to sanitize URLs
- * that may have been stored in the database with localhost URLs from development.
+ * Resolves a stored file/image URL by replacing its host with the current
+ * server's host (from the request or API_BASE_URL env var). This sanitizes
+ * URLs that may have been stored in the database with stale hosts (e.g.
+ * localhost:4000 from development).
  */
-export function resolveFileUrl(url: string): string {
+export function resolveFileUrl(url: string | null, req?: Request): string | null {
   if (!url) return url;
 
-  const productionBase = process.env.API_BASE_URL || "https://fouri-ai-next-1.onrender.com";
+  const currentBase = req
+    ? `${req.protocol}://${req.get("host")}`
+    : process.env.API_BASE_URL || "https://fouri-ai-next-1.onrender.com";
 
-  // Replace any hardcoded localhost hostname with the production base
-  // Handles: http://localhost:4000, http://localhost:3000, etc.
-  return url.replace(/https?:\/\/localhost:\d+/, productionBase);
+  // Replace any existing host (http://... or https://...) with the current base
+  return url.replace(/https?:\/\/[^\/]+/, currentBase);
 }

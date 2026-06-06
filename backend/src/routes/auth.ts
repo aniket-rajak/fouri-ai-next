@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { prisma, withRetry } from "../lib/prisma.js";
 import { authenticate } from "../middleware/auth.js";
+import { resolveFileUrl } from "../lib/resolveFileUrl.js";
 
 const router = Router();
 
@@ -45,7 +46,7 @@ router.get("/me", authenticate, async (req, res) => {
       return;
     }
 
-    res.json({ user });
+    res.json({ user: { ...user, avatarUrl: resolveFileUrl(user.avatarUrl, req) } });
   } catch (error) {
     console.error("Get user error:", error);
     res.status(500).json({ error: "Failed to fetch user" });
