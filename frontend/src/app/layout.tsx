@@ -75,9 +75,8 @@ export const metadata: Metadata = {
     canonical: "https://fouri.in",
   },
   icons: {
-    icon: "/favicon.svg",
-    shortcut: "/favicon.svg",
-    apple: "/favicon.svg",
+    icon: "/fav-ai.png",
+    apple: "/fav-ai.png",
   },
 };
 
