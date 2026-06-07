@@ -27,6 +27,15 @@ export default function EmailBroadcastPage() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [campaigns, setCampaigns] = useState<any[]>([]);
+  const [campaignPage, setCampaignPage] = useState(1);
+  const [campaignTotalPages, setCampaignTotalPages] = useState(1);
+  const campaignCache = useRef<Map<number, any[]>>(new Map());
+  const campaignCacheTime = useRef(0);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const [filterSearch, setFilterSearch] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+  const [filterDateFrom, setFilterDateFrom] = useState("");
+  const [filterDateTo, setFilterDateTo] = useState("");
   const [templates, setTemplates] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [userSearch, setUserSearch] = useState("");
@@ -127,14 +136,87 @@ export default function EmailBroadcastPage() {
   const [generating, setGenerating] = useState(false);
   const [aiError, setAiError] = useState("");
 
+  const buildFilterParams = useCallback((page: number, opts?: { search?: string; status?: string; dateFrom?: string; dateTo?: string }) => {
+    const f = opts || {};
+    const params = new URLSearchParams({ page: String(page), limit: "10" });
+    if (f.search) params.set("search", f.search);
+    if (f.status) params.set("status", f.status);
+    if (f.dateFrom) params.set("dateFrom", f.dateFrom);
+    if (f.dateTo) params.set("dateTo", f.dateTo);
+    return params.toString();
+  }, []);
+
+  const fetchCampaignPage = useCallback(async (page: number, filterOverrides?: { search?: string; status?: string; dateFrom?: string; dateTo?: string }) => {
+    const qs = buildFilterParams(page, filterOverrides);
+    const cached = campaignCache.current.get(page);
+    const now = Date.now();
+    if (cached && now - campaignCacheTime.current < 60000 && !filterOverrides) {
+      setCampaigns(cached);
+      return;
+    }
+    try {
+      const res = await api(`/owner/email/history?${qs}`);
+      const campaignsData = res.campaigns || [];
+      campaignCache.current.set(page, campaignsData);
+      campaignCacheTime.current = now;
+      setCampaigns(campaignsData);
+      if (res.pagination) {
+        setCampaignTotalPages(res.pagination.totalPages);
+      }
+    } catch {
+      // handled
+    }
+  }, [api, buildFilterParams]);
+
+  const applyFilters = useCallback(() => {
+    campaignCache.current.clear();
+    campaignCacheTime.current = 0;
+    setCampaignPage(1);
+    fetchCampaignPage(1, {
+      search: filterSearch,
+      status: filterStatus,
+      dateFrom: filterDateFrom,
+      dateTo: filterDateTo,
+    });
+  }, [fetchCampaignPage, filterSearch, filterStatus, filterDateFrom, filterDateTo]);
+
+  const resetFilters = useCallback(() => {
+    setFilterSearch("");
+    setFilterStatus("");
+    setFilterDateFrom("");
+    setFilterDateTo("");
+    campaignCache.current.clear();
+    campaignCacheTime.current = 0;
+    setCampaignPage(1);
+    fetchCampaignPage(1, { search: "", status: "", dateFrom: "", dateTo: "" });
+  }, [fetchCampaignPage]);
+
+  const handleSearchChange = useCallback((value: string) => {
+    setFilterSearch(value);
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    searchTimeoutRef.current = setTimeout(() => {
+      campaignCache.current.clear();
+      campaignCacheTime.current = 0;
+      setCampaignPage(1);
+      fetchCampaignPage(1, { search: value, status: filterStatus, dateFrom: filterDateFrom, dateTo: filterDateTo });
+    }, 300);
+  }, [fetchCampaignPage, filterStatus, filterDateFrom, filterDateTo]);
+
   useEffect(() => {
     queueMicrotask(async () => {
       try {
-        const [campaignsRes, templatesRes] = await Promise.all([
-          api("/owner/email/history"),
+        const [historyRes, templatesRes] = await Promise.all([
+          api("/owner/email/history?page=1&limit=10"),
           api("/owner/email/templates"),
         ]);
-        setCampaigns(campaignsRes.campaigns || []);
+        const campaignsData = historyRes.campaigns || [];
+        campaignCache.current.set(1, campaignsData);
+        campaignCacheTime.current = Date.now();
+        setCampaignPage(1);
+        setCampaigns(campaignsData);
+        if (historyRes.pagination) {
+          setCampaignTotalPages(historyRes.pagination.totalPages);
+        }
         setTemplates(templatesRes.templates || []);
       } catch {
         // handled
@@ -143,6 +225,10 @@ export default function EmailBroadcastPage() {
       }
     });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    return () => { if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current); };
+  }, []);
 
   const searchUsers = useCallback(async (q: string) => {
     if (!q.trim()) { setUsers([]); return; }
@@ -219,8 +305,10 @@ export default function EmailBroadcastPage() {
       setResult({ delivered: res.delivered, failed: res.failed, total: res.total, error: errorDetail });
 
       // Refresh history
-      const campaignsRes = await api("/owner/email/history");
-      setCampaigns(campaignsRes.campaigns || []);
+      campaignCache.current.clear();
+      campaignCacheTime.current = 0;
+      setCampaignPage(1);
+      fetchCampaignPage(1, { search: filterSearch, status: filterStatus, dateFrom: filterDateFrom, dateTo: filterDateTo });
     } catch (err: any) {
       console.error("[Email Debug] Send failed:", err);
       const message = err?.error || err?.message || "Email delivery failed. Please check SMTP settings and try again.";
@@ -233,7 +321,9 @@ export default function EmailBroadcastPage() {
   const deleteCampaign = async (id: string) => {
     try {
       await api(`/owner/email/history/${id}`, { method: "DELETE" });
-      setCampaigns((prev) => prev.filter((c) => c.id !== id));
+      campaignCache.current.clear();
+      campaignCacheTime.current = 0;
+      fetchCampaignPage(campaignPage, { search: filterSearch, status: filterStatus, dateFrom: filterDateFrom, dateTo: filterDateTo });
     } catch {
       // handle error
     }
@@ -625,54 +715,164 @@ export default function EmailBroadcastPage() {
         className="bg-[#111118] border border-white/5 rounded-2xl p-6"
       >
         <h2 className="text-sm font-semibold text-[#f5f5f7] mb-4">Campaign History</h2>
+
+        {/* Advanced Filters */}
+        <div className="flex flex-wrap items-end gap-2 mb-4">
+          <div className="flex-1 min-w-[160px]">
+            <label className="block text-[10px] text-[#888899] mb-1">Search Subject</label>
+            <input
+              value={filterSearch}
+              onChange={(e) => handleSearchChange(e.target.value)}
+              placeholder="Search by subject..."
+              className="w-full bg-[#08080f] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-[#f5f5f7] outline-none focus:border-blue-500/50"
+            />
+          </div>
+          <div className="w-[130px]">
+            <label className="block text-[10px] text-[#888899] mb-1">Status</label>
+            <div className="relative">
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="w-full bg-[#08080f] border border-white/10 rounded-lg px-3 py-1.5 pr-8 text-xs text-[#f5f5f7] outline-none focus:border-blue-500/50 appearance-none cursor-pointer"
+              >
+                <option value="">All</option>
+                <option value="SENT">Sent</option>
+                <option value="FAILED">Failed</option>
+              </select>
+              <ChevronDown size={12} className="absolute right-2 top-1/2 -translate-y-1/2 text-[#888899] pointer-events-none" />
+            </div>
+          </div>
+          <div className="w-[150px]">
+            <label className="block text-[10px] text-[#888899] mb-1">From</label>
+            <input
+              type="date"
+              value={filterDateFrom}
+              onChange={(e) => setFilterDateFrom(e.target.value)}
+              className="w-full bg-[#08080f] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-[#f5f5f7] outline-none focus:border-blue-500/50 [color-scheme:dark]"
+            />
+          </div>
+          <div className="w-[150px]">
+            <label className="block text-[10px] text-[#888899] mb-1">To</label>
+            <input
+              type="date"
+              value={filterDateTo}
+              onChange={(e) => setFilterDateTo(e.target.value)}
+              className="w-full bg-[#08080f] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-[#f5f5f7] outline-none focus:border-blue-500/50 [color-scheme:dark]"
+            />
+          </div>
+          <div className="flex gap-1.5 pb-[1px]">
+            <button
+              onClick={applyFilters}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-500 transition-all cursor-pointer"
+            >
+              Apply
+            </button>
+            <button
+              onClick={resetFilters}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium text-[#f5f5f7] border border-white/10 hover:bg-white/5 transition-all cursor-pointer"
+            >
+              Reset
+            </button>
+          </div>
+        </div>
+
         {campaigns.length === 0 ? (
           <p className="text-sm text-[#888899]">No campaigns sent yet.</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-xs text-[#888899] border-b border-white/5">
-                  <th className="text-left py-2 pr-4 font-medium">Subject</th>
-                  <th className="text-left py-2 pr-4 font-medium">Recipients</th>
-                  <th className="text-left py-2 pr-4 font-medium">Sent</th>
-                  <th className="text-left py-2 pr-4 font-medium">Status</th>
-                  <th className="text-left py-2 pr-4 font-medium">Delivered</th>
-                  <th className="text-right py-2 font-medium">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {campaigns.map((c: any) => (
-                  <tr key={c.id} className="border-b border-white/5 text-[#f5f5f7]">
-                    <td className="py-3 pr-4 max-w-[200px] truncate">{c.subject}</td>
-                    <td className="py-3 pr-4 text-[#888899]">{c.recipientCount}</td>
-                    <td className="py-3 pr-4 text-[#888899] text-xs">
-                      {new Date(c.sentAt).toLocaleDateString()}
-                    </td>
-                    <td className="py-3 pr-4">
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${
-                        c.status === "SENT"
-                          ? "bg-green-500/10 text-green-300"
-                          : "bg-red-500/10 text-red-300"
-                      }`}>
-                        {c.status}
-                      </span>
-                    </td>
-                    <td className="py-3 pr-4 text-[#888899]">
-                      {c.deliveredCount}/{c.recipientCount}
-                    </td>
-                    <td className="py-3 text-right">
-                      <button
-                        onClick={() => deleteCampaign(c.id)}
-                        className="p-1.5 rounded-lg text-[#888899] hover:text-red-400 hover:bg-white/5 cursor-pointer transition-all"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </td>
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-xs text-[#888899] border-b border-white/5">
+                    <th className="text-left py-2 pr-4 font-medium">Subject</th>
+                    <th className="text-left py-2 pr-4 font-medium">Recipients</th>
+                    <th className="text-left py-2 pr-4 font-medium">Sent</th>
+                    <th className="text-left py-2 pr-4 font-medium">Status</th>
+                    <th className="text-left py-2 pr-4 font-medium">Delivered</th>
+                    <th className="text-right py-2 font-medium">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {campaigns.map((c: any) => (
+                    <tr key={c.id} className="border-b border-white/5 text-[#f5f5f7]">
+                      <td className="py-3 pr-4 max-w-[200px] truncate">{c.subject}</td>
+                      <td className="py-3 pr-4 text-[#888899]">{c.recipientCount}</td>
+                      <td className="py-3 pr-4 text-[#888899] text-xs">
+                        {new Date(c.sentAt).toLocaleDateString()}
+                      </td>
+                      <td className="py-3 pr-4">
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                          c.status === "SENT"
+                            ? "bg-green-500/10 text-green-300"
+                            : "bg-red-500/10 text-red-300"
+                        }`}>
+                          {c.status}
+                        </span>
+                      </td>
+                      <td className="py-3 pr-4 text-[#888899]">
+                        {c.deliveredCount}/{c.recipientCount}
+                      </td>
+                      <td className="py-3 text-right">
+                        <button
+                          onClick={() => deleteCampaign(c.id)}
+                          className="p-1.5 rounded-lg text-[#888899] hover:text-red-400 hover:bg-white/5 cursor-pointer transition-all"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {campaignTotalPages > 1 && (
+              <div className="flex items-center justify-between pt-4 border-t border-white/5 mt-4">
+                <span className="text-xs text-[#888899]">
+                  Page {campaignPage} of {campaignTotalPages}
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => {
+                      const prev = campaignPage - 1;
+                      setCampaignPage(prev);
+                      fetchCampaignPage(prev, { search: filterSearch, status: filterStatus, dateFrom: filterDateFrom, dateTo: filterDateTo });
+                    }}
+                    disabled={campaignPage <= 1}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium text-[#888899] hover:text-white hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                  >
+                    Previous
+                  </button>
+                  {Array.from({ length: campaignTotalPages }, (_, i) => i + 1).map((p) => (
+                    <button
+                      key={p}
+                      onClick={() => {
+                        setCampaignPage(p);
+                        fetchCampaignPage(p, { search: filterSearch, status: filterStatus, dateFrom: filterDateFrom, dateTo: filterDateTo });
+                      }}
+                      className={`w-7 h-7 rounded-lg text-xs font-medium transition-all ${
+                        p === campaignPage
+                          ? "bg-blue-500/20 text-blue-300"
+                          : "text-[#888899] hover:text-white hover:bg-white/5"
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => {
+                      const next = campaignPage + 1;
+                      setCampaignPage(next);
+                      fetchCampaignPage(next, { search: filterSearch, status: filterStatus, dateFrom: filterDateFrom, dateTo: filterDateTo });
+                    }}
+                    disabled={campaignPage >= campaignTotalPages}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium text-[#888899] hover:text-white hover:bg-white/5 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </motion.div>
     </div>

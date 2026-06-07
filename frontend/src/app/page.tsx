@@ -15,6 +15,10 @@ const HowItWorks = dynamic(
   () => import("@/components/landing/HowItWorks"),
   { loading: () => sectionLoading }
 );
+const FreeAIQuizSection = dynamic(
+  () => import("@/components/landing/FreeAIQuizSection"),
+  { loading: () => sectionLoading }
+);
 
 export default function Home() {
   return (
@@ -22,6 +26,7 @@ export default function Home() {
       <Navbar />
       <HeroSection />
       <HowItWorks />
+      <FreeAIQuizSection />
       <AdSlot
         slot="landing-in-content"
         format="horizontal"

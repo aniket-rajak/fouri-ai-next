@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useOwnerApi } from "@/lib/owner-auth";
 import { motion } from "framer-motion";
 import {
@@ -49,8 +49,11 @@ export default function RootDashboard() {
   const api = useOwnerApi();
   const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const intervalRef = useRef<ReturnType<typeof setInterval>>();
 
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async (isInitial = false) => {
+    if (!isInitial) setRefreshing(true);
     try {
       const data = await api("/owner/dashboard/stats") as Stats;
       setStats(data);
@@ -58,21 +61,21 @@ export default function RootDashboard() {
       console.error("Dashboard stats error:", err);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  };
+  }, [api]);
 
   useEffect(() => {
-    queueMicrotask(() => setLoading(true));
-    const doFetch = () => {
-      api("/owner/dashboard/stats")
-        .then((data) => setStats(data as Stats))
-        .catch((err) => console.error("Dashboard stats error:", err))
-        .finally(() => setLoading(false));
-    };
-    doFetch();
-    const interval = setInterval(doFetch, 30000);
-    return () => clearInterval(interval);
-  }, [api]);
+    fetchStats(true);
+    intervalRef.current = setInterval(() => fetchStats(), 30000);
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+  }, [fetchStats]);
+
+  const handleManualRefresh = () => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    fetchStats();
+    intervalRef.current = setInterval(() => fetchStats(), 30000);
+  };
 
   if (loading) {
     return (
@@ -96,10 +99,10 @@ export default function RootDashboard() {
             <p className="text-sm text-[#888899] mt-1">Platform overview & real-time analytics</p>
           </div>
           <button
-            onClick={fetchStats}
+            onClick={handleManualRefresh}
             className="flex items-center gap-1.5 h-9 px-3 rounded-xl bg-[#111118] border border-white/5 text-xs text-[#888899] hover:text-[#f5f5f7] hover:bg-white/5 transition-all cursor-pointer"
           >
-            <RefreshCw size={13} className={loading ? "animate-spin" : ""} />
+            <RefreshCw size={13} className={refreshing ? "animate-spin" : ""} />
             Auto-refresh (30s)
           </button>
         </div>

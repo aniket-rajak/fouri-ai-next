@@ -47,78 +47,80 @@ const LightPillar: React.FC<LightPillarProps> = ({
 
   useEffect(() => {
     if (!containerRef.current) return;
+    if (!webGLSupportedRef.current) return;
 
-    let webglOk = true;
     try {
-      const testCanvas = document.createElement('canvas');
-      const gl = (testCanvas.getContext('webgl') || testCanvas.getContext('experimental-webgl')) as WebGLRenderingContext | null;
-      if (!gl) {
+      let webglOk = true;
+      try {
+        const testCanvas = document.createElement('canvas');
+        const gl = (testCanvas.getContext('webgl') || testCanvas.getContext('experimental-webgl')) as WebGLRenderingContext | null;
+        if (!gl) {
+          webglOk = false;
+        } else {
+          const ext = gl.getExtension('WEBGL_lose_context');
+          if (ext) ext.loseContext();
+        }
+      } catch {
         webglOk = false;
-      } else {
-        const ext = gl.getExtension('WEBGL_lose_context');
-        if (ext) ext.loseContext();
       }
-    } catch {
-      webglOk = false;
-    }
 
-    if (!webglOk) {
-      webGLSupportedRef.current = false;
-      setWebGLSupported(false);
-      return;
-    }
-
-    const container = containerRef.current;
-    const width = container.clientWidth;
-    const height = container.clientHeight;
-
-    const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    const isSmallScreen = window.innerWidth < 768;
-    const isMobile = isMobileUA || isSmallScreen;
-    const isLowEndDevice = isMobile || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4);
-
-    let effectiveQuality = quality;
-    if (isLowEndDevice && quality === 'high') effectiveQuality = 'medium';
-    if (isMobile && quality !== 'low') effectiveQuality = 'low';
-
-    const qualitySettings = {
-      low: { iterations: 16, waveIterations: 1, pixelRatio: 0.4, precision: 'mediump' as const, stepMultiplier: 1.5 },
-      medium: { iterations: 30, waveIterations: 2, pixelRatio: 0.5, precision: 'mediump' as const, stepMultiplier: 1.2 },
-      high: {
-        iterations: 60,
-        waveIterations: 3,
-        pixelRatio: Math.min(window.devicePixelRatio, 1.5),
-        precision: 'highp' as const,
-        stepMultiplier: 1.0
+      if (!webglOk) {
+        webGLSupportedRef.current = false;
+        setWebGLSupported(false);
+        return;
       }
-    };
 
-    const settings = qualitySettings[effectiveQuality] || qualitySettings.medium;
+      const container = containerRef.current;
+      const width = container.clientWidth;
+      const height = container.clientHeight;
 
-    const scene = new THREE.Scene();
-    sceneRef.current = scene;
-    const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-    cameraRef.current = camera;
+      const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      const isSmallScreen = window.innerWidth < 768;
+      const isMobile = isMobileUA || isSmallScreen;
+      const isLowEndDevice = isMobile || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4);
 
-    let renderer: THREE.WebGLRenderer;
-    try {
-      renderer = new THREE.WebGLRenderer({
-        antialias: false,
-        alpha: true,
-        powerPreference: effectiveQuality === 'low' ? 'low-power' : 'high-performance',
-        precision: settings.precision,
-        stencil: false,
-        depth: false
-      });
-    } catch {
-      setWebGLSupported(false);
-      return;
-    }
+      let effectiveQuality = quality;
+      if (isLowEndDevice && quality === 'high') effectiveQuality = 'medium';
+      if (isMobile && quality !== 'low') effectiveQuality = 'low';
 
-    renderer.setSize(width, height);
-    renderer.setPixelRatio(settings.pixelRatio);
-    container.appendChild(renderer.domElement);
-    rendererRef.current = renderer;
+      const qualitySettings = {
+        low: { iterations: 16, waveIterations: 1, pixelRatio: 0.4, stepMultiplier: 1.5 },
+        medium: { iterations: 30, waveIterations: 2, pixelRatio: 0.5, stepMultiplier: 1.2 },
+        high: {
+          iterations: 60,
+          waveIterations: 3,
+          pixelRatio: Math.min(window.devicePixelRatio, 1.5),
+          stepMultiplier: 1.0
+        }
+      };
+
+      const settings = qualitySettings[effectiveQuality] || qualitySettings.medium;
+
+      const scene = new THREE.Scene();
+      sceneRef.current = scene;
+      const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+      cameraRef.current = camera;
+
+      let renderer: THREE.WebGLRenderer;
+      try {
+        renderer = new THREE.WebGLRenderer({
+          antialias: false,
+          alpha: true,
+          powerPreference: effectiveQuality === 'low' ? 'low-power' : 'high-performance',
+          stencil: false,
+          depth: false
+        });
+      } catch {
+        setWebGLSupported(false);
+        return;
+      }
+
+      renderer.setSize(width, height);
+      renderer.setPixelRatio(settings.pixelRatio);
+      container.appendChild(renderer.domElement);
+      rendererRef.current = renderer;
+
+      console.log("[LightPillar] WebGL:", renderer.capabilities.isWebGL2 ? 2 : 1, "| Canvas:", width, "x", height, "| Quality:", effectiveQuality);
 
     const parseColor = (hex: string): THREE.Vector3 => {
       const color = new THREE.Color(hex);
@@ -237,7 +239,8 @@ const LightPillar: React.FC<LightPillarProps> = ({
         }
 
         float widthNormalization = uPillarWidth / 3.0;
-        color = tanh(color * uGlowAmount / widthNormalization);
+        vec3 _glowVal = color * uGlowAmount / widthNormalization;
+        color = (exp(2.0 * _glowVal) - 1.0) / (exp(2.0 * _glowVal) + 1.0);
 
         float rnd = noise(gl_FragCoord.xy);
         color -= rnd / 15.0 * uNoiseIntensity;
@@ -334,6 +337,14 @@ const LightPillar: React.FC<LightPillarProps> = ({
     };
     rafRef.current = requestAnimationFrame(animate);
 
+    requestAnimationFrame(() => {
+      if (rendererRef.current) {
+        const gl = rendererRef.current.getContext();
+        const err = gl.getError();
+        console.log("[LightPillar] First frame:", err === gl.NO_ERROR ? "OK" : "GL error " + err);
+      }
+    });
+
     let resizeTimeout: number | null = null;
     const handleResize = () => {
       if (resizeTimeout) clearTimeout(resizeTimeout);
@@ -368,7 +379,12 @@ const LightPillar: React.FC<LightPillarProps> = ({
       geometryRef.current = null;
       rafRef.current = null;
     };
-  }, [webGLSupported, quality]);
+    } catch (err) {
+      console.warn("[LightPillar] Initialization failed:", err);
+      webGLSupportedRef.current = false;
+      setWebGLSupported(false);
+    }
+  }, [quality]);
 
   useEffect(() => { rotationSpeedRef.current = rotationSpeed; }, [rotationSpeed]);
 
@@ -422,14 +438,7 @@ const LightPillar: React.FC<LightPillarProps> = ({
   }, [pillarRotation]);
 
   if (!webGLSupported) {
-    return (
-      <div
-        className={`w-full h-full absolute top-0 left-0 flex items-center justify-center bg-black/10 text-gray-500 text-sm ${className}`}
-        style={{ mixBlendMode }}
-      >
-        WebGL not supported
-      </div>
-    );
+    return <div className="absolute inset-0 bg-gradient-to-b from-[#3D81E3]/10 via-transparent to-[#00D2FF]/5" />;
   }
 
   return (

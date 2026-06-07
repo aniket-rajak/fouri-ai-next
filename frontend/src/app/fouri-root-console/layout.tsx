@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   LayoutDashboard, Users, Upload, BarChart3, Image as ImageIcon,
-  LogOut, Menu, X, Sparkles, ChevronRight, FileText, Send, Images, BookOpen,
+  LogOut, Menu, X, Sparkles, ChevronRight, FileText, Send, Images, BookOpen, MessageSquare,
 } from "lucide-react";
 
 const navItems = [
@@ -20,6 +20,7 @@ const navItems = [
   { href: "/fouri-root-console/email-templates", label: "Email Templates", icon: FileText },
   { href: "/fouri-root-console/media", label: "Media Library", icon: Images },
   { href: "/fouri-root-console/blog", label: "Blog", icon: BookOpen },
+  { href: "/fouri-root-console/quiz-feedback", label: "Quiz Feedback", icon: MessageSquare },
 ];
 
 function ConsoleShell({ children }: { children: React.ReactNode }) {

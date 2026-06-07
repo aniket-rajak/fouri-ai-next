@@ -800,6 +800,133 @@ Respond with valid JSON only — no markdown, no code fences:
   };
 }
 
+export interface QuizQuestion {
+  questionText: string;
+  options: string[];
+  correctAnswer: string;
+}
+
+const DIFFICULTY_MAX_TOKENS: Record<string, number> = {
+  EASY: 2500,
+  MEDIUM: 3500,
+  HARD: 4500,
+};
+
+export interface QuizResult {
+  questions: QuizQuestion[];
+  totalTokens: number;
+}
+
+export async function generateQuiz(subject: string, topic: string, difficulty: 'EASY' | 'MEDIUM' | 'HARD' = 'MEDIUM'): Promise<QuizResult> {
+  const difficultyDescriptions: Record<string, string> = {
+    EASY: 'Basic recall and fundamental concept questions. Test simple definitions, formulas, and direct applications. Suitable for beginners.',
+    MEDIUM: 'Application-level questions requiring understanding of concepts. Includes multi-step problems and moderate analysis. Suitable for intermediate learners.',
+    HARD: 'Advanced multi-step problems requiring deep conceptual understanding, synthesis of multiple topics, and complex analytical thinking. Suitable for advanced students.',
+  };
+
+  const prompt = `You are an expert exam question creator for competitive exams (JEE, NEET, CUET, WBJEE). Generate exactly 10 multiple-choice questions for the subject "${subject}" on the topic "${topic}".
+
+DIFFICULTY LEVEL: ${difficulty}
+${difficultyDescriptions[difficulty]}
+
+Each question must have exactly 4 options (labeled A, B, C, D) and exactly one correct answer.
+
+Rules:
+- All 10 questions must be at the "${difficulty}" difficulty level — do NOT mix difficulties
+- Questions should be appropriate for competitive exam level (JEE, NEET, CUET, etc.)
+- Each question must be unique
+- Options must be plausible (not obviously wrong)
+- Return ONLY valid JSON with no markdown or code fences
+
+CRITICAL — correctAnswer FORMAT:
+The "correctAnswer" field MUST be the EXACT and COMPLETE text of the correct option from the "options" array.
+Do NOT use a letter like "A" or "B".
+Do NOT use a label like "Option A".
+Example:
+  ✅ CORRECT: "options": ["2π√(L/g)", "2π√(g/L)", "π√(L/g)", "π√(g/L)"], "correctAnswer": "2π√(L/g)"
+  ❌ WRONG:   "correctAnswer": "A"
+  ❌ WRONG:   "correctAnswer": "Option A"
+
+{
+  "questions": [
+    {
+      "questionText": "Full question text here?",
+      "options": ["2π√(L/g)", "2π√(g/L)", "π√(L/g)", "π√(g/L)"],
+      "correctAnswer": "2π√(L/g)"
+    }
+  ]
+}`;
+
+  const response = await callWithRetry(() =>
+    client.chat.completions.create({
+      model: "llama-3.1-8b-instant",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.3,
+      max_tokens: DIFFICULTY_MAX_TOKENS[difficulty] || 3500,
+      response_format: { type: "json_object" },
+    })
+  );
+
+  const content = response.choices[0]?.message?.content;
+  if (!content) throw new Error("Empty response from AI during quiz generation");
+
+  const totalTokens = response.usage?.total_tokens || 0;
+
+  const cleaned = content.replace(/```(?:json)?\s*([\s\S]*?)\s*```/g, "$1").trim();
+  let parsed: any;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    console.error("[openai] Failed to parse quiz JSON. Raw response (first 500 chars):", cleaned.slice(0, 500));
+    throw new Error("Failed to parse AI generated quiz as JSON");
+  }
+
+  const questions: QuizQuestion[] = Array.isArray(parsed.questions) ? parsed.questions : [];
+  if (questions.length === 0) throw new Error("AI returned zero questions");
+
+  const normalized = questions.slice(0, 10).map((q: any) => {
+    const options: string[] = Array.isArray(q.options) ? q.options : [];
+    let correctAnswer: string = q.correctAnswer || "";
+
+    // Safety check: if correctAnswer is a single letter A-D, map to option text
+    const letterIdx = "ABCD".indexOf(correctAnswer.trim().toUpperCase());
+    if (letterIdx >= 0 && letterIdx < options.length) {
+      correctAnswer = options[letterIdx].trim();
+    }
+
+    // Safety check: if correctAnswer is "Option A" format, extract letter
+    const optionMatch = correctAnswer.trim().match(/^option\s+([A-D])$/i);
+    if (optionMatch) {
+      const idx = "ABCD".indexOf(optionMatch[1].toUpperCase());
+      if (idx >= 0 && idx < options.length) {
+        correctAnswer = options[idx].trim();
+      }
+    }
+
+    // Safety check: if correctAnswer normalized-matches an option
+    const norm = (s: string) =>
+      s.toLowerCase().replace(/[^\w\s]/g, "").replace(/\s+/g, " ").trim();
+    const normCorrect = norm(correctAnswer);
+    for (const opt of options) {
+      if (norm(opt) === normCorrect) {
+        correctAnswer = opt.trim();
+        break;
+      }
+    }
+
+    return {
+      questionText: q.questionText || q.question || "",
+      options,
+      correctAnswer,
+    };
+  });
+
+  return {
+    questions: normalized,
+    totalTokens,
+  };
+}
+
 export interface AnalysisInput {
   questions: {
     id: string;

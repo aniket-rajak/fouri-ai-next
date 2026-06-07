@@ -53,7 +53,7 @@ app.use(express.json({ limit: "10mb" }));
 // Rate limiters
 import {
   globalLimiter, authLimiter, uploadLimiter,
-  standardLimiter, ownerLimiter, contactLimiter,
+  standardLimiter, ownerLimiter, contactLimiter, quizLimiter,
 } from "./middleware/rateLimiter.js";
 app.use("/api", globalLimiter);
 
@@ -116,6 +116,14 @@ app.use("/api/contact", contactLimiter, contactRoutes);
 
 import donateRoutes from "./routes/donate.js";
 app.use("/api/donate", standardLimiter, donateRoutes);
+
+import quizRoutes from "./routes/quiz.js";
+app.use("/api/quiz", quizRoutes);
+import quizFeedbackRoutes from "./routes/quizFeedback.js";
+import quizExplainRoutes from "./routes/quizExplain.js";
+
+app.use("/api/quiz", quizFeedbackRoutes);
+app.use("/api/quiz", quizExplainRoutes);
 
 app.get("/", (_req, res) => {
   res.json({

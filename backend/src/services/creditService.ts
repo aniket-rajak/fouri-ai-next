@@ -71,6 +71,36 @@ export function estimateAnalysisReportCost(questionCount: number): number {
   return ANALYSIS_REPORT_BASE_COST + Math.ceil(questionCount / 10) * ANALYSIS_REPORT_PER_10_QUESTIONS;
 }
 
+const QUIZ_BASE_INSTRUCTION_TOKENS = 350;
+const QUIZ_SUBJECT_CHARS_PER_TOKEN = 50;
+const QUIZ_DIFFICULTY_INSTRUCTION_EXTRA: Record<string, number> = {
+  EASY: 0,
+  MEDIUM: 150,
+  HARD: 350,
+};
+const QUIZ_DIFFICULTY_OUTPUT_TOKENS: Record<string, number> = {
+  EASY: 2500,
+  MEDIUM: 3500,
+  HARD: 4500,
+};
+
+export function estimateQuizCredits(subject: string, topic: string, difficulty: 'EASY' | 'MEDIUM' | 'HARD') {
+  const subjectLength = Math.ceil((subject.length + topic.length) / QUIZ_SUBJECT_CHARS_PER_TOKEN) * QUIZ_SUBJECT_CHARS_PER_TOKEN;
+  const promptTokens = QUIZ_BASE_INSTRUCTION_TOKENS + subjectLength + (QUIZ_DIFFICULTY_INSTRUCTION_EXTRA[difficulty] || 0);
+  const outputTokens = QUIZ_DIFFICULTY_OUTPUT_TOKENS[difficulty] || 3500;
+  const totalTokens = promptTokens + outputTokens;
+  const estimatedCredits = Math.max(1, Math.ceil(totalTokens / TOKENS_PER_CREDIT));
+
+  return {
+    estimatedCredits,
+    breakdown: { promptTokens, outputTokens, totalTokens },
+  };
+}
+
+export function calculateActualCredits(actualTokens: number): number {
+  return Math.max(1, Math.ceil(actualTokens / TOKENS_PER_CREDIT));
+}
+
 export async function deductCredits(uid: string, amount: number) {
   const user = await prisma.user.findUnique({ where: { firebaseUid: uid } });
   if (!user) throw new Error("User not found");

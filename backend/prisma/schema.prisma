@@ -7,6 +7,384 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id            String        @id @default(uuid())
+  firebaseUid   String        @unique
+  email         String        @unique
+  name          String?
+  avatarUrl     String?
+  role          Role          @default(USER)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  dailyCredits  Int           @default(100)
+  lastResetDate DateTime      @default(now())
+  usedCredits   Int           @default(0)
+  achievements  Achievement[]
+  bookmarks     Bookmark[]
+  testAttempts  TestAttempt[]
+  uploads       Upload[]
+}
+
+model Upload {
+  id             String       @id @default(uuid())
+  userId         String
+  filename       String
+  fileType       String
+  fileSize       Int?
+  status         UploadStatus @default(PROCESSING)
+  createdAt      DateTime     @default(now())
+  failureReason  String?
+  telegramFileId String?
+  processingMeta Json?
+  totalPages     Int?
+  mockTests      MockTest[]
+  user           User         @relation(fields: [userId], references: [firebaseUid], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model MockTest {
+  id              String           @id @default(uuid())
+  title           String
+  subject         String?
+  chapter         String?
+  examType        String?
+  difficulty      Difficulty       @default(MEDIUM)
+  duration        Int              @default(1800)
+  totalQuestions  Int              @default(0)
+  sourceUploadId  String?
+  status          TestStatus       @default(DRAFT)
+  attemptCount    Int              @default(0)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  avgScore        Float?
+  completionRate  Float?
+  totalTimeSpent  Int?
+  analysisReports AnalysisReport[]
+  bookmarks       Bookmark[]
+  sourceUpload    Upload?          @relation(fields: [sourceUploadId], references: [id])
+  questions       Question[]
+  attempts        TestAttempt[]
+
+  @@index([subject])
+  @@index([examType])
+  @@index([status])
+  @@index([status, createdAt])
+}
+
+model SuspiciousActivity {
+  id           String   @id @default(uuid())
+  attemptId    String?
+  userId       String
+  activityType String
+  metadata     Json?
+  createdAt    DateTime @default(now())
+
+  @@index([attemptId])
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model Bookmark {
+  id         String   @id @default(uuid())
+  userId     String
+  mockTestId String
+  createdAt  DateTime @default(now())
+  mockTest   MockTest @relation(fields: [mockTestId], references: [id], onDelete: Cascade)
+  user       User     @relation(fields: [userId], references: [firebaseUid], onDelete: Cascade)
+
+  @@unique([userId, mockTestId])
+  @@index([userId])
+  @@index([mockTestId])
+}
+
+model Achievement {
+  id       String   @id @default(uuid())
+  userId   String
+  badge    String
+  earnedAt DateTime @default(now())
+  user     User     @relation(fields: [userId], references: [firebaseUid], onDelete: Cascade)
+
+  @@unique([userId, badge])
+  @@index([userId])
+}
+
+model AnalysisReport {
+  id              String    @id @default(uuid())
+  mockTestId      String
+  userId          String?
+  status          String    @default("PENDING")
+  paperSummary    Json?
+  personalSummary Json?
+  generatedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  failureReason   String?
+  mockTest        MockTest  @relation(fields: [mockTestId], references: [id], onDelete: Cascade)
+
+  @@unique([mockTestId, userId])
+  @@index([mockTestId])
+  @@index([userId])
+}
+
+model Question {
+  id            String       @id @default(uuid())
+  mockTestId    String
+  questionText  String
+  options       Json
+  correctAnswer String
+  type          QuestionType @default(MCQ)
+  difficulty    Difficulty   @default(MEDIUM)
+  order         Int
+  createdAt     DateTime     @default(now())
+  latexContent  String?
+  answers       Answer[]
+  explanations  Explanation?
+  mockTest      MockTest     @relation(fields: [mockTestId], references: [id], onDelete: Cascade)
+
+  @@index([mockTestId])
+}
+
+model TestAttempt {
+  id                   String        @id @default(uuid())
+  userId               String
+  mockTestId           String
+  status               AttemptStatus @default(IN_PROGRESS)
+  score                Int?
+  totalMarks           Int?
+  accuracy             Float?
+  timeTaken            Int?
+  startedAt            DateTime      @default(now())
+  completedAt          DateTime?
+  currentQuestionIndex Int?
+  remainingTime        Int?
+  answers              Answer[]
+  mockTest             MockTest      @relation(fields: [mockTestId], references: [id], onDelete: Cascade)
+  user                 User          @relation(fields: [userId], references: [firebaseUid], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([mockTestId])
+  @@index([userId, mockTestId])
+  @@index([startedAt])
+  @@index([userId, status])
+}
+
+model Answer {
+  id                String      @id @default(uuid())
+  testAttemptId     String
+  questionId        String
+  selectedOption    String?
+  isCorrect         Boolean?
+  timeSpent         Int?
+  isMarkedForReview Boolean     @default(false)
+  question          Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  testAttempt       TestAttempt @relation(fields: [testAttemptId], references: [id], onDelete: Cascade)
+
+  @@unique([testAttemptId, questionId])
+  @@index([testAttemptId])
+  @@index([questionId])
+}
+
+model Explanation {
+  id                  String   @id @default(uuid())
+  questionId          String   @unique
+  shortExplanation    String?
+  detailedExplanation String?
+  createdAt           DateTime @default(now())
+  question            Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+}
+
+model AnalyticsEvent {
+  id        String   @id @default(uuid())
+  eventType String
+  userId    String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([eventType])
+  @@index([createdAt])
+}
+
+model QuizAttempt {
+  id              String         @id @default(uuid())
+  userId          String?
+  guestId         String?
+  guestIp         String?
+  subject         String
+  topic           String
+  difficulty      QuizDifficulty @default(MEDIUM)
+  score           Int?
+  totalQuestions  Int            @default(0)
+  answers         Json?
+  progress        Json?          // { currentIndex, timeLeft, lastSavedAt }
+  questions       Json?
+  status          String         @default("GENERATING")
+  failureReason   String?
+  creditsCost     Int?
+  actualTokens    Int?
+  recognizedGuest Boolean        @default(true)
+  createdAt       DateTime       @default(now())
+  completedAt     DateTime?
+  pinned          Boolean        @default(false)
+  feedback        QuizFeedback?
+
+  @@index([userId])
+  @@index([guestId])
+  @@index([guestIp])
+  @@index([createdAt])
+}
+
+model QuizFeedback {
+  id             String      @id @default(uuid())
+  quizAttemptId  String      @unique
+  userId         String?
+  guestId        String?
+  rating         Int
+  comment        String?
+  visible        Boolean     @default(true)
+  createdAt      DateTime    @default(now())
+  category       String?
+  reviewerAvatar String?
+  reviewerName   String?
+  quizAttempt    QuizAttempt @relation(fields: [quizAttemptId], references: [id], onDelete: Cascade)
+
+  @@index([visible])
+  @@index([createdAt])
+}
+
+model Ad {
+  id           String    @id @default(uuid())
+  title        String
+  description  String?
+  imageUrl     String
+  ctaText      String    @default("Learn More")
+  ctaLink      String
+  clicks       Int       @default(0)
+  impressions  Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  blogUrl      String?
+  publishedAt  DateTime?
+  referenceUrl String?
+  scheduledAt  DateTime?
+  status       String    @default("ACTIVE")
+
+  @@index([status])
+}
+
+model MediaFile {
+  id           String   @id @default(uuid())
+  originalName String
+  mimeType     String
+  fileSize     Int
+  fileId       String
+  category     String   @default("general")
+  createdAt    DateTime @default(now())
+  cdnUrl       String?
+
+  @@index([category])
+  @@index([createdAt])
+}
+
+model EmailTemplate {
+  id          String          @id @default(uuid())
+  name        String
+  subject     String
+  body        String
+  logoUrl     String?
+  headerImage String?
+  footerLogo  String?
+  copyright   String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  campaigns   EmailCampaign[]
+
+  @@index([createdAt])
+}
+
+model EmailCampaign {
+  id             String         @id @default(uuid())
+  subject        String
+  body           String
+  recipientType  String
+  recipientCount Int
+  status         String
+  sentAt         DateTime       @default(now())
+  deliveredCount Int            @default(0)
+  failedCount    Int            @default(0)
+  templateId     String?
+  userIds        Json?
+  customEmails   Json?
+  createdAt      DateTime       @default(now())
+  template       EmailTemplate? @relation(fields: [templateId], references: [id])
+
+  @@index([sentAt])
+  @@index([status])
+}
+
+model BlogCategory {
+  id        String               @id @default(uuid())
+  name      String               @unique
+  slug      String               @unique
+  createdAt DateTime             @default(now())
+  blogs     BlogCategoryOnBlog[]
+
+  @@index([slug])
+}
+
+model BlogCategoryOnBlog {
+  blogId     String
+  categoryId String
+  blog       Blog         @relation(fields: [blogId], references: [id], onDelete: Cascade)
+  category   BlogCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([blogId, categoryId])
+}
+
+model BlogTag {
+  id        String          @id @default(uuid())
+  name      String          @unique
+  slug      String          @unique
+  createdAt DateTime        @default(now())
+  blogs     BlogTagOnBlog[]
+
+  @@index([slug])
+}
+
+model BlogTagOnBlog {
+  blogId String
+  tagId  String
+  blog   Blog    @relation(fields: [blogId], references: [id], onDelete: Cascade)
+  tag    BlogTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([blogId, tagId])
+}
+
+model Blog {
+  id           String               @id @default(uuid())
+  title        String
+  slug         String               @unique
+  excerpt      String?
+  content      String
+  thumbnailUrl String?
+  authorName   String?
+  status       String               @default("DRAFT")
+  scheduledAt  DateTime?
+  publishedAt  DateTime?
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+  categories   BlogCategoryOnBlog[]
+  tags         BlogTagOnBlog[]
+
+  @@index([status, publishedAt])
+  @@index([slug])
+  @@index([createdAt])
+}
+
 enum Role {
   USER
   ADMIN
@@ -26,9 +404,9 @@ enum TestStatus {
 
 enum AttemptStatus {
   IN_PROGRESS
-  PAUSED
   COMPLETED
   TIMEOUT
+  PAUSED
 }
 
 enum Difficulty {
@@ -42,348 +420,8 @@ enum QuestionType {
   SUBJECTIVE
 }
 
-model User {
-  id         String   @id @default(uuid())
-  firebaseUid String  @unique
-  email      String   @unique
-  name       String?
-  avatarUrl  String?
-  role           Role     @default(USER)
-  dailyCredits   Int      @default(100)
-  usedCredits    Int      @default(0)
-  lastResetDate  DateTime @default(now())
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  uploads      Upload[]
-  testAttempts TestAttempt[]
-  bookmarks    Bookmark[]
-  achievements Achievement[]
-}
-
-model Upload {
-  id             String       @id @default(uuid())
-  userId         String
-  filename       String
-  fileType       String
-  fileSize       Int?
-  telegramFileId String?
-  status         UploadStatus @default(PROCESSING)
-  failureReason  String?
-  totalPages     Int?
-  processingMeta Json?
-  createdAt      DateTime     @default(now())
-
-  user      User       @relation(fields: [userId], references: [firebaseUid], onDelete: Cascade)
-  mockTests MockTest[]
-
-  @@index([userId])
-  @@index([status])
-  @@index([createdAt])
-}
-
-model MockTest {
-  id              String     @id @default(uuid())
-  title           String
-  subject         String?
-  chapter         String?
-  examType        String?
-  difficulty      Difficulty @default(MEDIUM)
-  duration        Int        @default(1800)
-  totalQuestions  Int        @default(0)
-  sourceUploadId  String?
-  status          TestStatus @default(DRAFT)
-  attemptCount    Int        @default(0)
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
-
-  sourceUpload Upload?       @relation(fields: [sourceUploadId], references: [id])
-  questions    Question[]
-  attempts     TestAttempt[]
-  bookmarks    Bookmark[]
-  analysisReports AnalysisReport[]
-  avgScore       Float?
-  completionRate Float?
-  totalTimeSpent Int?
-
-  @@index([subject])
-  @@index([examType])
-  @@index([status])
-  @@index([status, createdAt])
-}
-
-model SuspiciousActivity {
-  id           String   @id @default(uuid())
-  attemptId    String?
-  userId       String
-  activityType String   // TAB_SWITCH, WINDOW_BLUR, FULLSCREEN_EXIT
-  metadata     Json?
-  createdAt    DateTime @default(now())
-
-  @@index([attemptId])
-  @@index([userId])
-  @@index([createdAt])
-}
-
-model Bookmark {
-  id        String   @id @default(uuid())
-  userId    String
-  mockTestId String
-  createdAt DateTime @default(now())
-
-  user     User     @relation(fields: [userId], references: [firebaseUid], onDelete: Cascade)
-  mockTest MockTest @relation(fields: [mockTestId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, mockTestId])
-  @@index([userId])
-  @@index([mockTestId])
-}
-
-model Achievement {
-  id        String   @id @default(uuid())
-  userId    String
-  badge     String
-  earnedAt  DateTime @default(now())
-
-  user User @relation(fields: [userId], references: [firebaseUid], onDelete: Cascade)
-
-  @@unique([userId, badge])
-  @@index([userId])
-}
-
-model AnalysisReport {
-  id              String   @id @default(uuid())
-  mockTestId      String
-  userId          String?
-  status          String   @default("PENDING") // PENDING | GENERATING | COMPLETED | FAILED
-  paperSummary    Json?
-  personalSummary Json?
-  failureReason   String?
-  generatedAt     DateTime?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  mockTest MockTest @relation(fields: [mockTestId], references: [id], onDelete: Cascade)
-
-  @@unique([mockTestId, userId])
-  @@index([mockTestId])
-  @@index([userId])
-}
-
-model Question {
-  id            String       @id @default(uuid())
-  mockTestId    String
-  questionText  String
-  latexContent  String?
-  options       Json
-  correctAnswer String
-  type          QuestionType @default(MCQ)
-  difficulty    Difficulty   @default(MEDIUM)
-  order         Int
-  createdAt     DateTime     @default(now())
-
-  mockTest     MockTest      @relation(fields: [mockTestId], references: [id], onDelete: Cascade)
-  answers      Answer[]
-  explanations Explanation[]
-
-  @@index([mockTestId])
-}
-
-model TestAttempt {
-  id                  String        @id @default(uuid())
-  userId              String
-  mockTestId          String
-  status              AttemptStatus @default(IN_PROGRESS)
-  score               Int?
-  totalMarks          Int?
-  accuracy            Float?
-  timeTaken           Int?
-  remainingTime       Int?
-  currentQuestionIndex Int?
-  startedAt           DateTime      @default(now())
-  completedAt         DateTime?
-
-  user     User       @relation(fields: [userId], references: [firebaseUid], onDelete: Cascade)
-  mockTest MockTest   @relation(fields: [mockTestId], references: [id], onDelete: Cascade)
-  answers  Answer[]
-
-  @@index([userId])
-  @@index([mockTestId])
-  @@index([userId, mockTestId])
-  @@index([startedAt])
-  @@index([userId, status])
-}
-
-model Answer {
-  id                String   @id @default(uuid())
-  testAttemptId     String
-  questionId        String
-  selectedOption    String?
-  isCorrect         Boolean?
-  isMarkedForReview Boolean  @default(false)
-  timeSpent         Int?
-
-  testAttempt TestAttempt @relation(fields: [testAttemptId], references: [id], onDelete: Cascade)
-  question    Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
-
-  @@unique([testAttemptId, questionId])
-  @@index([testAttemptId])
-  @@index([questionId])
-}
-
-model Explanation {
-  id                String   @id @default(uuid())
-  questionId        String   @unique
-  shortExplanation  String?
-  detailedExplanation String?
-  createdAt         DateTime @default(now())
-
-  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
-
-  @@index([questionId])
-}
-
-model AnalyticsEvent {
-  id        String   @id @default(uuid())
-  eventType String
-  userId    String?
-  metadata  Json?
-  createdAt DateTime @default(now())
-
-  @@index([eventType])
-  @@index([createdAt])
-}
-
-model Ad {
-  id           String    @id @default(uuid())
-  title        String
-  description  String?
-  imageUrl     String
-  ctaText      String    @default("Learn More")
-  ctaLink      String
-  blogUrl      String?
-  referenceUrl String?
-  status       String    @default("ACTIVE")
-  scheduledAt  DateTime?
-  publishedAt  DateTime?
-  clicks       Int       @default(0)
-  impressions  Int       @default(0)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-
-  @@index([status])
-}
-
-model MediaFile {
-  id           String   @id @default(uuid())
-  originalName String
-  mimeType     String
-  fileSize     Int
-  fileId       String
-  cdnUrl       String?
-  category     String   @default("general")
-  createdAt    DateTime @default(now())
-
-  @@index([category])
-  @@index([createdAt])
-}
-
-model EmailTemplate {
-  id          String   @id @default(uuid())
-  name        String
-  subject     String
-  body        String
-  logoUrl     String?
-  headerImage String?
-  footerLogo  String?
-  copyright   String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  campaigns EmailCampaign[]
-
-  @@index([createdAt])
-}
-
-model EmailCampaign {
-  id             String   @id @default(uuid())
-  subject        String
-  body           String
-  recipientType  String   // ALL | FREE | PREMIUM | ACTIVE | INACTIVE | SELECTED | CUSTOM
-  recipientCount Int
-  status         String   // SENT | FAILED
-  sentAt         DateTime @default(now())
-  deliveredCount Int      @default(0)
-  failedCount    Int      @default(0)
-  templateId     String?
-  template       EmailTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
-  userIds        Json?
-  customEmails   Json?
-  createdAt      DateTime @default(now())
-
-  @@index([sentAt])
-  @@index([status])
-}
-
-model BlogCategory {
-  id        String   @id @default(uuid())
-  name      String   @unique
-  slug      String   @unique
-  createdAt DateTime @default(now())
-
-  blogs BlogCategoryOnBlog[]
-
-  @@index([slug])
-}
-
-model BlogCategoryOnBlog {
-  blogId     String
-  categoryId String
-
-  blog     Blog         @relation(fields: [blogId], references: [id], onDelete: Cascade)
-  category BlogCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-
-  @@id([blogId, categoryId])
-}
-
-model BlogTag {
-  id        String   @id @default(uuid())
-  name      String   @unique
-  slug      String   @unique
-  createdAt DateTime @default(now())
-
-  blogs BlogTagOnBlog[]
-
-  @@index([slug])
-}
-
-model BlogTagOnBlog {
-  blogId String
-  tagId  String
-
-  blog Blog    @relation(fields: [blogId], references: [id], onDelete: Cascade)
-  tag  BlogTag @relation(fields: [tagId], references: [id], onDelete: Cascade)
-
-  @@id([blogId, tagId])
-}
-
-model Blog {
-  id           String              @id @default(uuid())
-  title        String
-  slug         String              @unique
-  excerpt      String?
-  content      String
-  thumbnailUrl String?
-  authorName   String?
-  status       String              @default("DRAFT")
-  scheduledAt  DateTime?
-  publishedAt  DateTime?
-  tags         BlogTagOnBlog[]
-  categories   BlogCategoryOnBlog[]
-  createdAt    DateTime            @default(now())
-  updatedAt    DateTime            @updatedAt
-
-  @@index([status, publishedAt])
-  @@index([slug])
-  @@index([createdAt])
+enum QuizDifficulty {
+  EASY
+  MEDIUM
+  HARD
 }

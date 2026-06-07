@@ -7,10 +7,13 @@ import { BlogImage } from "@/components/blog/BlogImage";
 import { getFileUrl } from "@/lib/getFileUrl";
 import { useEffect, useState, useRef } from "react";
 import { logout } from "@/lib/firebase";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
+const queryClient = new QueryClient();
 import {
   LayoutDashboard, RotateCcw, Upload, Search, FileText, BarChart3,
   Menu, X, LogOut, ChevronDown, User, ArrowLeft,
-  Bookmark, ExternalLink, ChevronRight, Clock, TrendingUp, Heart,
+  Bookmark, ExternalLink, ChevronRight, Clock, TrendingUp, Heart, BrainCircuit,
 } from "lucide-react";
 import { AdSlot } from "@/components/AdSlot";
 
@@ -38,6 +41,7 @@ const navItems = [
   { href: "/bookmarks", label: "Bookmarks", icon: Bookmark },
   { href: "/progress", label: "Progress", icon: TrendingUp },
   { href: "/results", label: "Results", icon: BarChart3 },
+  { href: "/ai-quiz", label: "AI Quiz", icon: BrainCircuit },
   { href: "/donate", label: "Donate", icon: Heart },
 ];
 
@@ -58,7 +62,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     if (!loading && !user) {
-      router.push("/login");
+      router.push("/");
     }
   }, [user, loading, router]);
 
@@ -202,7 +206,9 @@ export default function DashboardLayout({
 }) {
   return (
     <AuthProvider>
-      <DashboardShell>{children}</DashboardShell>
+      <QueryClientProvider client={queryClient}>
+        <DashboardShell>{children}</DashboardShell>
+      </QueryClientProvider>
     </AuthProvider>
   );
 }

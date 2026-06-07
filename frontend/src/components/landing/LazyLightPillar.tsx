@@ -37,9 +37,13 @@ export function LazyLightPillar(props: LazyLightPillarProps) {
       ([entry]) => {
         if (entry.isIntersecting) {
           const doLoad = () => {
-            import("./LightPillar").then((mod) => {
-              setPillarComponent(() => mod.default);
-            });
+            import("./LightPillar")
+              .then((mod) => {
+                setPillarComponent(() => mod.default);
+              })
+              .catch((err) => {
+                console.warn("[LazyLightPillar] Dynamic import of LightPillar failed — falling back to CSS gradient:", err);
+              });
           };
           if ("requestIdleCallback" in window) {
             requestIdleCallback(doLoad, { timeout: 2000 });

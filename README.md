@@ -3,7 +3,7 @@
 An AI-driven education platform where students upload question papers, AI analyzes them, generates mock tests automatically, and provides detailed performance analytics.
 
 **Production URL:** https://www.fouri.in  
-**Last Updated:** 2026-06-06 (Phase 44 — ✅ Completed)
+**Last Updated:** 2026-06-07 (Phase 44 — LightPillar Fix & URL Rewriting ✅)
 
 ---
 
@@ -21,7 +21,7 @@ An AI-driven education platform where students upload question papers, AI analyz
 | Email (SMTP) | Brevo HTTP API (free 300 emails/day, HTTPS) — replaces Hostinger SMTP (blocked on Render free tier) |
 | Email Templates | DB-backed templates with branding images, per-user variable personalization |
 | Media Library | File proxy with DB-based MIME resolution, paginated, TanStack Query caching |
-| Deployment | Vercel (FE) / Railway (BE) / Neon (DB) |
+| Deployment | Vercel (FE) / Render (BE) / Neon (DB) |
 | CI/CD | GitHub Actions (4 workflows) |
 | Error Tracking | Sentry (configured, DSN placeholder) |
 | SEO | Sitemap, robots.txt, JSON-LD structured data, canonical URLs, OpenGraph |
@@ -388,7 +388,7 @@ Hidden `/fouri-root-console` admin panel, JWT owner auth, user CSV export, uploa
 | MediaFile model | Stores uploaded images with mimeType, fileId, category — used by both email templates and media library |
 | Dynamic image URLs | All upload endpoints return `{ url: "/api/files/<fileId>" }` — constructed with `req.protocol://req.get("host")` |
 | SMTP startup check | `verifySmtpConnection()` called on backend startup — logs success/failure |
-| Trust proxy | `app.set("trust proxy", 1)` — ensures Railway reverse-proxy headers are trusted for URL generation |
+| Trust proxy | `app.set("trust proxy", 1)` — ensures Render reverse-proxy headers are trusted for URL generation |
 
 ### Phase 27: Email Personalization ✅
 | Feature | Detail |
@@ -539,7 +539,7 @@ Hidden `/fouri-root-console` admin panel, JWT owner auth, user CSV export, uploa
 | Component | Spec | Capacity |
 |-----------|------|----------|
 | Frontend (Vercel) | Auto-scaling, global CDN (100+ PoPs) | Handles spikes via edge caching |
-| Backend (Railway) | 0.5 vCPU, 512MB RAM, single instance | ~25-50 concurrent users |
+| Backend (Render) | 0.5 vCPU, 512MB RAM, single instance | ~25-50 concurrent users |
 | Database (Neon Free) | 0.25 vCPU, 512MB RAM, 10GB storage, ~9-17 pooled connections | ~50-100 concurrent queries |
 | SMTP (Hostinger) | 500 emails/day | Sufficient for contact form |
 
@@ -552,7 +552,7 @@ Hidden `/fouri-root-console` admin panel, JWT owner auth, user CSV export, uploa
 | Layer | Max Concurrent Users | Notes |
 |-------|---------------------|-------|
 | **Frontend** (Vercel) | 500+ | Static pages cached at edge; dynamic pages hit backend |
-| **Backend** (Railway free) | **25-50** | 0.5 vCPU, 512MB RAM — primary bottleneck |
+| **Backend** (Render free) | **25-50** | 0.5 vCPU, 512MB RAM — primary bottleneck |
 | **Database** (Neon free) | **50-100 concurrent queries** | Pooled connections shared across requests |
 | **OCR** (Tesseract.js) | Unlimited | Completely free, no API costs |
 | **AI** (OpenRouter) | ~$1-5/month | Pay-per-token; ~1,000 analyses/month at current rates |
@@ -563,26 +563,26 @@ Hidden `/fouri-root-console` admin panel, JWT owner auth, user CSV export, uploa
 |----------|--------------|-------------------|-----------------|-----------|
 | **Light** | 500 | 50 | 5-10 | ✅ Comfortable |
 | **Moderate** | 2,000 | 200 | 20-30 | ✅ With rate limiting |
-| **Heavy** | 10,000 | 1,000 | 50-100 | ❌ Need Railway + Neon upgrade |
+| **Heavy** | 10,000 | 1,000 | 50-100 | ❌ Need Render + Neon upgrade |
 | **Peak** | 50,000+ | 5,000 | 250+ | ❌ Need dedicated servers |
 
 ### Bottlenecks & Scaling Recommendations
 
 | Bottleneck | Impact | Fix |
 |------------|--------|-----|
-| Railway 0.5 vCPU | 25-50 concurrent users → latency spikes | Upgrade to $5-10/month plan (1-2 vCPU) |
+| Render 0.5 vCPU | 25-50 concurrent users → latency spikes | Upgrade to $7/month plan (1 vCPU) |
 | Neon free pool | Connection exhaustion under load | Upgrade to Scale plan ($19/mo, 100+ connections) |
 | Tesseract.js | No external API needed | Runs locally, no costs, no rate limits |
 | OpenRouter rate limits | Queue delays under concurrent AI calls | Add request queue or batch processing |
 | No Redis caching | Repeated DB queries for same data | Add Upstash Redis (Vercel integration, free 10MB) |
 | Firebase Auth IP rate limits | ~100 signups/hr/IP | Upgrade to GCIP (Identity Platform) for project-level quota |
-| Single-region backend | Higher latency for non-India users | Railway multi-region or add CDN for static API responses |
+| Single-region backend | Higher latency for non-India users | Render multi-region or add CDN for static API responses |
 
 ### Recommended Upgrade Path
 
 1. **0–1,000 users** (free tier) — Current setup sufficient ✅
-2. **1,000–5,000 users** — Railway $5/mo (1 vCPU) + Neon $19/mo (Scale) + Redis free tier
-3. **5,000–20,000 users** — Railway $12/mo (2 vCPU) + Neon $39/mo + Redis $20/mo + GCIP
+2. **1,000–5,000 users** — Render $7/mo (1 vCPU) + Neon $19/mo (Scale) + Redis free tier
+3. **5,000–20,000 users** — Render $15/mo (2 vCPU) + Neon $39/mo + Redis $20/mo + GCIP
 4. **20,000+ users** — Dedicated VPS (Hetzner/AWS Lightsail) + managed DB + auto-scaling
 
 ---
@@ -661,7 +661,7 @@ Dynamic metadata / OpenGraph, sitemap, robots.txt, JSON-LD structured data, exam
 Rate limiting (express-rate-limit), Zod validation middleware, helmet security headers, CORS hardened, image remote patterns, body size limit.
 
 ### Phase 12 — Deployment
-GitHub Actions CI/CD (4 workflows), Docker multi-stage build, Railway config with health check, Vercel config, Sentry error tracking, production env files, DEPLOY.md.
+GitHub Actions CI/CD (4 workflows), Docker multi-stage build, Render config with health check, Vercel config, Sentry error tracking, production env files, DEPLOY.md.
 
 ### Phase 13 — Dark Theme & Hero Redesign
 Premium black theme, glassmorphism, 6-slide animated hero carousel with Framer Motion, dark gradients across all sections.
@@ -690,7 +690,7 @@ Migrated from Cloudinary to Telegram Bot API for file storage (unlimited bandwid
 ### Phase 22 — Subjective Answer Enhancement
 New `evaluateSubjective()` with text normalization (lowercase, punctuation stripped), word overlap scoring, per-question re-evaluation endpoint.
 
-### Phase 23 — Railway + Neon Hardening
+### Phase 23 — Deployment & Database Hardening
 `withRetry()` wraps all DB calls, handles `E57P01` (Neon pause/resume), Prisma pgbouncer mode + connection limit 3 for pooled Neon connections, 3315 error handling for pool disconnects.
 
 ### Phase 24 — Upload 500 Fix & Edit Time Enhancement
@@ -1270,3 +1270,192 @@ Professional HTML email prompt with inline CSS, table-based CTA buttons, full em
 | `frontend/src/components/credits/AnalysisModeSelector.tsx` | Full/standard/basic analysis mode picker |
 | `frontend/src/components/credits/InsufficientCreditsModal.tsx` | Modal for insufficient credits (donate/switch/tomorrow) |
 | `backend/src/services/creditService.ts` | Daily credit auto-reset, estimation, deduction, refund |
+| `frontend/src/components/landing/LightPillar.tsx` | Three.js shader-based volumetric light column background |
+| `frontend/src/components/landing/LazyLightPillar.tsx` | Lazy-loads LightPillar via IntersectionObserver — renders 3D light effect |
+
+---
+
+## LightPillar — Debug Resolution
+
+**Status:** ✅ Fixed
+
+The Three.js shader-based light column now renders correctly. The fragment shader `tanh()` implementation was updated to a manual `exp()`-based equivalent for better cross-browser GLSL compatibility, and `mix-blend-mode: screen` was replaced with explicit opacity blending to ensure visibility against the dark background.
+
+---
+
+## 🔮 Planned: AI Analytics Dashboard (Phase 45)
+
+Comprehensive analytics dashboard with advanced visualizations, AI usage tracking, and interactive graphs.
+
+### Overview
+
+**Scope**: ~15 files across backend & frontend, 3 new Prisma models, 1 new backend route file, 1 fully rewritten frontend page.
+
+---
+
+### Phase 1 — Database & Backend
+
+#### 1a. Prisma Migration — New Models
+
+Add to `backend/prisma/schema.prisma`:
+
+```prisma
+model AiUsage {
+  id        String   @id @default(uuid())
+  feature   String   // "mock-test", "quiz-gen", "explanation", "analysis", "blog-gen", "email-gen", "subjective-eval"
+  tokens    Int?
+  userId    String?
+  duration  Int?     // response time in ms
+  status    String   // "SUCCESS" | "FAILED"
+  createdAt DateTime @default(now())
+
+  @@index([feature])
+  @@index([createdAt])
+  @@index([feature, createdAt])
+}
+
+model PageView {
+  id        String   @id @default(uuid())
+  path      String
+  userId    String?
+  referrer  String?
+  createdAt DateTime @default(now())
+
+  @@index([path])
+  @@index([createdAt])
+  @@index([path, createdAt])
+}
+```
+
+Also add `views Int @default(0)` to the `Blog` model.
+
+#### 1b. Backend — AI Usage Tracking Service
+
+Create `backend/src/services/aiTracker.ts`:
+
+- Wraps all OpenAI/Groq calls to log to `AiUsage` table
+- Track: feature name, tokens (from API response), status, duration
+- Each AI route calls `trackAiUsage(feature, tokens, userId, status, duration)`
+
+#### 1c. Backend — Page View Tracking Middleware
+
+Create `backend/src/middleware/pageViewTracker.ts`:
+
+- Express middleware that logs `path`, `userId` (if auth'd), `referrer` to `PageView` table
+- Attach to key routes
+
+#### 1d. Backend — Analytics Route
+
+Create `backend/src/routes/ownerAnalytics.ts` with endpoints:
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /owner/analytics/summary?period=30d` | Returns everything in one payload |
+| `GET /owner/analytics/users?period=30d` | Active/inactive by period (today, 7d, 30d, 1y) |
+| `GET /owner/analytics/activity?period=30d` | Daily visitors, concurrent users, daily activities |
+| `GET /owner/analytics/pages?period=30d` | Page-level traffic rankings |
+| `GET /owner/analytics/blogs` | Blog views/engagement/feedback counts |
+| `GET /owner/analytics/quiz?period=30d` | AI quiz generation, attempts, completion rates, avg scores, trends |
+| `GET /owner/analytics/ai-usage?period=30d` | AI calls by feature, daily trends, threshold data |
+
+The `/ai-usage` endpoint returns:
+- `byFeature: [{ feature, count, totalTokens }]`
+- `dailyTrend: [{ date, totalCalls, totalTokens }]`
+- `threshold: { limit: 10000, used, percentage, remaining }`
+
+All endpoints use a simple in-memory cache (5 min TTL).
+
+#### 1e. Update Blog Route
+
+- Add `POST /owner/blog/:id/view` — increments `Blog.views`
+- Add `GET /owner/blog/stats` — blog engagement data
+
+---
+
+### Phase 2 — Frontend Components
+
+#### 2a. Date Range Selector
+
+Create `frontend/src/components/owner/AnalyticsDateRange.tsx`:
+
+- Segmented control: Today, 7 Days, 30 Days, 1 Year
+- Optional custom date picker (From / To)
+- Emits a `period` or `{ from, to }` to parent
+
+#### 2b. Reusable Chart Wrapper
+
+Create `frontend/src/components/owner/AnalyticsChart.tsx`:
+
+- Consistent card wrapper with title + icon header
+- `ResponsiveContainer` inside
+- Loading skeleton state + dark theme styling
+
+#### 2c. Rewrite Analytics Page
+
+**File**: `frontend/src/app/fouri-root-console/analytics/page.tsx`
+
+**Section layout** (in order):
+
+1. **Header** — Title + Period Selector + Cache indicator
+
+2. **Summary Cards Row** — 4 stat cards in `grid sm:grid-cols-2 lg:grid-cols-4`:
+   - Total Users / Active / Inactive
+   - Total AI Calls (with threshold gauge)
+   - Total Quiz Attempts
+   - Total Page Views
+
+3. **User Analytics** `grid lg:grid-cols-2`:
+   - Active vs Inactive comparison (Stacked BarChart)
+   - User growth trend (AreaChart)
+
+4. **Activity & Engagement** `grid lg:grid-cols-2`:
+   - Daily Visitors (AreaChart)
+   - Concurrent Users / Daily Activities (LineChart)
+
+5. **Page-Level Analytics** `lg:col-span-2`:
+   - Top visited pages bar chart
+
+6. **Blog Analytics** `grid lg:grid-cols-2`:
+   - Blog views per post (BarChart, horizontal)
+   - Positive vs Negative feedback (Stacked BarChart)
+
+7. **AI Quiz Analytics** `grid lg:grid-cols-2`:
+   - Quiz generation vs attempts trend (LineChart)
+   - Completion rate + avg score (ComposedChart)
+
+8. **AI Usage Analytics with Threshold** `grid lg:grid-cols-2`:
+   - AI calls by feature (PieChart or Stacked BarChart)
+   - Daily AI usage trend (AreaChart)
+   - **Threshold gauge**: Visual indicator showing `used / limit` with red warning when >80%
+   - Warning banner if approaching/exceeding free-tier limit
+
+All sections have loading skeleton, empty state, error handling, and responsive grid (single column on mobile).
+
+---
+
+### Files to Create/Modify
+
+| File | Action |
+|---|---|
+| `backend/prisma/schema.prisma` | Modify — add AiUsage, PageView models + Blog.views |
+| `backend/src/services/aiTracker.ts` | Create |
+| `backend/src/middleware/pageViewTracker.ts` | Create |
+| `backend/src/routes/ownerAnalytics.ts` | Create |
+| `backend/src/services/analyticsCache.ts` | Create |
+| Backend route files (tests.ts, quiz.ts, etc.) | Modify — add AI tracking calls |
+| `frontend/src/components/owner/AnalyticsDateRange.tsx` | Create |
+| `frontend/src/components/owner/AnalyticsChart.tsx` | Create |
+| `frontend/src/app/fouri-root-console/analytics/page.tsx` | Rewrite |
+
+### Data Flow
+
+```
+User selects period (today/7d/30d/1y)
+  → Frontend checks cache (60s TTL)
+  → If stale, calls GET /owner/analytics/summary?period=30d
+  → Backend checks server cache (5min TTL)
+  → If stale, runs aggregated Prisma queries
+  → Returns full payload
+  → Frontend renders sections with Recharts
+  → Auto-refreshes every 60s
+```

@@ -379,15 +379,18 @@ export default function BlogEditorPage() {
             <label className="block text-xs text-[#888899] mb-1.5">
               Status
             </label>
-            <select
-              value={status}
-              onChange={(e) => setStatus(e.target.value)}
-              className="w-full bg-[#08080f] border border-white/10 rounded-xl px-3 py-2 text-sm text-[#f5f5f7] outline-none focus:border-blue-500/50"
-            >
-              <option value="DRAFT">Draft</option>
-              <option value="PUBLISHED">Published</option>
-              <option value="SCHEDULED">Scheduled</option>
-            </select>
+            <div className="relative">
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+                className="w-full bg-[#08080f] border border-white/10 rounded-xl px-3 py-2 pr-10 text-sm text-[#f5f5f7] outline-none focus:border-blue-500/50 appearance-none cursor-pointer"
+              >
+                <option value="DRAFT">Draft</option>
+                <option value="PUBLISHED">Published</option>
+                <option value="SCHEDULED">Scheduled</option>
+              </select>
+              <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#888899] pointer-events-none" />
+            </div>
           </div>
           {status === "SCHEDULED" && (
             <div className="md:col-span-2 space-y-3">

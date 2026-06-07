@@ -17,7 +17,7 @@ const trustIndicators = [
 export default function HeroSection() {
   return (
     <section className="relative min-h-screen flex items-center overflow-hidden bg-[#0C0C0C] pt-10 lg:pt-16">
-      <LazyMotion features={domAnimation} strict>
+      <LazyMotion features={domAnimation}>
       <LazyLightPillar
           topColor="#3D81E3"
           bottomColor="#00D2FF"

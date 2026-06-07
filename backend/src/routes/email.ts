@@ -462,13 +462,49 @@ router.post("/templates/:id/duplicate", async (req, res) => {
 
 // --- Campaign History ---
 
-router.get("/history", async (_req, res) => {
+router.get("/history", async (req, res) => {
   try {
-    const campaigns = await prisma.emailCampaign.findMany({
-      orderBy: { sentAt: "desc" },
-      include: { template: { select: { name: true } } },
+    const page = Math.max(1, parseInt(req.query.page as string) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit as string) || 10));
+    const skip = (page - 1) * limit;
+
+    const search = (req.query.search as string) || "";
+    const status = (req.query.status as string) || "";
+    const dateFrom = (req.query.dateFrom as string) || "";
+    const dateTo = (req.query.dateTo as string) || "";
+    const sortBy = (req.query.sortBy as string) || "sentAt";
+    const sortOrder = (req.query.sortOrder as string) === "asc" ? "asc" : "desc";
+
+    const where: any = {};
+    if (search) {
+      where.OR = [
+        { subject: { contains: search, mode: "insensitive" } },
+      ];
+    }
+    if (status) {
+      where.status = status;
+    }
+    if (dateFrom || dateTo) {
+      where.sentAt = {};
+      if (dateFrom) where.sentAt.gte = new Date(dateFrom);
+      if (dateTo) where.sentAt.lte = new Date(dateTo);
+    }
+
+    const [campaigns, total] = await Promise.all([
+      prisma.emailCampaign.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { [sortBy]: sortOrder },
+        include: { template: { select: { name: true } } },
+      }),
+      prisma.emailCampaign.count({ where }),
+    ]);
+
+    res.json({
+      campaigns,
+      pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
     });
-    res.json({ campaigns });
   } catch (error) {
     console.error("List history error:", error);
     res.status(500).json({ error: "Failed to list history" });

@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { BlogImage } from "@/components/blog/BlogImage";
 import { getFileUrl } from "@/lib/getFileUrl";
 import {
-  Plus, Trash2, Eye, EyeOff, Loader2, Sparkles, Upload, Link as LinkIcon, Images, X, ExternalLink,
+  Plus, Trash2, Eye, EyeOff, Loader2, Sparkles, Upload, Link as LinkIcon, Images, X, ExternalLink, ChevronDown,
 } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
@@ -238,14 +238,14 @@ export default function OwnerAdsPage() {
 
   return (
     <div className="space-y-6">
-      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between">
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold font-heading text-[#f5f5f7]">Ad Manager</h1>
           <p className="text-sm text-[#888899] mt-1">Create and manage dashboard advertisements</p>
         </div>
         <button
           onClick={() => { resetForm(); setShowForm(true); }}
-          className="flex items-center gap-1.5 h-10 px-4 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-500 transition-all cursor-pointer"
+          className="flex items-center justify-center gap-1.5 h-10 px-4 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-500 transition-all cursor-pointer w-full sm:w-auto"
         >
           <Plus size={14} /> New Ad
         </button>
@@ -283,18 +283,18 @@ export default function OwnerAdsPage() {
                     rows={2}
                     className="w-full bg-[#08080f] border border-white/10 rounded-lg px-3 py-2 text-xs text-[#f5f5f7] placeholder-[#555566] outline-none focus:border-blue-500/50 resize-none"
                   />
-                  <div className="flex gap-2">
+                  <div className="flex flex-col sm:flex-row gap-2">
                     <button
                       onClick={handleAiGenerate}
                       disabled={generating || !aiInstructions.trim()}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium bg-gradient-to-r from-blue-600 to-blue-500 text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
+                      className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium bg-gradient-to-r from-blue-600 to-blue-500 text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-all cursor-pointer"
                     >
                       {generating ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
                       {generating ? "Generating..." : "Generate"}
                     </button>
                     <button
                       onClick={() => { setShowAiPrompt(false); setAiInstructions(""); }}
-                      className="px-3 py-1.5 rounded-lg text-[11px] font-medium bg-white/5 text-[#888899] hover:text-[#f5f5f7] transition-all cursor-pointer"
+                      className="px-3 py-1.5 rounded-lg text-[11px] font-medium bg-white/5 text-[#888899] hover:text-[#f5f5f7] transition-all cursor-pointer text-center"
                     >
                       Cancel
                     </button>
@@ -335,15 +335,18 @@ export default function OwnerAdsPage() {
                 </div>
                 <div>
                   <label className="block text-xs text-[#888899] mb-1">Status</label>
+                <div className="relative">
                   <select
                     value={status}
                     onChange={(e) => setStatus(e.target.value)}
-                    className="w-full h-10 px-3 rounded-xl bg-[#08080f] border border-white/5 text-xs text-[#f5f5f7] outline-none focus:border-blue-500/50"
+                    className="w-full h-10 px-3 pr-10 rounded-xl bg-[#08080f] border border-white/5 text-xs text-[#f5f5f7] outline-none focus:border-blue-500/50 appearance-none cursor-pointer"
                   >
                     {STATUS_OPTIONS.map((opt) => (
                       <option key={opt.value} value={opt.value}>{opt.label}</option>
                     ))}
                   </select>
+                  <ChevronDown size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#888899] pointer-events-none" />
+                </div>
                 </div>
                 {status === "SCHEDULED" && (
                   <div>
@@ -418,10 +421,10 @@ export default function OwnerAdsPage() {
                 <span className="block text-[10px] text-[#666677] mb-2">
                   Recommended Size: 1200 × 630 px | Format: JPG, PNG, WebP | Max Size: 2 MB
                 </span>
-                <div className="flex gap-1.5 mb-2">
+                <div className="flex gap-1.5 mb-2 overflow-x-auto flex-nowrap sm:flex-wrap pb-0.5">
                   <button
                     onClick={() => setThumbnailMode("url")}
-                    className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all cursor-pointer ${
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all cursor-pointer whitespace-nowrap ${
                       thumbnailMode === "url"
                         ? "bg-blue-600/10 text-blue-300 border border-blue-500/10"
                         : "bg-white/5 text-[#888899] hover:text-[#f5f5f7]"
@@ -431,7 +434,7 @@ export default function OwnerAdsPage() {
                   </button>
                   <button
                     onClick={() => setThumbnailMode("upload")}
-                    className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all cursor-pointer ${
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all cursor-pointer whitespace-nowrap ${
                       thumbnailMode === "upload"
                         ? "bg-blue-600/10 text-blue-300 border border-blue-500/10"
                         : "bg-white/5 text-[#888899] hover:text-[#f5f5f7]"
@@ -441,7 +444,7 @@ export default function OwnerAdsPage() {
                   </button>
                   <button
                     onClick={openMediaPicker}
-                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-white/5 text-[#888899] hover:text-[#f5f5f7] transition-all cursor-pointer"
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-white/5 text-[#888899] hover:text-[#f5f5f7] transition-all cursor-pointer whitespace-nowrap"
                   >
                     <Images size={12} /> Media Library
                   </button>
@@ -514,7 +517,7 @@ export default function OwnerAdsPage() {
                   <span className="text-[11px] font-medium text-[#888899]">Preview</span>
                 </div>
                 <div className="p-4">
-                  <div className="bg-[#111118] rounded-xl border border-white/5 overflow-hidden max-w-sm mx-auto">
+                  <div className="bg-[#111118] rounded-xl border border-white/5 overflow-hidden max-w-full sm:max-w-sm mx-auto">
                     <div className="relative h-36 overflow-hidden bg-[#08080f]">
                       {imageUrl && (
                         <>
@@ -655,7 +658,7 @@ export default function OwnerAdsPage() {
                       <ExternalLink size={10} /> Related Blog
                     </a>
                   )}
-                  <div className="flex items-center gap-1.5 mt-3">
+                  <div className="flex items-center gap-1.5 mt-3 flex-wrap">
                     <button
                       onClick={() => toggleStatus(ad)}
                       className={`flex items-center gap-1 h-7 px-2.5 rounded-lg text-[10px] font-medium transition-all cursor-pointer ${

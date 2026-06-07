@@ -56,6 +56,14 @@ export const contactLimiter = rateLimit({
   message: { error: "Too many messages sent. Try again later." },
 });
 
+export const quizLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many quiz requests. Please try again later." },
+});
+
 export const analyzeStatusLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 60,
