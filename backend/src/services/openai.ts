@@ -62,11 +62,11 @@ CRITICAL RULES:
 - Return ONLY a valid JSON object with a "questions" array. No markdown, no explanation.
 - For each question, set "subject" to the exam subject name mentioned in the paper header (e.g., "Mathematics", "English", "Physics"). If no subject is found, set it to "General".
 - Copy the question text EXACTLY as it appears. Do NOT rephrase, summarize, or modify.
-- For MCQs: extract the EXACT options as they appear. Do not add or change options.
-- For subjective questions: options=[] and type="SUBJECTIVE". Set correctAnswer to the expected answer if provided in the text or answer key. If no answer is provided in the paper, set correctAnswer to an empty string.
-- For subjective questions that are short-answer or have an answer key present in the text, extract the correctAnswer. Copy it EXACTLY as it appears.
-- If a subjective question does NOT have an answer provided in the paper, set correctAnswer to "" (empty string).
+- Extract ONLY MCQ (Multiple Choice) questions with their options. Skip any subjective, descriptive, essay, short-answer, long-answer, fill-in-the-blank, or open-ended questions entirely.
+- For MCQs: extract the EXACT options as they appear. Do not add or change options. Each MCQ must have exactly 4 options.
+- If a question does not have 4 clear options, skip it entirely — do NOT include it in the output.
 - Do NOT hallucinate answers or generate options that aren't in the text.
+- Set "type" to "MCQ" for every question. Never use "SUBJECTIVE".
 - Assign difficulty based on the question type: "EASY" for basic recall, "MEDIUM" for application, "HARD" for complex problems.
 - Fix only obvious OCR spacing/encoding artifacts (e.g., merged words).
 
@@ -193,7 +193,7 @@ Common Hindi/Devanagari OCR errors (fix when context makes it clear):
 
 Preserve the correct script (Bengali/Hindi/English) for each question. Do NOT transliterate Bengali or Hindi text to English. Keep each question in its original script.
 
-Output format:
+Output format (MCQ questions only — never subjective):
 {
   "questions": [
     {
@@ -208,10 +208,7 @@ Output format:
   ]
 }`;
 
-function normalizeType(type: string): "MCQ" | "SUBJECTIVE" {
-  const t = (type || "").toUpperCase().trim();
-  if (["MCQ", "MULTIPLE CHOICE", "MULTIPLE_CHOICE", "OBJECTIVE", "CHOOSE", "SELECT"].includes(t)) return "MCQ";
-  if (["SUBJECTIVE", "DESCRIPTIVE", "ESSAY", "WRITTEN", "THEORY", "LONG ANSWER", "SHORT ANSWER"].includes(t)) return "SUBJECTIVE";
+function normalizeType(_type: string): "MCQ" | "SUBJECTIVE" {
   return "MCQ";
 }
 
@@ -901,7 +898,12 @@ Rules:
 - Questions should be appropriate for competitive exam level (JEE, NEET, CUET, etc.)
 - Each question must be unique
 - Options must be plausible (not obviously wrong)
-- Return ONLY valid JSON with no markdown or code fences
+- Return ONLY valid JSON with no markdown or code fences around the JSON itself
+
+CONTENT FORMATTING INSTRUCTIONS:
+- For coding questions: wrap code snippets in \`\`\`language\n...\n\`\`\` fences within the questionText and option strings. Example: "What is the output of\n\`\`\`python\nprint(2**3)\n\`\`\`"
+- For math questions: use $...$ for inline math and $$...$$ for display math within the questionText and option strings. Example: "Solve $x^2 + 2x + 1 = 0$"
+- Both code fences and math delimiters should be embedded INSIDE the JSON string values
 
 CRITICAL — correctAnswer FORMAT:
 The "correctAnswer" field MUST be the EXACT and COMPLETE text of the correct option from the "options" array.

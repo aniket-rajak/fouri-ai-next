@@ -3,46 +3,7 @@ import { authenticate } from "../middleware/auth.js";
 import { validate, schemas } from "../middleware/validate.js";
 import { prisma, withRetry } from "../lib/prisma.js";
 import { evaluationQueue } from "../lib/evaluationQueue.js";
-import { evaluateSubjectiveWithAI, generateExplanationForMCQ } from "../services/openai.js";
-
-function normalizeText(s: string | null | undefined): string {
-  if (!s) return "";
-  return s
-    .trim()
-    .toLowerCase()
-    .replace(/[^\w\s]/g, "")
-    .replace(/\s+/g, " ");
-}
-
-function evaluateSubjective(userAnswer: string | null | undefined, correctAnswer: string): boolean | null {
-  const normalizedUser = normalizeText(userAnswer);
-  const normalizedCorrect = normalizeText(correctAnswer);
-
-  if (!normalizedCorrect) return null;
-  if (!normalizedUser) return false;
-
-  if (normalizedUser === normalizedCorrect) return true;
-
-  if (normalizedUser.includes(normalizedCorrect) || normalizedCorrect.includes(normalizedUser)) return true;
-
-  const userWords = normalizedUser.split(/\s+/).filter(Boolean);
-  const correctWords = normalizedCorrect.split(/\s+/).filter(Boolean);
-
-  if (correctWords.length <= 3) {
-    return normalizedUser === normalizedCorrect;
-  }
-
-  const matched = correctWords.filter((w) => userWords.includes(w)).length;
-  const overlap = matched / correctWords.length;
-
-  return overlap >= 0.6;
-}
-
-function isSubjectiveQuestion(question: { type: string; options: unknown }): boolean {
-  if (question.type === "SUBJECTIVE") return true;
-  const options = Array.isArray(question.options) ? question.options : [];
-  return options.length === 0;
-}
+import { generateExplanationForMCQ } from "../services/openai.js";
 
 const router = Router();
 
@@ -174,11 +135,7 @@ router.post("/:id/submit", authenticate, async (req, res) => {
       const selected = answerMap.get(question.id);
       let isCorrect: boolean | null;
 
-      if (isSubjectiveQuestion(question)) {
-        isCorrect = evaluateSubjective(selected, question.correctAnswer);
-      } else {
-        isCorrect = selected === question.correctAnswer;
-      }
+      isCorrect = selected === question.correctAnswer;
 
       if (isCorrect === true) score++;
 
@@ -230,56 +187,11 @@ router.post("/:id/submit", authenticate, async (req, res) => {
 
     res.json({ attempt: submitted });
 
-    // Background AI evaluation for subjective questions
-    (async () => {
-      const subjectiveAnswers = attempt.answers.filter((a) => {
-        const q = attempt.mockTest.questions.find((q) => q.id === a.questionId);
-        return a.selectedOption != null && isSubjectiveQuestion(q!);
-      });
-
-      for (const ans of subjectiveAnswers) {
-        const question = attempt.mockTest.questions.find(
-          (q) => q.id === ans.questionId
-        );
-        if (!question) continue;
-
-        evaluationQueue.enqueue(async () => {
-          try {
-            const evaluation = await evaluateSubjectiveWithAI(
-              question.questionText,
-              ans.selectedOption
-            );
-            await prisma.answer.update({
-              where: { id: ans.id },
-              data: { isCorrect: evaluation.isCorrect },
-            });
-            await prisma.explanation.upsert({
-              where: { questionId: question.id },
-              update: {
-                shortExplanation: evaluation.feedback,
-                detailedExplanation: evaluation.modelAnswer,
-              },
-              create: {
-                questionId: question.id,
-                shortExplanation: evaluation.feedback,
-                detailedExplanation: evaluation.modelAnswer,
-              },
-            });
-          } catch (error) {
-            console.error(
-              `Background AI eval failed for question ${question.id}:`,
-              error
-            );
-          }
-        });
-      }
-    })();
-
     // Background AI explanation for marked MCQ questions
     (async () => {
       const markedMcqAnswers = attempt.answers.filter((a) => {
         const q = attempt.mockTest.questions.find((q) => q.id === a.questionId);
-        return markedSet.has(a.questionId) && a.selectedOption != null && q && !isSubjectiveQuestion(q);
+        return markedSet.has(a.questionId) && a.selectedOption != null && q;
       });
 
       for (const ans of markedMcqAnswers) {
@@ -373,144 +285,7 @@ router.get("/:id", authenticate, async (req, res) => {
   }
 });
 
-router.post("/:id/re-evaluate", authenticate, async (req, res) => {
-  try {
-    const attemptId = req.params.id as string;
 
-    const attempt = await prisma.testAttempt.findUnique({
-      where: { id: attemptId },
-      include: {
-        answers: true,
-        mockTest: {
-          include: { questions: true },
-        },
-      },
-    });
-
-    if (!attempt || attempt.userId !== req.user!.uid) {
-      res.status(404).json({ error: "Attempt not found" });
-      return;
-    }
-
-    let score = 0;
-    const updates = [];
-
-    for (const question of attempt.mockTest.questions) {
-      if (question.type !== "SUBJECTIVE") continue;
-
-      const answer = attempt.answers.find((a) => a.questionId === question.id);
-      if (!answer) continue;
-
-      const isCorrect = evaluateSubjective(answer.selectedOption, question.correctAnswer);
-
-      updates.push(
-        prisma.answer.update({
-          where: { id: answer.id },
-          data: { isCorrect },
-        })
-      );
-
-      if (isCorrect === true) score++;
-    }
-
-    await Promise.all(updates);
-
-    if (score > 0 || updates.length > 0) {
-      const totalQuestions = attempt.mockTest.questions.length;
-      const currentScore = attempt.score || 0;
-      const newScore = currentScore + score;
-      const accuracy = totalQuestions > 0 ? (newScore / totalQuestions) * 100 : 0;
-
-      await prisma.testAttempt.update({
-        where: { id: attemptId },
-        data: {
-          score: newScore,
-          accuracy: Math.round(accuracy * 100) / 100,
-        },
-      });
-    }
-
-    res.json({ reEvaluated: updates.length, corrected: score });
-  } catch (error) {
-    console.error("Re-evaluate error:", error);
-    res.status(500).json({ error: "Failed to re-evaluate" });
-  }
-});
-
-router.post("/:id/evaluate-subjective-ai", authenticate, async (req, res) => {
-  try {
-    const attemptId = req.params.id as string;
-    const { questionId } = req.body;
-
-    if (!questionId) {
-      res.status(400).json({ error: "questionId is required" });
-      return;
-    }
-
-    const attempt = await prisma.testAttempt.findUnique({
-      where: { id: attemptId },
-      include: {
-        answers: true,
-        mockTest: {
-          include: {
-            questions: {
-              where: { id: questionId, type: "SUBJECTIVE" },
-            },
-          },
-        },
-      },
-    });
-
-    if (!attempt || attempt.userId !== req.user!.uid) {
-      res.status(404).json({ error: "Attempt not found" });
-      return;
-    }
-
-    const question = attempt.mockTest.questions[0];
-    if (!question) {
-      res.status(400).json({ error: "Question not found or not subjective" });
-      return;
-    }
-
-    const answer = attempt.answers.find((a) => a.questionId === questionId);
-
-    const evaluation = await evaluationQueue.enqueue(() =>
-      evaluateSubjectiveWithAI(
-        question.questionText,
-        answer?.selectedOption
-      )
-    );
-
-    if (answer) {
-      await prisma.answer.update({
-        where: { id: answer.id },
-        data: { isCorrect: evaluation.isCorrect },
-      });
-    }
-
-    await prisma.explanation.upsert({
-      where: { questionId: question.id },
-      update: {
-        shortExplanation: evaluation.feedback,
-        detailedExplanation: evaluation.modelAnswer,
-      },
-      create: {
-        questionId: question.id,
-        shortExplanation: evaluation.feedback,
-        detailedExplanation: evaluation.modelAnswer,
-      },
-    });
-
-    res.json({
-      modelAnswer: evaluation.modelAnswer,
-      feedback: evaluation.feedback,
-      isCorrect: evaluation.isCorrect,
-    });
-  } catch (error) {
-    console.error("AI subjective evaluation error:", error);
-    res.status(500).json({ error: "Failed to evaluate answer with AI" });
-  }
-});
 
 router.get("/", authenticate, async (req, res) => {
   try {

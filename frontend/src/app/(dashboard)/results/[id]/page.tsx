@@ -1,15 +1,15 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import Link from "next/link";
-import { MathContent } from "@/components/ui/MathContent";
+import { ContentRenderer } from "@/components/ui/ContentRenderer";
 import {
   CheckCircle2, XCircle, Clock, Target, ArrowLeft,
-  Loader2, AlertCircle, Bookmark,
+  Bookmark,
 } from "lucide-react";
 
 interface Explanation {
@@ -51,28 +51,12 @@ interface AttemptDetail {
   answers: AnswerDetail[];
 }
 
-async function apiPostWithRetry(url: string, body: unknown, retries = 3): Promise<any> {
-  for (let attempt = 1; attempt <= retries; attempt++) {
-    try {
-      return await api.post(url, body);
-    } catch (error: any) {
-      if (error?.response?.status === 429 && attempt < retries) {
-        await new Promise((r) => setTimeout(r, 2000 * attempt));
-        continue;
-      }
-      throw error;
-    }
-  }
-}
-
 export default function ResultDetailPage() {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [attempt, setAttempt] = useState<AttemptDetail | null>(null);
   const [loading, setLoading] = useState(true);
-  const [evaluating, setEvaluating] = useState<Record<string, boolean>>({});
-  const [evaluationErrors, setEvaluationErrors] = useState<Record<string, string>>({});
   const [filter, setFilter] = useState<"all" | "marked">("all");
   const [returnUrl, setReturnUrl] = useState("/results");
 
@@ -99,75 +83,6 @@ export default function ResultDetailPage() {
       setFilter("marked");
     }
   }, [searchParams]);
-
-  const needsAiReview = useCallback((ans: AnswerDetail) => {
-    if (ans.question.type !== "SUBJECTIVE") return false;
-    if (ans.selectedOption === null) return false;
-    if (ans.isCorrect !== null && ans.question.explanations?.length > 0) return false;
-    return true;
-  }, []);
-
-  const evaluateWithAi = useCallback(async (answerId: string, questionId: string) => {
-    if (!attempt) return;
-    if (evaluating[questionId]) return;
-    setEvaluating((prev) => ({ ...prev, [questionId]: true }));
-    setEvaluationErrors((prev) => ({ ...prev, [questionId]: "" }));
-
-    try {
-      const res = await apiPostWithRetry(`/attempts/${attempt.id}/evaluate-subjective-ai`, {
-        questionId,
-      });
-
-      const { modelAnswer, feedback, isCorrect } = res.data;
-
-      setAttempt((prev) => {
-        if (!prev) return prev;
-        return {
-          ...prev,
-          answers: prev.answers.map((a) => {
-            if (a.id !== answerId) return a;
-            return {
-              ...a,
-              isCorrect,
-              question: {
-                ...a.question,
-                explanations: [
-                  {
-                    shortExplanation: feedback,
-                    detailedExplanation: modelAnswer,
-                  },
-                ],
-              },
-            };
-          }),
-        };
-      });
-    } catch {
-      setEvaluationErrors((prev) => ({
-        ...prev,
-        [questionId]: "Evaluation failed. Tap to retry.",
-      }));
-    } finally {
-      setEvaluating((prev) => ({ ...prev, [questionId]: false }));
-    }
-  }, [attempt]);
-
-  useEffect(() => {
-    if (!attempt || loading) return;
-    const pending = attempt.answers.filter(needsAiReview);
-    if (pending.length === 0) return;
-
-    let cancelled = false;
-    const run = async () => {
-      for (const ans of pending) {
-        if (cancelled) break;
-        await evaluateWithAi(ans.id, ans.question.id);
-      }
-    };
-    run();
-
-    return () => { cancelled = true; };
-  }, [attempt?.id, loading, needsAiReview, evaluateWithAi]);
 
   if (loading) {
     return (
@@ -280,8 +195,6 @@ export default function ResultDetailPage() {
       ) : <div className="space-y-3">
         {filteredAnswers.map((ans) => {
           const explanation = ans.question.explanations?.[0];
-          const isEvaluating = evaluating[ans.question.id];
-          const evalError = evaluationErrors[ans.question.id];
 
           return (
             <Card key={ans.id}>
@@ -289,14 +202,10 @@ export default function ResultDetailPage() {
                 <div className="mt-0.5 shrink-0">
                   {ans.selectedOption === null ? (
                     <div className="w-5 h-5 rounded-full border-2 border-zinc-300" />
-                  ) : isEvaluating ? (
-                    <Loader2 size={20} className="text-blue-500 animate-spin" />
                   ) : ans.isCorrect === true ? (
                     <CheckCircle2 size={20} className="text-green-600" />
-                  ) : ans.isCorrect === false ? (
-                    <XCircle size={20} className="text-red-600" />
                   ) : (
-                    <div className="w-5 h-5 rounded-full border-2 border-amber-400 bg-amber-50" />
+                    <XCircle size={20} className="text-red-600" />
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -307,154 +216,55 @@ export default function ResultDetailPage() {
                         Marked
                       </span>
                     )}
-                    <MathContent text={ans.question.questionText} />
+                    <ContentRenderer text={ans.question.questionText} />
                   </p>
 
-                  {ans.question.type === "SUBJECTIVE" ? (
-                    <div className="space-y-2">
-                      {/* User's answer */}
-                      <div className="text-xs px-3 py-2 rounded-lg border border-zinc-200 bg-zinc-50 text-zinc-700">
-                        <span className="font-medium shrink-0">Your answer:</span>
-                          <span className="ml-1 whitespace-pre-wrap break-words">
-                            {ans.selectedOption ? <MathContent text={ans.selectedOption} /> : <span className="italic text-zinc-400">Not answered</span>}
+                  <div className="space-y-1">
+                    {ans.question.options.map((opt, idx) => {
+                      const isSelected = ans.selectedOption === opt;
+                      const isCorrectOpt = ans.question.correctAnswer === opt;
+                      return (
+                        <div
+                          key={idx}
+                          className={`text-xs px-3 py-1.5 rounded-lg border ${
+                            isCorrectOpt
+                              ? "border-green-300 bg-green-50 text-green-700"
+                              : isSelected
+                              ? "border-red-300 bg-red-50 text-red-700"
+                              : "border-zinc-200 text-zinc-600"
+                          }`}
+                        >
+                          <ContentRenderer text={opt} />
+                          {isCorrectOpt && (
+                            <span className="ml-2 text-green-600 font-medium">
+                              ✓ Correct answer
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {explanation && (
+                    <div className="mt-2 space-y-2">
+                      {explanation.detailedExplanation && (
+                        <div className="text-xs px-3 py-2 rounded-lg border border-blue-200 bg-blue-50 text-blue-800">
+                          <span className="font-medium block mb-0.5">Explanation:</span>
+                          <span className="whitespace-pre-wrap break-words">
+                            {explanation.detailedExplanation}
                           </span>
-                      </div>
-
-                      {/* Evaluating state */}
-                      {isEvaluating && (
-                        <div className="text-xs px-3 py-3 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 flex items-center gap-2">
-                          <Loader2 size={14} className="animate-spin shrink-0" />
-                          <span>AI is evaluating your answer...</span>
                         </div>
                       )}
-
-                      {/* Error state */}
-                      {evalError && !isEvaluating && (
-                        <div className="text-xs px-3 py-2 rounded-lg border border-red-200 bg-red-50 text-red-700 flex items-center gap-2">
-                          <AlertCircle size={14} className="shrink-0" />
-                          <span>{evalError}</span>
-                          <button
-                            onClick={() => evaluateWithAi(ans.id, ans.question.id)}
-                            className="ml-auto font-medium underline cursor-pointer"
-                          >
-                            Retry
-                          </button>
-                        </div>
-                      )}
-
-                      {/* AI evaluation result */}
-                      {!isEvaluating && !evalError && ans.isCorrect !== null && explanation && (
-                        <>
-                          {/* Assessment badge */}
-                          <div className={`text-xs px-3 py-2 rounded-lg border flex items-center gap-2 ${
-                            ans.isCorrect === true
-                              ? "border-green-200 bg-green-50 text-green-700"
-                              : ans.isCorrect === false
-                              ? "border-red-200 bg-red-50 text-red-700"
-                              : "border-amber-200 bg-amber-50 text-amber-700"
-                          }`}>
-                            {ans.isCorrect === true ? (
-                              <CheckCircle2 size={14} />
-                            ) : ans.isCorrect === false ? (
-                              <XCircle size={14} />
-                            ) : (
-                              <AlertCircle size={14} />
-                            )}
-                            <span className="font-medium">
-                              {ans.isCorrect === true ? "Correct" : ans.isCorrect === false ? "Incorrect" : "Partially correct"}
-                            </span>
-                          </div>
-
-                          {/* Model answer */}
-                          {explanation.detailedExplanation && (
-                            <div className="text-xs px-3 py-2 rounded-lg border border-blue-200 bg-blue-50 text-blue-800">
-                              <span className="font-medium block mb-0.5">Model answer:</span>
-                              <span className="whitespace-pre-wrap break-words">
-                                {explanation.detailedExplanation}
-                              </span>
-                            </div>
-                          )}
-
-                          {/* Feedback */}
-                          {explanation.shortExplanation && (
-                            <div className="text-xs px-3 py-2 rounded-lg border border-purple-200 bg-purple-50 text-purple-800">
-                              <span className="font-medium block mb-0.5">Feedback:</span>
-                              <span className="whitespace-pre-wrap break-words">
-                                {explanation.shortExplanation}
-                              </span>
-                            </div>
-                          )}
-                        </>
-                      )}
-
-                      {/* Already evaluated (old flow with correctAnswer) - no AI needed */}
-                      {!isEvaluating && !evalError && !explanation && ans.isCorrect !== null && !needsAiReview(ans) && (
-                        <div className={`text-xs px-3 py-2 rounded-lg border flex items-start gap-2 ${
-                          ans.isCorrect === true
-                            ? "border-green-200 bg-green-50 text-green-700"
-                            : "border-red-200 bg-red-50 text-red-700"
-                        }`}>
-                          {ans.isCorrect === true ? (
-                            <span className="font-medium shrink-0">✓ Correct</span>
-                          ) : (
-                            <>
-                              <span className="font-medium shrink-0">✗ Correct answer:</span>
-                              <span className="whitespace-pre-wrap break-words">
-                                {ans.question.correctAnswer ? <MathContent text={ans.question.correctAnswer} /> : "Not available"}
-                              </span>
-                            </>
-                          )}
+                      {explanation.shortExplanation && (
+                        <div className="text-xs px-3 py-2 rounded-lg border border-purple-200 bg-purple-50 text-purple-800">
+                          <span className="font-medium block mb-0.5">Key takeaway:</span>
+                          <span className="whitespace-pre-wrap break-words">
+                            {explanation.shortExplanation}
+                          </span>
                         </div>
                       )}
                     </div>
-                  ) : (<>
-                    <div className="space-y-1">
-                      {ans.question.options.map((opt, idx) => {
-                        const isSelected = ans.selectedOption === opt;
-                        const isCorrectOpt = ans.question.correctAnswer === opt;
-                        return (
-                          <div
-                            key={idx}
-                            className={`text-xs px-3 py-1.5 rounded-lg border ${
-                              isCorrectOpt
-                                ? "border-green-300 bg-green-50 text-green-700"
-                                : isSelected
-                                ? "border-red-300 bg-red-50 text-red-700"
-                                : "border-zinc-200 text-zinc-600"
-                            }`}
-                          >
-                            <MathContent text={opt} />
-                            {isCorrectOpt && (
-                              <span className="ml-2 text-green-600 font-medium">
-                                ✓ Correct answer
-                              </span>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-
-                    {explanation && (
-                      <div className="mt-2 space-y-2">
-                        {explanation.detailedExplanation && (
-                          <div className="text-xs px-3 py-2 rounded-lg border border-blue-200 bg-blue-50 text-blue-800">
-                            <span className="font-medium block mb-0.5">Explanation:</span>
-                            <span className="whitespace-pre-wrap break-words">
-                              {explanation.detailedExplanation}
-                            </span>
-                          </div>
-                        )}
-                        {explanation.shortExplanation && (
-                          <div className="text-xs px-3 py-2 rounded-lg border border-purple-200 bg-purple-50 text-purple-800">
-                            <span className="font-medium block mb-0.5">Key takeaway:</span>
-                            <span className="whitespace-pre-wrap break-words">
-                              {explanation.shortExplanation}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </>)}
+                  )}
                 </div>
               </div>
             </Card>

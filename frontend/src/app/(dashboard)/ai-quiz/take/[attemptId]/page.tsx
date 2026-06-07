@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { isAnswerCorrect } from "@/lib/quizScoring";
+import { ContentRenderer } from "@/components/ui/ContentRenderer";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 
@@ -369,9 +370,9 @@ export default function TakeQuizPage() {
             )}
           </div>
 
-          <p className="text-sm sm:text-base lg:text-lg text-zinc-900 leading-relaxed mb-6 font-medium">
-            {questions[currentIndex].questionText}
-          </p>
+          <div className="text-sm sm:text-base lg:text-lg text-zinc-900 leading-relaxed mb-6 font-medium">
+            <ContentRenderer text={questions[currentIndex].questionText} />
+          </div>
 
           <div className="space-y-2.5 sm:space-y-3">
             {questions[currentIndex].options.map((option, oi) => {
@@ -387,7 +388,7 @@ export default function TakeQuizPage() {
                   }`}
                 >
                   <span className="font-medium mr-2">{String.fromCharCode(65 + oi)}.</span>
-                  <span className="text-xs sm:text-sm leading-snug">{option}</span>
+                  <span className="text-xs sm:text-sm leading-snug"><ContentRenderer text={option} /></span>
                 </button>
               );
             })}

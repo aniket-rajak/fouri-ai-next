@@ -412,18 +412,21 @@ function HistorySection() {
             placeholder="Search by subject or topic..."
             className="w-full h-10 pl-9 pr-4 rounded-xl border border-zinc-200 text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition-all" />
         </div>
-        <select value={sort} onChange={(e) => { setSort(e.target.value); setPage(1); }}
-          className="h-10 px-3 rounded-xl border border-zinc-200 text-sm text-zinc-600 bg-white focus:outline-none focus:border-blue-500 cursor-pointer w-full sm:w-auto">
-          <option value="newest">Newest</option>
-          <option value="oldest">Oldest</option>
-          <option value="score_desc">Score ↓</option>
-          <option value="score_asc">Score ↑</option>
-          <option value="difficulty">Difficulty</option>
-          <option value="subject_asc">Subject A-Z</option>
-          <option value="subject_desc">Subject Z-A</option>
-          <option value="topic_asc">Topic A-Z</option>
-          <option value="topic_desc">Topic Z-A</option>
-        </select>
+        <div className="relative w-full sm:w-auto">
+          <select value={sort} onChange={(e) => { setSort(e.target.value); setPage(1); }}
+            className="h-10 pl-3 pr-9 rounded-xl border border-zinc-200 text-sm text-zinc-600 bg-white focus:outline-none focus:border-blue-500 cursor-pointer appearance-none w-full sm:w-auto">
+            <option value="newest">Newest</option>
+            <option value="oldest">Oldest</option>
+            <option value="score_desc">Score ↓</option>
+            <option value="score_asc">Score ↑</option>
+            <option value="difficulty">Difficulty</option>
+            <option value="subject_asc">Subject A-Z</option>
+            <option value="subject_desc">Subject Z-A</option>
+            <option value="topic_asc">Topic A-Z</option>
+            <option value="topic_desc">Topic Z-A</option>
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+        </div>
       </div>
 
       {isLoading ? (

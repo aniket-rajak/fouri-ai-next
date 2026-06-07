@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { Bookmark } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { MathContent } from "@/components/ui/MathContent";
+import { ContentRenderer } from "@/components/ui/ContentRenderer";
 
 interface Question {
   id: string;
@@ -42,12 +41,6 @@ export function QuestionCard({
   onToggleMark,
 }: QuestionCardProps) {
   const options = normalizeOptions(question.options);
-  const [textValue, setTextValue] = useState(selectedOption || "");
-
-  // Sync local state when question changes or selectedOption updates from outside
-  useEffect(() => {
-    queueMicrotask(() => setTextValue(selectedOption || ""));
-  }, [question.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="space-y-6">
@@ -56,50 +49,39 @@ export function QuestionCard({
           Question {question.order}
         </span>
         <h2 className="text-lg font-medium text-zinc-900 leading-relaxed break-words">
-          <MathContent text={question.questionText} />
+          <ContentRenderer text={question.questionText} />
         </h2>
       </div>
 
       <div className="space-y-4">
-        {options.length === 0 ? (
-          <textarea
-            value={textValue}
-            onChange={(e) => setTextValue(e.target.value)}
-            onBlur={() => onSelect(question.id, textValue)}
-            placeholder="Type your answer here..."
-            rows={6}
-            className="w-full p-4 rounded-xl border-2 border-zinc-200 focus:border-zinc-900 focus:outline-none resize-y text-sm text-zinc-900 placeholder:text-zinc-400 transition-colors"
-          />
-        ) : (
-          options.map((option, i) => {
-            const label = String.fromCharCode(65 + i);
-            const isSelected = selectedOption === option;
-            return (
-              <button
-                key={option}
-                onClick={() => onSelect(question.id, option)}
+        {options.map((option, i) => {
+          const label = String.fromCharCode(65 + i);
+          const isSelected = selectedOption === option;
+          return (
+            <button
+              key={option}
+              onClick={() => onSelect(question.id, option)}
+              className={cn(
+                "w-full flex items-start gap-4 p-4 rounded-xl border-2 text-left transition-all cursor-pointer",
+                isSelected
+                  ? "border-zinc-900 bg-zinc-50"
+                  : "border-zinc-200 hover:border-zinc-300"
+              )}
+            >
+              <span
                 className={cn(
-                  "w-full flex items-start gap-4 p-4 rounded-xl border-2 text-left transition-all cursor-pointer",
+                  "flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium shrink-0",
                   isSelected
-                    ? "border-zinc-900 bg-zinc-50"
-                    : "border-zinc-200 hover:border-zinc-300"
+                    ? "bg-zinc-900 text-white"
+                    : "bg-zinc-100 text-zinc-600"
                 )}
               >
-                <span
-                  className={cn(
-                    "flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium shrink-0",
-                    isSelected
-                      ? "bg-zinc-900 text-white"
-                      : "bg-zinc-100 text-zinc-600"
-                  )}
-                >
-                  {label}
-                </span>
-                <span className="text-sm text-zinc-900 leading-relaxed whitespace-normal break-words"><MathContent text={option} /></span>
-              </button>
-            );
-          })
-        )}
+                {label}
+              </span>
+              <span className="text-sm text-zinc-900 leading-relaxed whitespace-normal break-words"><ContentRenderer text={option} /></span>
+            </button>
+          );
+        })}
       </div>
 
       {/* Mark for Review — full width bottom bar */}

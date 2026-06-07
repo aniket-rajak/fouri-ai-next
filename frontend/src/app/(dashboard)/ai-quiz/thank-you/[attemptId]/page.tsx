@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { isAnswerCorrect } from "@/lib/quizScoring";
+import { ContentRenderer } from "@/components/ui/ContentRenderer";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 
@@ -306,10 +307,10 @@ export default function ThankYouPage() {
                       </div>
                       <div className="flex-1 min-w-0">
                         {/* Question */}
-                        <p className="text-xs sm:text-sm font-medium text-zinc-900 mb-2 leading-relaxed">
+                        <div className="text-xs sm:text-sm font-medium text-zinc-900 mb-2 leading-relaxed">
                           <span className="text-[10px] sm:text-xs text-zinc-400 mr-1">Q{qi + 1}.</span>
-                          {q.questionText}
-                        </p>
+                          <ContentRenderer text={q.questionText} />
+                        </div>
 
                         {/* User's answer vs correct answer */}
                         <div className="space-y-1">
@@ -317,7 +318,7 @@ export default function ThankYouPage() {
                             <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs">
                               <span className="text-zinc-400">Your answer:</span>
                               <span className={`font-medium ${status === "correct" ? "text-green-700" : "text-red-600"}`}>
-                                {userAns}
+                                <ContentRenderer text={userAns} />
                               </span>
                               <span className={`inline-flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] font-semibold ${
                                 status === "correct"
@@ -334,7 +335,7 @@ export default function ThankYouPage() {
                           )}
                           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 text-[11px] sm:text-xs">
                             <span className="text-zinc-400">Correct answer:</span>
-                            <span className="font-medium text-green-700">{q.correctAnswer}</span>
+                            <span className="font-medium text-green-700"><ContentRenderer text={q.correctAnswer} /></span>
                             <span className="text-green-500">✓</span>
                           </div>
                         </div>
@@ -342,9 +343,9 @@ export default function ThankYouPage() {
                         {/* Explanation */}
                         {exp && (
                           <div className="mt-2 sm:mt-3 pt-2 sm:pt-3 border-t border-zinc-200 space-y-1.5 sm:space-y-2">
-                            <p className="text-[11px] sm:text-xs text-zinc-600 leading-relaxed">
-                              <span className="font-medium text-zinc-700">Explanation:</span> {exp.explanation}
-                            </p>
+                            <div className="text-[11px] sm:text-xs text-zinc-600 leading-relaxed">
+                              <span className="font-medium text-zinc-700">Explanation:</span> <ContentRenderer text={exp.explanation} />
+                            </div>
                             {exp.improvementSuggestion && (status === "incorrect" || status === "unanswered") && (
                               <p className="text-[11px] sm:text-xs text-blue-700 leading-relaxed bg-blue-50 px-2.5 sm:px-3 py-2 rounded-lg">
                                 <span className="font-medium">Tip:</span> {exp.improvementSuggestion}

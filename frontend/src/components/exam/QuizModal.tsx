@@ -28,6 +28,7 @@ import {
 import { toast } from "sonner";
 import Link from "next/link";
 import { isAnswerCorrect } from "@/lib/quizScoring";
+import { ContentRenderer } from "@/components/ui/ContentRenderer";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 
@@ -784,9 +785,9 @@ export default function QuizModal({ isOpen, onClose }: QuizModalProps) {
                       )}
                     </div>
 
-                    <p className="text-base sm:text-lg text-[#f5f5f7] leading-relaxed mb-6 font-medium">
-                      {questions[currentIndex].questionText}
-                    </p>
+                    <div className="text-base sm:text-lg text-[#f5f5f7] leading-relaxed mb-6 font-medium">
+                      <ContentRenderer text={questions[currentIndex].questionText} />
+                    </div>
 
                     <div className="space-y-3">
                       {questions[currentIndex].options.map((option, oi) => {
@@ -804,7 +805,7 @@ export default function QuizModal({ isOpen, onClose }: QuizModalProps) {
                             <span className="font-medium mr-2">
                               {String.fromCharCode(65 + oi)}.
                             </span>
-                            {option}
+                            <ContentRenderer text={option} />
                           </button>
                         );
                       })}
@@ -1071,12 +1072,12 @@ export default function QuizModal({ isOpen, onClose }: QuizModalProps) {
                                         )}
                                       </div>
                                       <div className="flex-1 min-w-0">
-                                        <p className="text-sm text-[#f5f5f7] mb-2 font-medium">
+                                        <div className="text-sm text-[#f5f5f7] mb-2 font-medium">
                                           <span className="text-xs text-[#555566] mr-1.5">
                                             Q{qi + 1}.
                                           </span>
-                                          {q.questionText}
-                                        </p>
+                                          <ContentRenderer text={q.questionText} />
+                                        </div>
                                         <div className="space-y-2">
                                           {status !== "unanswered" && (
                                             <div className="flex items-center gap-2 text-xs">
@@ -1086,7 +1087,7 @@ export default function QuizModal({ isOpen, onClose }: QuizModalProps) {
                                               <span
                                                 className={`font-medium ${status === "correct" ? "text-green-400" : "text-red-400"}`}
                                               >
-                                                {userAns}
+                                                <ContentRenderer text={userAns} />
                                               </span>
                                               <span
                                                 className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
@@ -1106,7 +1107,7 @@ export default function QuizModal({ isOpen, onClose }: QuizModalProps) {
                                               Correct answer:
                                             </span>
                                             <span className="font-medium text-green-400">
-                                              {q.correctAnswer}
+                                              <ContentRenderer text={q.correctAnswer} />
                                             </span>
                                             <span className="text-green-500">
                                               ✓
