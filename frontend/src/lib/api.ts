@@ -1,11 +1,6 @@
-import axios from "axios";
+import axios, { type InternalAxiosRequestConfig } from "axios";
 
-export const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api",
-  timeout: 300000,
-});
-
-api.interceptors.request.use((config) => {
+function authInterceptor(config: InternalAxiosRequestConfig) {
   if (typeof window !== "undefined") {
     const token = localStorage.getItem("firebaseToken");
     if (token) {
@@ -13,4 +8,17 @@ api.interceptors.request.use((config) => {
     }
   }
   return config;
+}
+
+export const api = axios.create({
+  baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api",
+  timeout: 10000,
 });
+
+export const authApi = axios.create({
+  baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api",
+  timeout: 15000,
+});
+
+api.interceptors.request.use(authInterceptor);
+authApi.interceptors.request.use(authInterceptor);

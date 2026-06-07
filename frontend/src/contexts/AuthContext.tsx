@@ -59,7 +59,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     setPersistence(auth, browserLocalPersistence);
 
+    const timeout = setTimeout(() => {
+      setLoading(false);
+    }, 8000);
+
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      clearTimeout(timeout);
       if (firebaseUser) {
         const loginTimestamp = localStorage.getItem(
           "fouri_login_timestamp"
@@ -84,7 +89,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(firebaseUser);
       setLoading(false);
     });
-    return unsubscribe;
+    return () => {
+      unsubscribe();
+      clearTimeout(timeout);
+    };
   }, []);
 
   return (

@@ -54,22 +54,35 @@ export function OwnerProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {
-    const res = await fetch(`${API}/owner/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
 
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      throw new Error((data as { error?: string }).error || "Login failed");
+    try {
+      const res = await fetch(`${API}/owner/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+        signal: controller.signal,
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error((data as { error?: string }).error || "Login failed");
+      }
+
+      const data = (await res.json()) as { token: string; email: string };
+      localStorage.setItem("fouri_owner_token", data.token);
+      localStorage.setItem("fouri_owner_email", data.email);
+      setToken(data.token);
+      setEmail(data.email);
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        throw new Error("Login timed out. Please check your connection and try again.");
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeout);
     }
-
-    const data = (await res.json()) as { token: string; email: string };
-    localStorage.setItem("fouri_owner_token", data.token);
-    localStorage.setItem("fouri_owner_email", data.email);
-    setToken(data.token);
-    setEmail(data.email);
   }, []);
 
   const logout = useCallback(() => {

@@ -3,7 +3,7 @@
 An AI-driven education platform where students upload question papers, AI analyzes them, generates mock tests automatically, and provides detailed performance analytics.
 
 **Production URL:** https://www.fouri.in  
-**Last Updated:** 2026-06-07 (Phase 44 — LightPillar Fix & URL Rewriting ✅)
+**Last Updated:** 2026-06-07 (Phase 45 — Favicon Update ✅)
 
 ---
 
@@ -1191,6 +1191,20 @@ Professional HTML email prompt with inline CSS, table-based CTA buttons, full em
 | `backend/src/routes/owner.ts` | Applied `resolveFileUrl(avatarUrl, req)` to `GET /api/owner/users` response |
 | `backend/src/routes/auth.ts` | Applied `resolveFileUrl(avatarUrl, req)` to `GET /api/auth/me` response |
 | `frontend/src/components/test/QuestionPalette.tsx` | Wrapped grid div in `max-h-[60vh] overflow-y-auto pr-0.5 -mr-0.5` for independent scrolling with legend visible |
+
+---
+
+### Phase 45 — Favicon Update ✅
+
+**Goal:** Replace SVG/ICO favicon files with a branded PNG favicon for better browser compatibility.
+
+| File | Change |
+|------|--------|
+| `frontend/public/fav-ai.png` | **NEW** — Branded PNG favicon image |
+| `frontend/src/app/layout.tsx` | Updated `icons` config — `icon` and `apple` both point to `/fav-ai.png` |
+| `frontend/public/favicon.ico` | Removed — replaced by PNG favicon |
+| `frontend/public/favicon.svg` | Removed — replaced by PNG favicon |
+| `frontend/public/apple-touch-icon.svg` | Removed — replaced by PNG favicon | |
 
 ---
 

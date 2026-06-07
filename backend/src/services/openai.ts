@@ -1,6 +1,43 @@
 import OpenAI from "openai";
 import { env } from "../config/env.js";
 
+function trackAiCall(
+  feature: string, model: string, tokensIn: number, tokensOut: number,
+  durationMs: number, success: boolean, userId?: string | null
+) {
+  import("../services/analyticsService.js").then((m) => {
+    m.trackAiUsage(feature, model, tokensIn, tokensOut, durationMs, success, userId || null).catch(() => {});
+  }).catch(() => {});
+}
+
+function getModelName(response: any): string {
+  return response?.model || "llama-3.1-8b-instant";
+}
+
+type CompletionFn<T> = (signal?: AbortSignal) => Promise<T>;
+
+async function trackedCompletion<T extends { usage?: { prompt_tokens?: number; completion_tokens?: number }; model?: string }>(
+  feature: string,
+  fn: CompletionFn<T>,
+  userId?: string | null
+): Promise<T> {
+  const start = Date.now();
+  let success = false;
+  let model = "unknown";
+  let tokensIn = 0;
+  let tokensOut = 0;
+  try {
+    const result = await fn();
+    success = true;
+    model = getModelName(result);
+    tokensIn = result.usage?.prompt_tokens || 0;
+    tokensOut = result.usage?.completion_tokens || 0;
+    return result;
+  } finally {
+    trackAiCall(feature, model, tokensIn, tokensOut, Date.now() - start, success, userId);
+  }
+}
+
 const client = new OpenAI({
   apiKey: env.groq.apiKey,
   baseURL: "https://api.groq.com/openai/v1",
@@ -256,7 +293,7 @@ function normalizeQuestion(q: Record<string, unknown>): ParsedQuestion {
 
 const CHUNK_RETRY_FALLBACK_PROMPT = `Extract questions from the text below. Return ONLY a valid JSON object with a "questions" array. Each question must have: question, options (array of strings, empty for subjective), correctAnswer (string), type ("MCQ" or "SUBJECTIVE"), difficulty ("EASY", "MEDIUM", or "HARD"). No markdown, no explanation, no code fences.`;
 
-async function analyzeChunk(text: string): Promise<ParsedQuestion[]> {
+async function analyzeChunk(text: string, userId?: string | null): Promise<ParsedQuestion[]> {
   const attempt = async (prompt: string, model: string, signal?: AbortSignal) => {
     const estimatedPromptTokens = Math.ceil((prompt.length + text.length) / 2);
     const maxTokens = Math.min(
@@ -269,18 +306,21 @@ async function analyzeChunk(text: string): Promise<ParsedQuestion[]> {
 
     const response = await callWithRetry(
       (s) =>
-        client.chat.completions.create(
-          {
-            model,
-            messages: [
-              { role: "system", content: prompt },
-              { role: "user", content: text },
-            ],
-            temperature: 0.1,
-            max_tokens: maxTokens,
-            response_format: { type: "json_object" },
-          },
-          s ? { signal: s } : undefined
+        trackedCompletion("mock_test_analysis", () =>
+          client.chat.completions.create(
+            {
+              model,
+              messages: [
+                { role: "system", content: prompt },
+                { role: "user", content: text },
+              ],
+              temperature: 0.1,
+              max_tokens: maxTokens,
+              response_format: { type: "json_object" },
+            },
+            s ? { signal: s } : undefined
+          ),
+          userId
         ),
       signal
     );
@@ -381,12 +421,13 @@ function dedupQuestions(questions: ParsedQuestion[]): ParsedQuestion[] {
 }
 
 export async function analyzeQuestions(
-  text: string
+  text: string,
+  userId?: string | null
 ): Promise<ParsedQuestion[]> {
   const chunks = chunkText(text);
 
   if (chunks.length <= 1) {
-    return shuffleArray(await analyzeChunk(chunks[0] || text));
+    return shuffleArray(await analyzeChunk(chunks[0] || text, userId));
   }
 
   console.log(`[Analyze] Splitting into ${chunks.length} chunks for AI processing`);
@@ -401,7 +442,7 @@ export async function analyzeQuestions(
       await delay(CHUNK_DELAY_MS);
     }
     console.log(`[Analyze] Processing chunk ${i + 1}/${chunks.length}...`);
-    const questions = await analyzeChunk(chunks[i]);
+    const questions = await analyzeChunk(chunks[i], userId);
     allQuestions.push(...questions);
   }
 
@@ -417,26 +458,31 @@ export async function analyzeQuestions(
 export async function generateExplanation(
   question: string,
   correctAnswer: string,
-  type: "short" | "detailed"
+  type: "short" | "detailed",
+  userId?: string | null
 ): Promise<string> {
   const prompt =
     type === "short"
       ? `Explain this answer briefly (2-3 sentences) in simple terms.\nQuestion: ${question}\nAnswer: ${correctAnswer}`
       : `Provide a detailed step-by-step explanation for this answer. Use simple language. Include the concept and reasoning.\nQuestion: ${question}\nAnswer: ${correctAnswer}`;
 
-  const response = await client.chat.completions.create({
-    model: "llama-3.1-8b-instant",
-    messages: [{ role: "user", content: prompt }],
-    temperature: 0.3,
-    max_tokens: type === "short" ? 200 : 800,
-  });
+  const response = await trackedCompletion("explanation", () =>
+    client.chat.completions.create({
+      model: "llama-3.1-8b-instant",
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.3,
+      max_tokens: type === "short" ? 200 : 800,
+    }),
+    userId
+  );
 
   return response.choices[0]?.message?.content || "";
 }
 
 export async function generateEmailContent(
   instructions: string,
-  tone: string
+  tone: string,
+  userId?: string | null
 ): Promise<{ subject: string; body: string; ctaText: string }> {
   const prompt = `You are an expert email copywriter for a SaaS platform called FOURI. Write a professional, modern HTML email based on these instructions.
 
@@ -483,15 +529,18 @@ FORMATTING REQUIREMENTS FOR body:
   try {
     const response = await callWithRetry(
       (s) =>
-        client.chat.completions.create(
-          {
-            model: "llama-3.1-8b-instant",
-            messages: [{ role: "user", content: prompt }],
-            temperature: 0.7,
-            max_tokens: 4000,
-            response_format: { type: "json_object" },
-          },
-          s ? { signal: s } : undefined
+        trackedCompletion("email_gen", () =>
+          client.chat.completions.create(
+            {
+              model: "llama-3.1-8b-instant",
+              messages: [{ role: "user", content: prompt }],
+              temperature: 0.7,
+              max_tokens: 4000,
+              response_format: { type: "json_object" },
+            },
+            s ? { signal: s } : undefined
+          ),
+          userId
         ),
     );
 
@@ -565,7 +614,8 @@ export interface GeneratedBlog {
 }
 
 export async function generateBlogContent(
-  instructions: string
+  instructions: string,
+  userId?: string | null
 ): Promise<GeneratedBlog> {
   const prompt = `You are an expert blog writer for a SaaS platform called FOURI.IN — an AI-powered mock test platform for students preparing for competitive exams like JEE, NEET, WBJEE, and CUET.
 
@@ -599,13 +649,16 @@ FORMATTING RULES FOR content:
 - Include practical tips and actionable advice`;
 
   const response = await callWithRetry(() =>
-    client.chat.completions.create({
-      model: "llama-3.1-8b-instant",
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.7,
-      max_tokens: 4000,
-      response_format: { type: "json_object" },
-    })
+    trackedCompletion("blog_gen", () =>
+      client.chat.completions.create({
+        model: "llama-3.1-8b-instant",
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.7,
+        max_tokens: 4000,
+        response_format: { type: "json_object" },
+      }),
+      userId
+    )
   );
 
   const content = response.choices[0]?.message?.content;
@@ -637,7 +690,8 @@ export interface GeneratedAd {
 }
 
 export async function generateAdContent(
-  instructions: string
+  instructions: string,
+  userId?: string | null
 ): Promise<GeneratedAd> {
   const prompt = `You are an expert ad copywriter for FOURI.IN — an AI-powered mock test platform for students preparing for competitive exams like JEE, NEET, WBJEE, and CUET.
 
@@ -659,13 +713,16 @@ Rules:
 - Make it specific to the given instructions`;
 
   const response = await callWithRetry(() =>
-    client.chat.completions.create({
-      model: "llama-3.1-8b-instant",
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.7,
-      max_tokens: 1000,
-      response_format: { type: "json_object" },
-    })
+    trackedCompletion("ad_gen", () =>
+      client.chat.completions.create({
+        model: "llama-3.1-8b-instant",
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.7,
+        max_tokens: 1000,
+        response_format: { type: "json_object" },
+      }),
+      userId
+    )
   );
 
   const content = response.choices[0]?.message?.content;
@@ -690,7 +747,8 @@ Rules:
 
 export async function evaluateSubjectiveWithAI(
   questionText: string,
-  userAnswer: string | null | undefined
+  userAnswer: string | null | undefined,
+  userId?: string | null
 ): Promise<SubjectiveEvaluation> {
   const answerText = userAnswer?.trim() || "(No answer provided)";
 
@@ -718,13 +776,16 @@ Rules:
 - If the student didn't answer, mark as false with appropriate feedback`;
 
   const response = await callWithRetry(() =>
-    client.chat.completions.create({
-      model: "llama-3.1-8b-instant",
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.2,
-      max_tokens: 1000,
-      response_format: { type: "json_object" },
-    })
+    trackedCompletion("subjective_eval", () =>
+      client.chat.completions.create({
+        model: "llama-3.1-8b-instant",
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.2,
+        max_tokens: 1000,
+        response_format: { type: "json_object" },
+      }),
+      userId
+    )
   );
 
   const content = response.choices[0]?.message?.content;
@@ -750,7 +811,8 @@ export async function generateExplanationForMCQ(
   questionText: string,
   options: string[],
   correctAnswer: string,
-  userAnswer: string | null | undefined
+  userAnswer: string | null | undefined,
+  userId?: string | null
 ): Promise<MCQExplanation> {
   const userChoice = userAnswer?.trim() || "(Not answered)";
 
@@ -773,13 +835,16 @@ Respond with valid JSON only — no markdown, no code fences:
 }`;
 
   const response = await callWithRetry(() =>
-    client.chat.completions.create({
-      model: "llama-3.1-8b-instant",
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.2,
-      max_tokens: 800,
-      response_format: { type: "json_object" },
-    })
+    trackedCompletion("mcq_explanation", () =>
+      client.chat.completions.create({
+        model: "llama-3.1-8b-instant",
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.2,
+        max_tokens: 800,
+        response_format: { type: "json_object" },
+      }),
+      userId
+    )
   );
 
   const content = response.choices[0]?.message?.content;
@@ -817,7 +882,7 @@ export interface QuizResult {
   totalTokens: number;
 }
 
-export async function generateQuiz(subject: string, topic: string, difficulty: 'EASY' | 'MEDIUM' | 'HARD' = 'MEDIUM'): Promise<QuizResult> {
+export async function generateQuiz(subject: string, topic: string, difficulty: 'EASY' | 'MEDIUM' | 'HARD' = 'MEDIUM', userId?: string | null): Promise<QuizResult> {
   const difficultyDescriptions: Record<string, string> = {
     EASY: 'Basic recall and fundamental concept questions. Test simple definitions, formulas, and direct applications. Suitable for beginners.',
     MEDIUM: 'Application-level questions requiring understanding of concepts. Includes multi-step problems and moderate analysis. Suitable for intermediate learners.',
@@ -858,13 +923,16 @@ Example:
 }`;
 
   const response = await callWithRetry(() =>
-    client.chat.completions.create({
-      model: "llama-3.1-8b-instant",
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.3,
-      max_tokens: DIFFICULTY_MAX_TOKENS[difficulty] || 3500,
-      response_format: { type: "json_object" },
-    })
+    trackedCompletion("quiz_generation", () =>
+      client.chat.completions.create({
+        model: "llama-3.1-8b-instant",
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.3,
+        max_tokens: DIFFICULTY_MAX_TOKENS[difficulty] || 3500,
+        response_format: { type: "json_object" },
+      }),
+      userId
+    )
   );
 
   const content = response.choices[0]?.message?.content;
@@ -963,16 +1031,17 @@ export interface AnalysisReport {
   questionInsights: { questionId: string; insight: string }[];
 }
 
-export async function generateAnalysisReport(input: AnalysisInput): Promise<AnalysisReport> {
+export async function generateAnalysisReport(input: AnalysisInput, userId?: string | null): Promise<AnalysisReport> {
   const prompt = buildAnalysisPrompt(input);
 
   const response = await Promise.race([
-    client.chat.completions.create({
-      model: "llama-3.3-70b-versatile",
-      messages: [
-        {
-          role: "system",
-          content: `You are an AI test performance analyst. Analyze the student's test performance and provide a structured report.
+    trackedCompletion("analysis_report", () =>
+      client.chat.completions.create({
+        model: "llama-3.3-70b-versatile",
+        messages: [
+          {
+            role: "system",
+            content: `You are an AI test performance analyst. Analyze the student's test performance and provide a structured report.
 Return ONLY valid JSON with no markdown formatting. The JSON must match the specified schema exactly.
 
 Schema:
@@ -991,13 +1060,15 @@ Schema:
 }
 
 Accuracy is a percentage 0-100. If no user answers provided, set strengths/weaknesses to empty arrays and difficultyBreakdown accuracies to 0.`,
-        },
-        { role: "user", content: prompt },
-      ],
-      temperature: 0.3,
-      max_tokens: 4096,
-      response_format: { type: "json_object" },
-    }),
+          },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.3,
+        max_tokens: 4096,
+        response_format: { type: "json_object" },
+      }),
+      userId
+    ),
     new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error("Analysis generation timeout")), 180000)
     ),

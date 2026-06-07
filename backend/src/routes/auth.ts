@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { prisma, withRetry } from "../lib/prisma.js";
+import { prisma } from "../lib/prisma.js";
 import { authenticate } from "../middleware/auth.js";
 import { resolveFileUrl } from "../lib/resolveFileUrl.js";
 
@@ -9,17 +9,15 @@ router.post("/sync", authenticate, async (req, res) => {
   try {
     const { uid, email, name } = req.user!;
 
-    const user = await withRetry(() =>
-      prisma.user.upsert({
-        where: { firebaseUid: uid },
-        update: { email, name },
-        create: {
-          firebaseUid: uid,
-          email: email || "",
-          name: name || email?.split("@")[0] || "User",
-        },
-      }),
-    );
+    const user = await prisma.user.upsert({
+      where: { firebaseUid: uid },
+      update: { email, name },
+      create: {
+        firebaseUid: uid,
+        email: email || "",
+        name: name || email?.split("@")[0] || "User",
+      },
+    });
 
     res.json({ user });
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

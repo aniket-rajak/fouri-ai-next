@@ -36,12 +36,24 @@ export default function LoginPage() {
       toast.success("Logged in successfully");
       router.push("/dashboard");
     } catch (error: unknown) {
-      if (error instanceof Error && "response" in error) {
-        const axiosErr = error as { response?: { data?: { error?: string } } };
-        toast.error(axiosErr.response?.data?.error || error.message);
+      if (error instanceof Error) {
+        const msg = error.message;
+        if (msg.includes("auth/user-not-found") || msg.includes("auth/wrong-password") || msg.includes("auth/invalid-credential")) {
+          toast.error("Invalid email or password");
+        } else if (msg.includes("auth/too-many-requests")) {
+          toast.error("Too many attempts. Please try again later.");
+        } else if (msg.includes("auth/network-request-failed")) {
+          toast.error("Network error. Please check your connection.");
+        } else if ("response" in error) {
+          const axiosErr = error as { response?: { data?: { error?: string } } };
+          toast.error(axiosErr.response?.data?.error || msg);
+        } else if (msg.includes("timeout") || msg.includes("TIMEOUT")) {
+          toast.error("Login timed out. Please check your connection and try again.");
+        } else {
+          toast.error(msg);
+        }
       } else {
-        const msg = error instanceof Error ? error.message : "Invalid email or password";
-        toast.error(msg);
+        toast.error("Invalid email or password");
       }
     }
   };

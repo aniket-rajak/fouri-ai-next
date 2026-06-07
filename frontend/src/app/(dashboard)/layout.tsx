@@ -54,11 +54,12 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const impressionTracked = useRef<Set<string>>(new Set());
 
   useEffect(() => {
+    if (!user) return;
     fetch(`${API}/ads/active`)
       .then((r) => r.json())
       .then((data: { ads: Ad[] }) => setAds(data.ads || []))
       .catch(() => {});
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     if (!loading && !user) {

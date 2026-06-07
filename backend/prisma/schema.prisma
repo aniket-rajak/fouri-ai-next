@@ -19,6 +19,9 @@ model User {
   dailyCredits  Int           @default(100)
   lastResetDate DateTime      @default(now())
   usedCredits   Int           @default(0)
+  lastActiveAt  DateTime?
+  lastLoginIp   String?
+  lastUserAgent String?
   achievements  Achievement[]
   bookmarks     Bookmark[]
   testAttempts  TestAttempt[]
@@ -203,10 +206,59 @@ model AnalyticsEvent {
   eventType String
   userId    String?
   metadata  Json?
+  ip        String?
+  userAgent String?
   createdAt DateTime @default(now())
 
-  @@index([eventType])
+  @@index([eventType, createdAt])
+  @@index([userId])
   @@index([createdAt])
+}
+
+model AiUsageLog {
+  id         String   @id @default(uuid())
+  feature    String
+  model      String
+  tokensIn   Int      @default(0)
+  tokensOut  Int      @default(0)
+  durationMs Int      @default(0)
+  success    Boolean  @default(true)
+  userId     String?
+  createdAt  DateTime @default(now())
+
+  @@index([feature, createdAt])
+  @@index([createdAt])
+}
+
+model BlogView {
+  id        String   @id @default(uuid())
+  blogId    String
+  userId    String?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([blogId])
+  @@index([createdAt])
+}
+
+model DailyStats {
+  id              String   @id @default(uuid())
+  date            DateTime @unique
+  activeUsers     Int      @default(0)
+  newUsers        Int      @default(0)
+  totalVisitors   Int      @default(0)
+  uploads         Int      @default(0)
+  testAttempts    Int      @default(0)
+  aiCalls         Int      @default(0)
+  aiTokensIn      Int      @default(0)
+  aiTokensOut     Int      @default(0)
+  quizAttempts    Int      @default(0)
+  blogViews       Int      @default(0)
+  searches        Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([date])
 }
 
 model QuizAttempt {
@@ -365,20 +417,23 @@ model BlogTagOnBlog {
 }
 
 model Blog {
-  id           String               @id @default(uuid())
-  title        String
-  slug         String               @unique
-  excerpt      String?
-  content      String
-  thumbnailUrl String?
-  authorName   String?
-  status       String               @default("DRAFT")
-  scheduledAt  DateTime?
-  publishedAt  DateTime?
-  createdAt    DateTime             @default(now())
-  updatedAt    DateTime             @updatedAt
-  categories   BlogCategoryOnBlog[]
-  tags         BlogTagOnBlog[]
+  id               String               @id @default(uuid())
+  title            String
+  slug             String               @unique
+  excerpt          String?
+  content          String
+  thumbnailUrl     String?
+  authorName       String?
+  status           String               @default("DRAFT")
+  scheduledAt      DateTime?
+  publishedAt      DateTime?
+  viewCount        Int                  @default(0)
+  positiveFeedback Int                  @default(0)
+  negativeFeedback Int                  @default(0)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  categories       BlogCategoryOnBlog[]
+  tags             BlogTagOnBlog[]
 
   @@index([status, publishedAt])
   @@index([slug])

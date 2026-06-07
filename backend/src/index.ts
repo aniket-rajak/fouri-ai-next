@@ -108,6 +108,9 @@ app.use("/api/owner/blog", ownerLimiter, ownerAuth, ownerBlogRoutes);
 import creditRoutes from "./routes/credits.js";
 app.use("/api/credits", standardLimiter, creditRoutes);
 
+import analyticsRoutes from "./routes/analytics.js";
+app.use("/api/owner/analytics", ownerLimiter, analyticsRoutes);
+
 import historyRoutes from "./routes/history.js";
 app.use("/api/users/history", standardLimiter, historyRoutes);
 
@@ -133,6 +136,7 @@ app.get("/", (_req, res) => {
 });
 
 import { prisma } from "./lib/prisma.js";
+import * as realtimeService from "./services/realtimeService.js";
 
 async function waitForDatabase(maxRetries = 10): Promise<void> {
   for (let i = 1; i <= maxRetries; i++) {
@@ -182,6 +186,9 @@ waitForDatabase().then(() => {
   app.listen(port, () => {
     console.log(`Server running on port ${port}`);
   });
+  setInterval(() => {
+    realtimeService.cleanupStaleEntries();
+  }, 30_000);
 });
 
 export default app;

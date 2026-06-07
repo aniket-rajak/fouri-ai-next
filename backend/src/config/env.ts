@@ -22,6 +22,10 @@ export const env = {
     channelId: process.env.TELEGRAM_CHANNEL_ID || "",
   },
   sentryDsn: process.env.SENTRY_DSN || "",
+  ai: {
+    dailyLimit8b: parseInt(process.env.AI_DAILY_LIMIT_8B || "14400"),
+    dailyLimit70b: parseInt(process.env.AI_DAILY_LIMIT_70B || "1000"),
+  },
   owner: {
     email: process.env.OWNER_EMAIL || "",
     password: process.env.OWNER_PASSWORD || "",
