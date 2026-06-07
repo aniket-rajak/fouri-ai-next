@@ -31,7 +31,7 @@ export default function EmailBroadcastPage() {
   const [campaignTotalPages, setCampaignTotalPages] = useState(1);
   const campaignCache = useRef<Map<number, any[]>>(new Map());
   const campaignCacheTime = useRef(0);
-  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [filterSearch, setFilterSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [filterDateFrom, setFilterDateFrom] = useState("");
