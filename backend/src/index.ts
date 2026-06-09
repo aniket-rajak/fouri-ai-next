@@ -109,7 +109,7 @@ import creditRoutes from "./routes/credits.js";
 app.use("/api/credits", standardLimiter, creditRoutes);
 
 import analyticsRoutes from "./routes/analytics.js";
-app.use("/api/owner/analytics", ownerLimiter, analyticsRoutes);
+app.use("/api/owner/analytics", analyticsRoutes);
 
 import historyRoutes from "./routes/history.js";
 app.use("/api/users/history", standardLimiter, historyRoutes);

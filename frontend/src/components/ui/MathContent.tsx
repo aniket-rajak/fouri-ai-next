@@ -3,6 +3,52 @@
 import "katex/dist/katex.min.css";
 import { InlineMath, BlockMath } from "react-katex";
 
+function normalizeMathNotation(text: string): string {
+  if (/\$/.test(text)) return text;
+
+  const unicodeToLatex: Record<string, string> = {
+    'π': '\\pi', 'θ': '\\theta', 'α': '\\alpha', 'β': '\\beta',
+    'γ': '\\gamma', 'δ': '\\delta', 'ε': '\\epsilon', 'ζ': '\\zeta',
+    'η': '\\eta', 'ϕ': '\\phi', 'φ': '\\phi', 'χ': '\\chi',
+    'ψ': '\\psi', 'ω': '\\omega', 'Ω': '\\Omega', 'Δ': '\\Delta',
+    'Σ': '\\Sigma', 'σ': '\\sigma', 'μ': '\\mu', 'λ': '\\lambda',
+    'τ': '\\tau', '∫': '\\int', '∑': '\\sum', '∏': '\\prod',
+    '∞': '\\infty', '≠': '\\neq', '≤': '\\leq', '≥': '\\geq',
+    '≈': '\\approx', '±': '\\pm', '×': '\\times', '÷': '\\div',
+    '∩': '\\cap', '∪': '\\cup', '⊂': '\\subset', '⊃': '\\supset',
+    '∈': '\\in', '∅': '\\emptyset', '∀': '\\forall', '∃': '\\exists',
+    '→': '\\rightarrow', '←': '\\leftarrow', '↔': '\\leftrightarrow',
+    '∂': '\\partial', '∇': '\\nabla', '·': '\\cdot', '∘': '\\circ',
+    '∠': '\\angle', '⊥': '\\perp', '∥': '\\parallel',
+    '∝': '\\propto', '∧': '\\wedge', '∨': '\\vee',
+    '⊕': '\\oplus', '⊗': '\\otimes', '∴': '\\therefore',
+    '∵': '\\because', '∼': '\\sim', '≅': '\\cong',
+    '≡': '\\equiv', '≪': '\\ll', '≫': '\\gg',
+    '²': '^2', '³': '^3', '¹': '^1',
+  };
+
+  const hasUnicodeMath = /[πθαβγδεζηϕφχψωΩΔΣσμλτ∏∫∑√∞≠≤≥≈±×÷∩∪⊂⊃∈∅∀∃→←↔∂∇⋅∘∠⊥∥°∝∧∨⊕⊗∴∵∼≅≡≪≫²³¹]/.test(text);
+  const hasPowerOp = /[a-zA-Z0-9)\]}]?\^\{?\d+\}?/.test(text);
+  const hasSubscript = /[A-Za-z]+_\d+/.test(text);
+  const hasRawLatex = /\\(frac|sqrt|int|sum|prod|lim|sin|cos|tan|log|ln|pi|theta|alpha|beta|gamma|sigma|mu|lambda|omega|delta|partial|infty|times|div|cdot|neq|leq|geq|approx|pm|rightarrow|forall|exists|subset|supset|cup|cap|in|emptyset|circ|perp|parallel|propto|wedge|vee|oplus|otimes)/.test(text);
+
+  if (!hasUnicodeMath && !hasPowerOp && !hasSubscript && !hasRawLatex) return text;
+
+  let result = text;
+  for (const [unicode, latex] of Object.entries(unicodeToLatex)) {
+    result = result.split(unicode).join(latex);
+  }
+
+  const longEnglishWords = result.split(/\s+/).filter(w => /^[a-zA-Z]{4,}$/.test(w));
+  const isMathExpression = longEnglishWords.length === 0 || result.length < 50;
+
+  if (isMathExpression) {
+    return `$${result.trim()}$`;
+  }
+
+  return result;
+}
+
 interface Segment {
   type: "text" | "math";
   content: string;
@@ -39,7 +85,8 @@ interface MathContentProps {
 }
 
 export function MathContent({ text }: MathContentProps) {
-  const segments = parseLatexDelimiters(text);
+  const normalized = normalizeMathNotation(text);
+  const segments = parseLatexDelimiters(normalized);
 
   return (
     <span className="math-content">

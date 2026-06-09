@@ -700,7 +700,7 @@ async function generateAnalysisInBackground(testId: string, userId: string, repo
     const totalCounts = new Map<string, number>();
     for (const ans of allAnswers) {
       totalCounts.set(ans.questionId, (totalCounts.get(ans.questionId) || 0) + 1);
-      if (ans.isCorrect === false) {
+      if (ans.isCorrect !== true) {
         incorrectCounts.set(ans.questionId, (incorrectCounts.get(ans.questionId) || 0) + 1);
       }
     }

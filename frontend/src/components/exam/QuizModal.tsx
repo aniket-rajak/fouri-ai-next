@@ -24,6 +24,7 @@ import {
   ChevronDown,
   Lightbulb,
   Star,
+  RotateCcw,
 } from "lucide-react";
 import { toast } from "sonner";
 import Link from "next/link";
@@ -61,6 +62,7 @@ type QuizState =
   | "estimating"
   | "confirm"
   | "generating"
+  | "failed"
   | "quiz_active"
   | "submitting"
   | "results";
@@ -130,6 +132,12 @@ export default function QuizModal({ isOpen, onClose }: QuizModalProps) {
     { value: "QUESTION_DIFFICULTY", label: "Question Difficulty" },
     { value: "EXPLANATION_QUALITY", label: "Explanation Quality" },
   ];
+
+  // Generation error state
+  const [generationError, setGenerationError] = useState<string | null>(null);
+  const [longWait, setLongWait] = useState(false);
+  const generateAbortRef = useRef<AbortController | null>(null);
+  const longWaitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Credit estimation state
   const [estimatedCredits, setEstimatedCredits] = useState<number>(0);
@@ -237,9 +245,14 @@ export default function QuizModal({ isOpen, onClose }: QuizModalProps) {
 
   const handleGenerate = async () => {
     setState("generating");
+    setGenerationError(null);
+    setLongWait(false);
     setProgress(0);
     progressRef.current = 0;
     setGenerationMessage("Initializing quiz generator...");
+
+    if (longWaitTimerRef.current) clearTimeout(longWaitTimerRef.current);
+    longWaitTimerRef.current = setTimeout(() => setLongWait(true), 15000);
 
     // Start smooth progress animation
     progressAnimRef.current = setInterval(() => {
@@ -258,6 +271,13 @@ export default function QuizModal({ isOpen, onClose }: QuizModalProps) {
       }
     }, 350);
 
+    if (generateAbortRef.current) generateAbortRef.current.abort();
+    const abortController = new AbortController();
+    generateAbortRef.current = abortController;
+
+    // Client-side timeout: 35 seconds
+    const timeoutId = setTimeout(() => abortController.abort(), 120000);
+
     try {
       const token = getFirebaseToken();
       const guestId = getGuestId();
@@ -275,9 +295,12 @@ export default function QuizModal({ isOpen, onClose }: QuizModalProps) {
           difficulty,
           guestId: token ? undefined : guestId,
         }),
+        signal: abortController.signal,
       });
       const data = await res.json();
 
+      clearTimeout(timeoutId);
+      if (longWaitTimerRef.current) clearTimeout(longWaitTimerRef.current);
       if (progressAnimRef.current) clearInterval(progressAnimRef.current);
 
       if (res.status === 402) {
@@ -317,12 +340,18 @@ export default function QuizModal({ isOpen, onClose }: QuizModalProps) {
       setTimeLeft(600);
       setState("quiz_active");
     } catch (err) {
+      clearTimeout(timeoutId);
+      if (longWaitTimerRef.current) clearTimeout(longWaitTimerRef.current);
       if (progressAnimRef.current) clearInterval(progressAnimRef.current);
-      toast.error("Generation failed", {
-        description:
-          err instanceof Error ? err.message : "Something went wrong",
-      });
-      setState("idle");
+
+      let message = "Quiz generation failed. Please try again.";
+      if ((err as any)?.name === "AbortError") {
+        message = "Quiz generation took too long. Please try again.";
+      } else if (err instanceof Error) {
+        message = err.message;
+      }
+      setGenerationError(message);
+      setState("failed");
     }
   };
 
@@ -497,6 +526,14 @@ export default function QuizModal({ isOpen, onClose }: QuizModalProps) {
                     </p>
                   </div>
 
+                  <div className="mb-6 p-4 rounded-xl bg-blue-500/10 border border-blue-500/20">
+                    <p className="text-sm leading-relaxed text-blue-200">
+                      FOURI AI creates a mock test based on your selected Subject, Topic, and Difficulty Level.
+                      Please enter accurate Subject and Topic names with correct spelling to ensure the most
+                      relevant and high-quality quiz.
+                    </p>
+                  </div>
+
                   <div className="space-y-4">
                     <div>
                       <label className="block text-xs text-[#888899] mb-1.5 font-medium">
@@ -668,8 +705,10 @@ export default function QuizModal({ isOpen, onClose }: QuizModalProps) {
                     <button
                       onClick={handleGenerate}
                       disabled={
-                        userCredits !== null &&
-                        userCredits - estimatedCredits < 0
+                        (userCredits !== null &&
+                          userCredits - estimatedCredits < 0) ||
+                        (guestQuotaRemaining !== null &&
+                          guestQuotaRemaining <= 0)
                       }
                       className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-[#3D81E3] to-[#00D2FF] hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer"
                     >
@@ -737,11 +776,44 @@ export default function QuizModal({ isOpen, onClose }: QuizModalProps) {
                         className="h-full bg-gradient-to-r from-[#3D81E3] to-[#00D2FF] rounded-full"
                       />
                     </div>
-                    <p className="text-xs text-[#555566] mt-4">
-                      {progress < 100
-                        ? "Please wait while AI generates your quiz..."
-                        : "Opening your quiz..."}
-                    </p>
+                    {longWait && progress < 95 ? (
+                      <p className="text-xs text-amber-400 mt-4">
+                        This is taking longer than usual. Please wait &mdash; we&rsquo;re still working on it.
+                      </p>
+                    ) : (
+                      <p className="text-xs text-[#555566] mt-4">
+                        {progress < 100
+                          ? "Please wait while AI generates your quiz..."
+                          : "Opening your quiz..."}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* ═══ FAILED STATE ═══ */}
+              {state === "failed" && (
+                <div className="p-10 sm:p-14 text-center">
+                  <div className="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto mb-6">
+                    <XCircle className="w-8 h-8 text-red-400" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-[#f5f5f7] mb-2">Generation Failed</h3>
+                  <p className="text-sm text-[#888899] mb-6 max-w-sm mx-auto">
+                    {generationError || "Failed to generate quiz. Please try again."}
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                    <button
+                      onClick={() => setState("idle")}
+                      className="px-6 h-11 rounded-xl text-sm font-medium text-[#888899] border border-white/[0.06] hover:bg-white/[0.04] transition-all cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleGenerate}
+                      className="px-6 flex items-center justify-center gap-2 h-11 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-[#3D81E3] to-[#00D2FF] hover:opacity-90 transition-all cursor-pointer"
+                    >
+                      <RotateCcw className="w-4 h-4" /> Try Again
+                    </button>
                   </div>
                 </div>
               )}

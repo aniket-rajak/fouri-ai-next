@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAnalyticsTracker } from "@/hooks/useAnalyticsTracker";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 
@@ -54,11 +55,15 @@ const difficultyLevels = [
 
 function QuizForm({ onGenerated }: { onGenerated: (attemptId: string) => void }) {
   const { user } = useAuth();
+  const { trackFeature } = useAnalyticsTracker(user?.uid);
   const [subject, setSubject] = useState("");
   const [topic, setTopic] = useState("");
   const [difficulty, setDifficulty] = useState<"EASY" | "MEDIUM" | "HARD">("MEDIUM");
   const [estimating, setEstimating] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [generationError, setGenerationError] = useState<string | null>(null);
+  const [longWait, setLongWait] = useState(false);
+  const estimateAbortRef = useRef<AbortController | null>(null);
   const [estimate, setEstimate] = useState<{
     estimatedCredits: number;
     userCredits: number | null;
@@ -71,10 +76,14 @@ function QuizForm({ onGenerated }: { onGenerated: (attemptId: string) => void })
   const [progress, setProgress] = useState(0);
   const progressRef = useRef(0);
   const progressAnimRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const longWaitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const generateAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     return () => {
       if (progressAnimRef.current) clearInterval(progressAnimRef.current);
+      if (longWaitTimerRef.current) clearTimeout(longWaitTimerRef.current);
+      if (generateAbortRef.current) generateAbortRef.current.abort();
     };
   }, []);
 
@@ -105,6 +114,9 @@ function QuizForm({ onGenerated }: { onGenerated: (attemptId: string) => void })
 
       setEstimate(data);
       setShowConfirm(true);
+      if (data.guestQuotaRemaining !== null && data.guestQuotaRemaining <= 0) {
+        trackFeature("daily_limit_estimated", { subject, topic, difficulty });
+      }
     } catch (err) {
       toast.error("Estimation failed", {
         description: err instanceof Error ? err.message : "Something went wrong",
@@ -116,9 +128,14 @@ function QuizForm({ onGenerated }: { onGenerated: (attemptId: string) => void })
 
   const handleGenerate = async () => {
     setGenerating(true);
+    setGenerationError(null);
+    setLongWait(false);
     setShowConfirm(false);
     setProgress(0);
     progressRef.current = 0;
+
+    if (longWaitTimerRef.current) clearTimeout(longWaitTimerRef.current);
+    longWaitTimerRef.current = setTimeout(() => setLongWait(true), 15000);
 
     // Start smooth progress animation
     progressAnimRef.current = setInterval(() => {
@@ -130,6 +147,13 @@ function QuizForm({ onGenerated }: { onGenerated: (attemptId: string) => void })
         setProgress(next);
       }
     }, 350);
+
+    if (generateAbortRef.current) generateAbortRef.current.abort();
+    const abortController = new AbortController();
+    generateAbortRef.current = abortController;
+
+    // Client-side timeout: 35 seconds
+    const timeoutId = setTimeout(() => abortController.abort(), 120000);
 
     try {
       const token = user ? localStorage.getItem("firebaseToken") : null;
@@ -146,9 +170,12 @@ function QuizForm({ onGenerated }: { onGenerated: (attemptId: string) => void })
           difficulty,
           guestId: token ? undefined : guestId,
         }),
+        signal: abortController.signal,
       });
       const data = await res.json();
 
+      clearTimeout(timeoutId);
+      if (longWaitTimerRef.current) clearTimeout(longWaitTimerRef.current);
       if (progressAnimRef.current) clearInterval(progressAnimRef.current);
 
       if (res.status === 402) {
@@ -157,6 +184,7 @@ function QuizForm({ onGenerated }: { onGenerated: (attemptId: string) => void })
         return;
       }
       if (res.status === 429) {
+        trackFeature("daily_limit_blocked", { subject, topic, difficulty });
         toast.error("Daily limit reached", { description: data.error });
         setGenerating(false);
         return;
@@ -167,28 +195,59 @@ function QuizForm({ onGenerated }: { onGenerated: (attemptId: string) => void })
       progressRef.current = 100;
       setProgress(100);
 
+      trackFeature("ai_quiz_generator", { subject, difficulty });
+
       // Brief pause then redirect
       await new Promise(r => setTimeout(r, 600));
       onGenerated(data.attemptId);
     } catch (err) {
+      clearTimeout(timeoutId);
+      if (longWaitTimerRef.current) clearTimeout(longWaitTimerRef.current);
       if (progressAnimRef.current) clearInterval(progressAnimRef.current);
-      toast.error("Generation failed", {
-        description: err instanceof Error ? err.message : "Something went wrong",
-      });
+
+      let message = "Quiz generation failed. Please try again.";
+      if ((err as any)?.name === "AbortError") {
+        message = "Quiz generation took too long. Please try again.";
+      } else if (err instanceof Error) {
+        message = err.message;
+      }
+      setGenerationError(message);
       setGenerating(false);
     }
   };
 
   const statusLabel =
-    progress < 25 ? "Generating questions..." :
-    progress < 50 ? "Creating answer keys..." :
-    progress < 75 ? "Reviewing explanations..." :
+    progress < 10 ? "Initializing quiz generator..." :
+    progress < 25 ? "Analyzing topic context..." :
+    progress < 50 ? "Generating questions..." :
+    progress < 65 ? "Validating question quality..." :
+    progress < 75 ? "Creating answer keys..." :
+    progress < 85 ? "Reviewing explanations..." :
     progress < 95 ? "Finalizing quiz..." :
     progress < 100 ? "Almost done..." : "Quiz ready!";
 
   return (
     <>
-      {generating ? (
+      {generationError ? (
+        <m.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}
+          className="rounded-2xl bg-white border border-red-200 p-8 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-red-100 flex items-center justify-center mx-auto mb-4">
+            <XCircle className="w-8 h-8 text-red-500" />
+          </div>
+          <h3 className="text-lg font-semibold text-zinc-900 mb-2">Generation Failed</h3>
+          <p className="text-sm text-zinc-500 mb-6 max-w-sm mx-auto">{generationError}</p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <button onClick={() => setGenerationError(null)}
+              className="px-6 h-11 rounded-xl text-sm font-medium text-zinc-600 border border-zinc-200 hover:bg-zinc-50 transition-all cursor-pointer">
+              Back to Form
+            </button>
+            <button onClick={handleGenerate}
+              className="px-6 flex items-center justify-center gap-2 h-11 rounded-xl text-sm font-semibold text-white bg-zinc-900 hover:bg-zinc-800 transition-all cursor-pointer">
+              <RotateCcw className="w-4 h-4" /> Try Again
+            </button>
+          </div>
+        </m.div>
+      ) : generating ? (
         <m.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
           className="rounded-2xl bg-white border border-zinc-200 p-10 sm:p-14 text-center">
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center mx-auto mb-6 shadow-lg shadow-blue-500/20">
@@ -216,16 +275,29 @@ function QuizForm({ onGenerated }: { onGenerated: (attemptId: string) => void })
                 className="h-full bg-gradient-to-r from-blue-500 to-cyan-400 rounded-full"
               />
             </div>
-            <p className="text-xs text-zinc-400 mt-4">
-              {progress < 100
-                ? "Please wait while AI generates your quiz..."
-                : "Redirecting to your quiz..."}
-            </p>
+            {longWait && progress < 95 ? (
+              <p className="text-xs text-amber-600 mt-4">
+                This is taking longer than usual. Please wait — we&rsquo;re still working on it.
+              </p>
+            ) : (
+              <p className="text-xs text-zinc-400 mt-4">
+                {progress < 100
+                  ? "Please wait while AI generates your quiz..."
+                  : "Redirecting to your quiz..."}
+              </p>
+            )}
           </div>
         </m.div>
       ) : (
         <>
           <div className="rounded-2xl bg-white border border-zinc-200 p-6">
+            <div className="mb-4 p-3 rounded-xl bg-blue-50 border border-blue-100">
+              <p className="text-xs leading-relaxed text-blue-800">
+                FOURI AI creates a mock test based on your selected Subject, Topic, and Difficulty Level.
+                Please enter accurate Subject and Topic names with correct spelling to ensure the most
+                relevant and high-quality quiz.
+              </p>
+            </div>
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-medium text-zinc-600 mb-1.5">Subject</label>
@@ -297,6 +369,7 @@ function QuizForm({ onGenerated }: { onGenerated: (attemptId: string) => void })
                 <button onClick={() => setShowConfirm(false)}
                   className="flex-1 h-11 rounded-xl text-sm font-medium text-zinc-600 border border-zinc-200 hover:bg-zinc-50 transition-all cursor-pointer">Cancel</button>
                 <button onClick={handleGenerate}
+                  disabled={estimate.guestQuotaRemaining !== null && estimate.guestQuotaRemaining <= 0}
                   className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl text-sm font-semibold text-white bg-zinc-900 hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed transition-all cursor-pointer">
                   <Sparkles className="w-4 h-4" /> Generate Quiz
                 </button>

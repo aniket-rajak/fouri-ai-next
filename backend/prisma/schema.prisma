@@ -182,6 +182,7 @@ model Answer {
   isCorrect         Boolean?
   timeSpent         Int?
   isMarkedForReview Boolean     @default(false)
+  feedback          String?
   question          Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
   testAttempt       TestAttempt @relation(fields: [testAttemptId], references: [id], onDelete: Cascade)
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect, useRef } from "react";
 import { Bookmark } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ContentRenderer } from "@/components/ui/ContentRenderer";
@@ -33,6 +34,12 @@ function normalizeOptions(options: unknown): string[] {
   return [];
 }
 
+function isSubjective(options: string[], type: string): boolean {
+  if (options.length === 0) return true;
+  if (type === "SUBJECTIVE") return true;
+  return false;
+}
+
 export function QuestionCard({
   question,
   selectedOption,
@@ -41,6 +48,23 @@ export function QuestionCard({
   onToggleMark,
 }: QuestionCardProps) {
   const options = normalizeOptions(question.options);
+  const isSubj = isSubjective(options, question.type);
+  const [textValue, setTextValue] = useState(selectedOption || "");
+  const isUpdatingRef = useRef(false);
+
+  useEffect(() => {
+    if (!isUpdatingRef.current) {
+      setTextValue(selectedOption || "");
+    }
+    isUpdatingRef.current = false;
+  }, [question.id]);
+
+  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    isUpdatingRef.current = true;
+    setTextValue(val);
+    onSelect(question.id, val);
+  };
 
   return (
     <div className="space-y-6">
@@ -54,34 +78,44 @@ export function QuestionCard({
       </div>
 
       <div className="space-y-4">
-        {options.map((option, i) => {
-          const label = String.fromCharCode(65 + i);
-          const isSelected = selectedOption === option;
-          return (
-            <button
-              key={option}
-              onClick={() => onSelect(question.id, option)}
-              className={cn(
-                "w-full flex items-start gap-4 p-4 rounded-xl border-2 text-left transition-all cursor-pointer",
-                isSelected
-                  ? "border-zinc-900 bg-zinc-50"
-                  : "border-zinc-200 hover:border-zinc-300"
-              )}
-            >
-              <span
+        {isSubj ? (
+          <textarea
+            value={textValue}
+            onChange={handleTextChange}
+            placeholder="Type your answer here..."
+            rows={6}
+            className="w-full p-4 rounded-xl border-2 border-zinc-200 bg-white text-sm text-zinc-900 leading-relaxed placeholder-zinc-400 focus:outline-none focus:border-zinc-900 focus:ring-1 focus:ring-zinc-900 resize-y min-h-[120px] transition-colors"
+          />
+        ) : (
+          options.map((option, i) => {
+            const label = String.fromCharCode(65 + i);
+            const isSelected = selectedOption === option;
+            return (
+              <button
+                key={option}
+                onClick={() => onSelect(question.id, option)}
                 className={cn(
-                  "flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium shrink-0",
+                  "w-full flex items-start gap-4 p-4 rounded-xl border-2 text-left transition-all cursor-pointer",
                   isSelected
-                    ? "bg-zinc-900 text-white"
-                    : "bg-zinc-100 text-zinc-600"
+                    ? "border-zinc-900 bg-zinc-50"
+                    : "border-zinc-200 hover:border-zinc-300"
                 )}
               >
-                {label}
-              </span>
-              <span className="text-sm text-zinc-900 leading-relaxed whitespace-normal break-words"><ContentRenderer text={option} /></span>
-            </button>
-          );
-        })}
+                <span
+                  className={cn(
+                    "flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium shrink-0",
+                    isSelected
+                      ? "bg-zinc-900 text-white"
+                      : "bg-zinc-100 text-zinc-600"
+                  )}
+                >
+                  {label}
+                </span>
+                <span className="text-sm text-zinc-900 leading-relaxed whitespace-normal break-words"><ContentRenderer text={option} /></span>
+              </button>
+            );
+          })
+        )}
       </div>
 
       {/* Mark for Review — full width bottom bar */}

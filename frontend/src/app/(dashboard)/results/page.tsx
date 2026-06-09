@@ -255,7 +255,7 @@ export default function ResultsPage() {
                 <div
                   key={a.id}
                   onClick={() => {
-                    sessionStorage.setItem("resultsReturn", window.location.href);
+                    sessionStorage.setItem("resultsReturn", window.location.pathname + window.location.search);
                     router.push(`/results/${a.id}`);
                   }}
                   className="cursor-pointer"

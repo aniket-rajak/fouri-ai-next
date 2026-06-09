@@ -28,7 +28,7 @@ export function useAnalyticsTracker(userId?: string | null) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ events: batch }),
-    }).catch(() => {});
+    }).catch((err) => console.error("[analytics] Track flush failed:", err));
   }, []);
 
   const track = useCallback(
@@ -76,12 +76,13 @@ export function useAnalyticsTracker(userId?: string | null) {
   }, [pathname, track]);
 
   useEffect(() => {
+    if (!userId) return;
     heartbeatRef.current = setInterval(() => {
       fetch(`${API}/owner/analytics/heartbeat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId, name: "", email: "", currentPage: pathname }),
-      }).catch(() => {});
+      }).catch((err) => console.error("[analytics] Heartbeat failed:", err));
     }, 30000);
     return () => {
       if (heartbeatRef.current) clearInterval(heartbeatRef.current);

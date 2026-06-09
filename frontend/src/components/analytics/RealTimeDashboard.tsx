@@ -41,11 +41,11 @@ export default function RealTimeDashboard() {
             setLoading(false);
           }
         })
-        .catch(() => {});
+        .catch((err) => console.error("[realtime] Fetch error:", err));
     };
 
     fetchData();
-    const interval = setInterval(fetchData, 10000);
+    const interval = setInterval(fetchData, 30000);
     return () => {
       mounted = false;
       clearInterval(interval);
@@ -115,7 +115,7 @@ export default function RealTimeDashboard() {
       <div className="bg-[#111118] rounded-xl border border-white/5 p-3">
         <h4 className="text-xs font-semibold text-[#888899] mb-2">Live Activity Feed</h4>
         <div className="space-y-1 max-h-[120px] overflow-y-auto">
-          {data?.liveEvents.map((ev, i) => (
+          {(data?.liveEvents ?? []).map((ev, i) => (
             <div key={i} className="flex items-center gap-2 text-xs">
               <span className="text-[#555] shrink-0">
                 {new Date(ev.timestamp).toLocaleTimeString()}

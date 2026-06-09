@@ -8,6 +8,8 @@ import { useAutoSave } from "@/hooks/useAutoSave";
 import { QuestionCard } from "@/components/test/QuestionCard";
 import { QuestionPalette } from "@/components/test/QuestionPalette";
 import { Button } from "@/components/ui/Button";
+import { useAnalyticsTracker } from "@/hooks/useAnalyticsTracker";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   ChevronLeft,
   ChevronRight,
@@ -47,6 +49,8 @@ interface Answer {
 export default function TestAttemptPage() {
   const params = useParams();
   const router = useRouter();
+  const { user } = useAuth();
+  useAnalyticsTracker(user?.uid).trackFeature("test_attempt");
   const searchParams = useSearchParams();
   const [test, setTest] = useState<TestData | null>(null);
   const [attemptId, setAttemptId] = useState<string | null>(null);
@@ -68,8 +72,9 @@ export default function TestAttemptPage() {
   const answerTimestampsRef = useRef<number[]>([]);
   const handleSubmitRef = useRef<((isTimeout?: boolean) => Promise<void>) | null>(null);
   const submittingRef = useRef(false);
+  const redirectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showThankYou, setShowThankYou] = useState(false);
-  const [thankYouCountdown, setThankYouCountdown] = useState(6);
+  const [countdown, setCountdown] = useState(6);
   const [markedFilter, setMarkedFilter] = useState(false);
 
   // Load test and create/resume attempt
@@ -189,31 +194,22 @@ export default function TestAttemptPage() {
     setSubmitting(true);
     setSubmitError(null);
 
-    // On timeout, skip the save call — auto-save keeps answers synced.
-    // This avoids a full HTTP round-trip delay before submitting.
-    if (!isTimeout) {
-      try {
-        await api.put(`/attempts/${attemptId}/save`, { answers });
-      } catch {
-      }
+    try {
+      await api.put(`/attempts/${attemptId}/save`, { answers });
+    } catch {
     }
 
-    // On timeout: fire submit in the background (don't await it)
-    // so the Thank You overlay shows immediately instead of waiting
-    // for the backend's scoring loop (which can take 2-5s for large tests).
     if (isTimeout) {
-      // Show overlay right away
       localStorage.removeItem(`fouri_attempt_${attemptId}`);
       submittingRef.current = false;
       setSubmitting(false);
       setShowThankYou(true);
-      setThankYouCountdown(6);
+      setCountdown(6);
 
-      // Submit async — fire-and-forget
       api.post(`/attempts/${attemptId}/submit`, {
         timeTaken: test ? test.duration : null,
         markedIds: Array.from(markedIds),
-      }).catch(() => {});
+      }).catch((e) => console.error("[Submit] Timeout submit failed:", e));
       return;
     }
 
@@ -230,7 +226,7 @@ export default function TestAttemptPage() {
           submittingRef.current = false;
           setSubmitting(false);
           setShowThankYou(true);
-          setThankYouCountdown(6);
+          setCountdown(6);
           return;
         }
 
@@ -238,7 +234,7 @@ export default function TestAttemptPage() {
         submittingRef.current = false;
         setSubmitting(false);
         setShowThankYou(true);
-        setThankYouCountdown(6);
+        setCountdown(6);
         return;
       } catch (error: any) {
         const is429 = error?.response?.status === 429;
@@ -281,16 +277,26 @@ export default function TestAttemptPage() {
     return () => document.removeEventListener("visibilitychange", onShow);
   }, []);
 
-  // Thank You countdown — redirect to results after 6s
+  // Redirect to analysis page after 6-second countdown
   useEffect(() => {
-    if (!showThankYou) return;
-    if (thankYouCountdown <= 0) {
-      router.push(`/results/${attemptId}?tab=marked`);
-      return;
-    }
-    const id = setTimeout(() => setThankYouCountdown((c) => c - 1), 1000);
-    return () => clearTimeout(id);
-  }, [showThankYou, thankYouCountdown, attemptId, router]);
+    if (!showThankYou || !attemptId) return;
+
+    const intervalId = setInterval(() => {
+      setCountdown((prev) => Math.max(0, prev - 1));
+    }, 1000);
+
+    redirectTimerRef.current = setTimeout(() => {
+      const p = new URLSearchParams();
+      if (markedIds.size > 0) p.set("tab", "marked");
+      const qs = p.toString();
+      router.push(`/results/${attemptId}${qs ? `?${qs}` : ""}`);
+    }, 6000);
+
+    return () => {
+      clearInterval(intervalId);
+      if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current);
+    };
+  }, [showThankYou, attemptId, router]);
 
   const handlePause = async () => {
     if (!attemptId || pausing) return;
@@ -346,16 +352,19 @@ export default function TestAttemptPage() {
     answers.find((a) => a.questionId === questionId)?.selectedOption || null;
 
   const handleSelect = (questionId: string, option: string) => {
-    // Track answer change timestamps for rapid-activity detection
-    const now = Date.now();
-    answerTimestampsRef.current.push(now);
-    // Keep only timestamps from the last 10s
-    answerTimestampsRef.current = answerTimestampsRef.current.filter(
-      (t) => now - t < 10000
-    );
-    if (answerTimestampsRef.current.length > 10) {
-      setShowRapidWarning(true);
-      setTimeout(() => setShowRapidWarning(false), 4000);
+    // Skip rate-limit for subjective/typing questions
+    const q = test?.questions.find((q) => q.id === questionId);
+    const isSubjective = !q || q.options.length === 0 || q.type === "SUBJECTIVE";
+    if (!isSubjective) {
+      const now = Date.now();
+      answerTimestampsRef.current.push(now);
+      answerTimestampsRef.current = answerTimestampsRef.current.filter(
+        (t) => now - t < 10000
+      );
+      if (answerTimestampsRef.current.length > 10) {
+        setShowRapidWarning(true);
+        setTimeout(() => setShowRapidWarning(false), 4000);
+      }
     }
 
     setAnswers((prev) => {
@@ -693,11 +702,16 @@ export default function TestAttemptPage() {
               <p>Time taken: <span className="font-semibold text-zinc-900">{timer.formatted}</span></p>
             </div>
             <p className="text-xs text-zinc-400">
-              Redirecting to answer analysis in <span className="font-semibold text-zinc-700">{thankYouCountdown}</span> seconds...
+              Redirecting to answer analysis in {countdown}s...
             </p>
             <Button
               className="w-full"
-              onClick={() => router.push(`/results/${attemptId}?tab=marked`)}
+              onClick={() => {
+                const p = new URLSearchParams();
+                if (markedIds.size > 0) p.set("tab", "marked");
+                const qs = p.toString();
+                router.push(`/results/${attemptId}${qs ? `?${qs}` : ""}`);
+              }}
             >
               View Results Now
             </Button>

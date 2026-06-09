@@ -58,8 +58,8 @@ export function QuestionPalette({
 
       {/* All Questions Grid */}
       <h3 className="text-sm font-medium text-zinc-900 mb-3">All Questions</h3>
-      <div className="max-h-[60vh] overflow-y-auto pr-0.5 -mr-0.5">
-        <div className="grid grid-cols-4 sm:grid-cols-5 gap-1.5 sm:gap-2">
+      <div className="max-h-[60vh] overflow-y-auto">
+        <div className="grid grid-cols-5 sm:grid-cols-6 gap-1.5 sm:gap-2">
         {questions.map((q, i) => {
           const isCurrent = i === currentIndex;
           const isAnswered = answeredIds.has(q.id);
@@ -70,7 +70,7 @@ export function QuestionPalette({
               key={q.id}
               onClick={() => onSelect(i)}
               className={cn(
-                "w-full aspect-square rounded-lg text-xs font-medium transition-colors cursor-pointer",
+                "w-full aspect-square min-w-0 rounded-lg text-xs font-medium transition-colors cursor-pointer",
                 isCurrent && "ring-2 ring-zinc-900 ring-offset-1",
                 isAnswered && !isMarked && "bg-zinc-900 text-white",
                 isMarked && !isAnswered && "bg-amber-100 text-amber-700 border border-amber-300",
@@ -86,7 +86,7 @@ export function QuestionPalette({
       </div>
 
       {/* Legend */}
-      <div className="mt-4 space-y-2 text-xs text-zinc-500">
+      <div className="mt-5 pt-3 border-t border-zinc-200 space-y-2 text-xs text-zinc-500">
         <div className="flex items-center gap-2">
           <span className="w-3 h-3 rounded bg-zinc-900" />
           Answered

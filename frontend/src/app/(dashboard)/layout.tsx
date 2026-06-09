@@ -8,6 +8,7 @@ import { getFileUrl } from "@/lib/getFileUrl";
 import { useEffect, useState, useRef } from "react";
 import { logout } from "@/lib/firebase";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useAnalyticsTracker } from "@/hooks/useAnalyticsTracker";
 
 const queryClient = new QueryClient();
 import {
@@ -52,6 +53,43 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [ads, setAds] = useState<Ad[]>([]);
   const impressionTracked = useRef<Set<string>>(new Set());
+  const { track } = useAnalyticsTracker(user?.uid);
+
+  // ─── Guest-accessible AI Quiz routes ───
+  // Add new guest-accessible routes here. Routes NOT in this list
+  // will remain protected and redirect unauthenticated users to "/".
+  const PUBLIC_AI_QUIZ_ROUTES = [
+    "/ai-quiz",
+    "/ai-quiz/take",
+    "/ai-quiz/thank-you",
+  ];
+  const isAiQuizRoute = PUBLIC_AI_QUIZ_ROUTES.some(
+    (route) => pathname === route || pathname.startsWith(route + "/")
+  );
+
+  // Track auth transitions (guest → authenticated)
+  const prevUserRef = useRef(user);
+  useEffect(() => {
+    if (prevUserRef.current === null && user !== null) {
+      track("AUTH_TRANSITION", { from: "guest", to: "authenticated" });
+    }
+    prevUserRef.current = user;
+  }, [user, track]);
+
+  // Track guest AI quiz route access
+  useEffect(() => {
+    if (!user && isAiQuizRoute) {
+      track("GUEST_AI_QUIZ_ACCESS", { route: pathname });
+    }
+  }, [pathname, user, isAiQuizRoute, track]);
+
+  // Redirect unauthenticated users away from protected routes
+  useEffect(() => {
+    if (!loading && !user && !isAiQuizRoute) {
+      track("PROTECTED_ROUTE_BLOCKED", { route: pathname });
+      router.push("/");
+    }
+  }, [user, loading, router, isAiQuizRoute, pathname, track]);
 
   useEffect(() => {
     if (!user) return;
@@ -60,12 +98,6 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
       .then((data: { ads: Ad[] }) => setAds(data.ads || []))
       .catch(() => {});
   }, [user]);
-
-  useEffect(() => {
-    if (!loading && !user) {
-      router.push("/");
-    }
-  }, [user, loading, router]);
 
   useEffect(() => {
     if (ads.length > 0) {
@@ -84,6 +116,7 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     window.open(url, "_blank", "noopener noreferrer");
   };
 
+  // ─── Loading spinner ───
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -92,109 +125,145 @@ function DashboardShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!user) return null;
+  // ─── Guest on protected route → wait for redirect ───
+  if (!user && !isAiQuizRoute) return null;
 
+  // ─── Single render tree (keeps {children} at consistent position to preserve React state) ───
   return (
     <div className="min-h-screen bg-zinc-50">
-      <nav className="fixed top-0 left-0 right-0 h-16 bg-white border-b border-zinc-200 z-40 flex items-center gap-3 px-4 lg:px-6">
-        <button
-          className="lg:hidden flex items-center justify-center w-9 h-9 rounded-lg text-zinc-600 hover:bg-zinc-100 transition-colors cursor-pointer"
-          onClick={() => setSidebarOpen(!sidebarOpen)}
-          aria-label="Toggle sidebar"
-        >
-          {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
-        </button>
-        <Link href="/dashboard" className="flex items-center h-9 px-3 rounded-lg text-base font-bold tracking-tight text-zinc-900 hover:bg-zinc-100 transition-colors">
-          FOURI.IN
-        </Link>
-        <div className="ml-auto flex items-center gap-2">
-          <span className="hidden sm:block text-sm text-zinc-500 truncate max-w-[200px]">
-            {user.email}
-          </span>
+      {/* ── Top Navigation ── */}
+      {user ? (
+        <nav className="fixed top-0 left-0 right-0 h-16 bg-white border-b border-zinc-200 z-40 flex items-center gap-3 px-4 lg:px-6">
           <button
-            onClick={() => logout()}
-            className="flex items-center gap-1.5 h-9 px-3 rounded-lg text-sm font-medium text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 transition-colors cursor-pointer"
-            title="Sign out"
+            className="lg:hidden flex items-center justify-center w-9 h-9 rounded-lg text-zinc-600 hover:bg-zinc-100 transition-colors cursor-pointer"
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            aria-label="Toggle sidebar"
           >
-            <LogOut size={16} />
-            <span className="hidden sm:inline">Sign Out</span>
+            {sidebarOpen ? <X size={20} /> : <Menu size={20} />}
           </button>
-        </div>
-      </nav>
+          <Link href="/dashboard" className="flex items-center h-9 px-3 rounded-lg text-base font-bold tracking-tight text-zinc-900 hover:bg-zinc-100 transition-colors">
+            FOURI.IN
+          </Link>
+          <div className="ml-auto flex items-center gap-2">
+            <span className="hidden sm:block text-sm text-zinc-500 truncate max-w-[200px]">
+              {user.email}
+            </span>
+            <button
+              onClick={() => logout()}
+              className="flex items-center gap-1.5 h-9 px-3 rounded-lg text-sm font-medium text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 transition-colors cursor-pointer"
+              title="Sign out"
+            >
+              <LogOut size={16} />
+              <span className="hidden sm:inline">Sign Out</span>
+            </button>
+          </div>
+        </nav>
+      ) : (
+        <nav className="h-16 bg-white border-b border-zinc-200 flex items-center justify-between px-4 sm:px-6 lg:px-8">
+          <Link href="/" className="text-base font-bold tracking-tight text-zinc-900">
+            FOURI.IN
+          </Link>
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <Link
+              href="/login"
+              className="flex items-center h-8 sm:h-9 px-3 sm:px-4 rounded-lg text-xs sm:text-sm font-medium text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 transition-colors"
+            >
+              Log In
+            </Link>
+            <Link
+              href="/register"
+              className="flex items-center h-8 sm:h-9 px-3 sm:px-4 rounded-lg text-xs sm:text-sm font-semibold text-white bg-zinc-900 hover:bg-zinc-800 transition-colors"
+            >
+              Sign Up
+            </Link>
+          </div>
+        </nav>
+      )}
 
-      <aside
-        className={`fixed top-16 left-0 bottom-0 w-64 bg-white border-r border-zinc-200 z-30 transform transition-transform lg:translate-x-0 overflow-y-auto ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
-      >
-        <div className="p-4 space-y-1">
-          {navItems.map((item) => {
-            const Icon = item.icon;
-            const active = item.href === "/" ? pathname === "/" : (pathname === item.href || pathname.startsWith(item.href + "/"));
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setSidebarOpen(false)}
-                className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  active
-                    ? "bg-zinc-900 text-white"
-                    : "text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100"
-                }`}
-              >
-                <Icon size={18} />
-                {item.label}
-              </Link>
-            );
-          })}
-        </div>
-      </aside>
+      {/* ── Sidebar (logged-in only) ── */}
+      {user && (
+        <aside
+          className={`fixed top-16 left-0 bottom-0 w-64 bg-white border-r border-zinc-200 z-30 transform transition-transform lg:translate-x-0 overflow-y-auto ${
+            sidebarOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
+        >
+          <div className="p-4 space-y-1">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const active = item.href === "/" ? pathname === "/" : (pathname === item.href || pathname.startsWith(item.href + "/"));
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setSidebarOpen(false)}
+                  className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    active
+                      ? "bg-zinc-900 text-white"
+                      : "text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100"
+                  }`}
+                >
+                  <Icon size={18} />
+                  {item.label}
+                </Link>
+              );
+            })}
+          </div>
+        </aside>
+      )}
 
-      {/* Header Banner Ad (desktop) */}
-      <div className="hidden lg:block bg-zinc-50 border-b border-zinc-200">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
-          <AdSlot slot="header-banner" format="horizontal" className="mx-auto max-w-[728px]" />
+      {/* ── Header Banner Ad (desktop, logged-in only) ── */}
+      {user && (
+        <div className="hidden lg:block bg-zinc-50 border-b border-zinc-200">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-2">
+            <AdSlot slot="header-banner" format="horizontal" className="mx-auto max-w-[728px]" />
+          </div>
         </div>
-      </div>
+      )}
 
-      <main className="pt-16 lg:pl-64">
+      {/* ── Main Content ── */}
+      <main className={user ? "pt-16 lg:pl-64" : ""}>
         <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto">
           <div className="flex gap-6">
             <div className="flex-1 min-w-0">{children}</div>
-            <aside className="hidden xl:block w-72 shrink-0 space-y-4 sticky top-24 self-start max-h-[calc(100vh-8rem)] overflow-y-auto">
-              {ads.map((ad) => (
-                  <div
-                    key={ad.id}
-                    onClick={() => handleAdClick(ad)}
-                    className="group bg-white rounded-2xl border border-zinc-200 overflow-hidden cursor-pointer hover:shadow-lg hover:border-blue-200 transition-all duration-300"
-                  >
-                    <div className="relative h-32 overflow-hidden">
-                      <BlogImage
-                        src={ad.imageUrl}
-                        alt={ad.title}
-                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
+            {/* ── Sidebar Ads (logged-in only) ── */}
+            {user && (
+              <aside className="hidden xl:block w-72 shrink-0 space-y-4 sticky top-24 self-start max-h-[calc(100vh-8rem)] overflow-y-auto">
+                {ads.map((ad) => (
+                    <div
+                      key={ad.id}
+                      onClick={() => handleAdClick(ad)}
+                      className="group bg-white rounded-2xl border border-zinc-200 overflow-hidden cursor-pointer hover:shadow-lg hover:border-blue-200 transition-all duration-300"
+                    >
+                      <div className="relative h-32 overflow-hidden">
+                        <BlogImage
+                          src={ad.imageUrl}
+                          alt={ad.title}
+                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
+                      </div>
+                      <div className="p-3">
+                        <p className="text-sm font-semibold text-zinc-900">{ad.title}</p>
+                        {ad.description && (
+                          <p className="text-xs text-zinc-500 mt-1 line-clamp-2">{ad.description}</p>
+                        )}
+                        <span className="inline-block mt-2 text-xs font-medium text-blue-600 group-hover:text-blue-700 transition-colors">
+                          {ad.ctaText} →
+                        </span>
+                      </div>
                     </div>
-                    <div className="p-3">
-                      <p className="text-sm font-semibold text-zinc-900">{ad.title}</p>
-                      {ad.description && (
-                        <p className="text-xs text-zinc-500 mt-1 line-clamp-2">{ad.description}</p>
-                      )}
-                      <span className="inline-block mt-2 text-xs font-medium text-blue-600 group-hover:text-blue-700 transition-colors">
-                        {ad.ctaText} →
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              <AdSlot slot="sidebar" format="vertical" className="min-h-[250px]" />
-              </aside>
+                  ))}
+                <AdSlot slot="sidebar" format="vertical" className="min-h-[250px]" />
+                </aside>
+            )}
           </div>
         </div>
-        {/* Footer Ad */}
-        <div className="border-t border-zinc-200 pt-4 mt-4 px-4 sm:px-6 lg:px-8">
-          <AdSlot slot="footer" format="horizontal" className="mx-auto max-w-[728px]" />
-        </div>
+        {/* ── Footer Ad (logged-in only) ── */}
+        {user && (
+          <div className="border-t border-zinc-200 pt-4 mt-4 px-4 sm:px-6 lg:px-8">
+            <AdSlot slot="footer" format="horizontal" className="mx-auto max-w-[728px]" />
+          </div>
+        )}
       </main>
     </div>
   );

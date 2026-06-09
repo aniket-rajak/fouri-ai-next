@@ -9,6 +9,8 @@ import {
   TrendingUp, BarChart3, History, Loader2, BookOpen, CheckCircle2, XCircle, AlertCircle, ChevronUp, RotateCcw
 } from "lucide-react";
 import { AdSlot } from "@/components/AdSlot";
+import { useAnalyticsTracker } from "@/hooks/useAnalyticsTracker";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface TestStats {
   totalAttempts: number;
@@ -110,6 +112,9 @@ function AttemptHistory({ testId, open }: { testId: string; open: boolean }) {
 }
 
 export default function TestsPage() {
+  const { user } = useAuth();
+  const { trackFeature } = useAnalyticsTracker(user?.uid);
+  useEffect(() => { trackFeature("tests"); }, [trackFeature]);
   const [tests, setTests] = useState<TestItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);

@@ -14,7 +14,7 @@ const OPTIONS = [
 
 export default function DateRangeSelector({ value, onChange }: Props) {
   return (
-    <div className="flex gap-1 bg-[#111118] rounded-xl border border-white/5 p-1">
+    <div className="flex flex-wrap gap-1 bg-[#111118] rounded-xl border border-white/5 p-1">
       {OPTIONS.map((opt) => (
         <button
           key={opt.value}

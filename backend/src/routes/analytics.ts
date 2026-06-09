@@ -5,9 +5,7 @@ import * as realtimeService from "../services/realtimeService.js";
 
 const router = Router();
 
-router.use(ownerAuth);
-
-// ---- Event tracking (single or batch) ----
+// Public routes (no ownerAuth required): tracking & heartbeat
 router.post("/track", async (req: Request, res: Response) => {
   try {
     const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() || req.ip;
@@ -43,6 +41,9 @@ router.post("/heartbeat", async (req: Request, res: Response) => {
     res.status(500).json({ error: "Failed to record heartbeat" });
   }
 });
+
+// All remaining routes require owner auth
+router.use(ownerAuth);
 
 // ---- Overview ----
 router.get("/overview", async (req: Request, res: Response) => {

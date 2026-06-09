@@ -12,12 +12,12 @@ function authInterceptor(config: InternalAxiosRequestConfig) {
 
 export const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api",
-  timeout: 10000,
+  timeout: 30000,
 });
 
 export const authApi = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api",
-  timeout: 15000,
+  timeout: 30000,
 });
 
 api.interceptors.request.use(authInterceptor);

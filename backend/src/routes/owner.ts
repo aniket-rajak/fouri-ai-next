@@ -156,9 +156,19 @@ router.get("/users", ownerAuth, async (req, res) => {
   }
 });
 
-router.get("/daily-stats", ownerAuth, async (_req, res) => {
+function getPeriodDate(period?: string): Date {
+  switch (period) {
+    case "today": return new Date(Date.now() - 24 * 60 * 60 * 1000);
+    case "7d": return new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    case "30d": return new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    case "1y": return new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
+    default: return new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  }
+}
+
+router.get("/daily-stats", ownerAuth, async (req, res) => {
   try {
-    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const thirtyDaysAgo = getPeriodDate(req.query.period as string);
 
     const dailySignups = await prisma.$queryRawUnsafe<Array<{ date: string; count: bigint }>>(
       `SELECT DATE("createdAt") as date, COUNT(*)::int as count FROM "User" WHERE "createdAt" >= $1 GROUP BY DATE("createdAt") ORDER BY date`,
@@ -182,15 +192,28 @@ router.get("/daily-stats", ownerAuth, async (_req, res) => {
   }
 });
 
-router.get("/upload-stats", ownerAuth, async (_req, res) => {
+router.get("/upload-stats", ownerAuth, async (req, res) => {
   try {
-    const uploadsByType = await prisma.$queryRawUnsafe<Array<{ fileType: string; count: bigint }>>(
-      `SELECT "fileType", COUNT(*)::int as count FROM "Upload" GROUP BY "fileType" ORDER BY count DESC`
-    );
+    const periodDate = getPeriodDate(req.query.period as string);
+    const hasPeriod = !!req.query.period;
 
-    const uploadsByStatus = await prisma.$queryRawUnsafe<Array<{ status: string; count: bigint }>>(
-      `SELECT status, COUNT(*)::int as count FROM "Upload" GROUP BY status`
-    );
+    const uploadsByType = hasPeriod
+      ? await prisma.$queryRawUnsafe<Array<{ fileType: string; count: bigint }>>(
+          `SELECT "fileType", COUNT(*)::int as count FROM "Upload" WHERE "createdAt" >= $1 GROUP BY "fileType" ORDER BY count DESC`,
+          periodDate
+        )
+      : await prisma.$queryRawUnsafe<Array<{ fileType: string; count: bigint }>>(
+          `SELECT "fileType", COUNT(*)::int as count FROM "Upload" GROUP BY "fileType" ORDER BY count DESC`
+        );
+
+    const uploadsByStatus = hasPeriod
+      ? await prisma.$queryRawUnsafe<Array<{ status: string; count: bigint }>>(
+          `SELECT status, COUNT(*)::int as count FROM "Upload" WHERE "createdAt" >= $1 GROUP BY status`,
+          periodDate
+        )
+      : await prisma.$queryRawUnsafe<Array<{ status: string; count: bigint }>>(
+          `SELECT status, COUNT(*)::int as count FROM "Upload" GROUP BY status`
+        );
 
     const subjectsWithCounts = await prisma.$queryRawUnsafe<Array<{ subject: string; count: bigint }>>(
       `SELECT subject, COUNT(*)::int as count FROM "MockTest" WHERE subject IS NOT NULL GROUP BY subject ORDER BY count DESC LIMIT 10`
@@ -203,9 +226,9 @@ router.get("/upload-stats", ownerAuth, async (_req, res) => {
   }
 });
 
-router.get("/weekly-stats", ownerAuth, async (_req, res) => {
+router.get("/weekly-stats", ownerAuth, async (req, res) => {
   try {
-    const eightWeeksAgo = new Date(Date.now() - 56 * 24 * 60 * 60 * 1000);
+    const eightWeeksAgo = getPeriodDate(req.query.period as string);
 
     const weeklySignups = await prisma.$queryRawUnsafe<Array<{ week: string; count: bigint }>>(
       `SELECT to_char(date_trunc('week', "createdAt"), 'YYYY-MM-DD') as week, COUNT(*)::int as count FROM "User" WHERE "createdAt" >= $1 GROUP BY week ORDER BY week`,
@@ -229,9 +252,9 @@ router.get("/weekly-stats", ownerAuth, async (_req, res) => {
   }
 });
 
-router.get("/monthly-stats", ownerAuth, async (_req, res) => {
+router.get("/monthly-stats", ownerAuth, async (req, res) => {
   try {
-    const twelveMonthsAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
+    const twelveMonthsAgo = getPeriodDate(req.query.period as string);
 
     const monthlySignups = await prisma.$queryRawUnsafe<Array<{ month: string; count: bigint }>>(
       `SELECT to_char(date_trunc('month', "createdAt"), 'YYYY-MM') as month, COUNT(*)::int as count FROM "User" WHERE "createdAt" >= $1 GROUP BY month ORDER BY month`,

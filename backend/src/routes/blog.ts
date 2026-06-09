@@ -3,6 +3,7 @@ import multer from "multer";
 import { prisma } from "../lib/prisma.js";
 import { validate, schemas } from "../middleware/validate.js";
 import { generateBlogContent } from "../services/openai.js";
+import * as analyticsService from "../services/analyticsService.js";
 import { uploadToTelegram } from "../services/telegramStorage.js";
 import { resolveFileUrl } from "../lib/resolveFileUrl.js";
 
@@ -142,6 +143,8 @@ router.get("/:slug", async (req, res) => {
       res.status(404).json({ error: "Blog not found" });
       return;
     }
+
+    analyticsService.trackBlogView(blog.id, undefined, req.ip || req.socket.remoteAddress).catch(() => {});
 
     res.json({
       blog: {

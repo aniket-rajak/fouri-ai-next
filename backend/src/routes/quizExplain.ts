@@ -43,6 +43,8 @@ Status: ${isCorrect ? "CORRECT" : "INCORRECT"}
 Provide a brief explanation (2-3 sentences) about why the correct answer is correct.
 ${isCorrect ? "" : "Also provide one specific improvement suggestion for this type of question."}
 
+If the question involves code, wrap any code snippets in ${"```"}language fences within the explanation text.
+
 Respond in JSON format:
 {
   "explanation": "Brief explanation here",

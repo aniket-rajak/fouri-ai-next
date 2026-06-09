@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { authenticate } from "../middleware/auth.js";
-import { prisma } from "../lib/prisma.js";
+import { prisma, withRetry } from "../lib/prisma.js";
 
 const router = Router();
 
@@ -115,7 +115,7 @@ router.get("/", authenticate, async (req, res) => {
         }
 
         const correctCount = a.answers.filter((ans) => ans.isCorrect === true).length;
-        const wrongCount = a.answers.filter((ans) => ans.selectedOption !== null && ans.isCorrect === false).length;
+        const wrongCount = a.answers.filter((ans) => ans.selectedOption !== null && ans.isCorrect !== true).length;
         const unansweredCount = a.answers.filter((ans) => ans.selectedOption === null).length;
 
         return {
@@ -285,34 +285,36 @@ router.get("/analytics", authenticate, async (req, res) => {
 router.get("/:id", authenticate, async (req, res) => {
   try {
     const attemptId = req.params.id as string;
-    const attempt = await prisma.testAttempt.findUnique({
-      where: { id: attemptId },
-      include: {
-        mockTest: {
-          select: { title: true, subject: true, totalQuestions: true, duration: true },
-        },
-        answers: {
-          include: {
-            question: {
-              select: {
-                id: true,
-                questionText: true,
-                options: true,
-                correctAnswer: true,
-                type: true,
-                order: true,
-                explanations: {
-                  select: {
-                    shortExplanation: true,
-                    detailedExplanation: true,
+    const attempt = await withRetry(() =>
+      prisma.testAttempt.findUnique({
+        where: { id: attemptId },
+        include: {
+          mockTest: {
+            select: { title: true, subject: true, totalQuestions: true, duration: true },
+          },
+          answers: {
+            include: {
+              question: {
+                select: {
+                  id: true,
+                  questionText: true,
+                  options: true,
+                  correctAnswer: true,
+                  type: true,
+                  order: true,
+                  explanations: {
+                    select: {
+                      shortExplanation: true,
+                      detailedExplanation: true,
+                    },
                   },
                 },
               },
             },
           },
         },
-      },
-    });
+      })
+    );
 
     if (!attempt || attempt.userId !== req.user!.uid) {
       res.status(404).json({ error: "Attempt not found" });

@@ -154,7 +154,10 @@ export default function TakeQuizPage() {
           setProgressRefs(0, 600, false);
         }
       })
-      .catch((err) => setError(err.message))
+      .catch((err) => {
+        console.warn("[take-quiz] Invalid attempt ID:", { attemptId, error: err.message });
+        setError(err.message);
+      })
       .finally(() => setLoading(false));
   }, [attemptId]);
 

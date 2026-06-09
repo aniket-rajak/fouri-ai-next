@@ -3,7 +3,32 @@ import { authenticate } from "../middleware/auth.js";
 import { validate, schemas } from "../middleware/validate.js";
 import { prisma, withRetry } from "../lib/prisma.js";
 import { evaluationQueue } from "../lib/evaluationQueue.js";
-import { generateExplanationForMCQ } from "../services/openai.js";
+import { generateExplanationForMCQ, evaluateSubjectiveWithAI } from "../services/openai.js";
+import * as realtimeService from "../services/realtimeService.js";
+import type { PrismaPromise } from "@prisma/client";
+
+function isSubjectiveQuestion(question: { type: string; options: unknown }): boolean {
+  if (question.type === "SUBJECTIVE") return true;
+  const options = Array.isArray(question.options) ? question.options : [];
+  return options.length === 0;
+}
+
+function evaluateSubjective(userAnswer: string | null | undefined, _correctAnswer: string): boolean | null {
+  if (!userAnswer || !_correctAnswer) return null;
+  const normalize = (s: string) =>
+    s.toLowerCase().replace(/[^\w\s]/g, "").replace(/\s+/g, " ").trim();
+  const normalizedUser = normalize(userAnswer);
+  const normalizedCorrect = normalize(_correctAnswer);
+  if (normalizedUser === normalizedCorrect) return true;
+  const userWords = new Set(normalizedUser.split(/\s+/).filter(Boolean));
+  const correctWords = normalizedCorrect.split(/\s+/).filter(Boolean);
+  if (correctWords.length === 0) return null;
+  if (normalizedCorrect.includes(normalizedUser)) return true;
+  if (normalizedUser.includes(normalizedCorrect)) return true;
+  const matches = correctWords.filter((w) => userWords.has(w)).length;
+  const overlap = matches / correctWords.length;
+  return overlap >= 0.6 ? true : null;
+}
 
 const router = Router();
 
@@ -43,6 +68,8 @@ router.post("/", authenticate, validate(schemas.mockTestId), async (req, res) =>
         status: "IN_PROGRESS",
       },
     });
+
+    realtimeService.startQuizSession(attempt.id, req.user!.uid);
 
     res.status(201).json({ attempt });
   } catch (error) {
@@ -104,15 +131,19 @@ router.post("/:id/submit", authenticate, async (req, res) => {
   const markedSet = new Set(markedIds);
 
   try {
-    const attempt = await prisma.testAttempt.findUnique({
-      where: { id: attemptId },
-      include: {
-        answers: true,
-        mockTest: {
-          include: { questions: true },
+    console.time(`submit-${attemptId}-fetch`);
+    const attempt = await withRetry(() =>
+      prisma.testAttempt.findUnique({
+        where: { id: attemptId },
+        include: {
+          answers: true,
+          mockTest: {
+            include: { questions: true },
+          },
         },
-      },
-    });
+      })
+    );
+    console.timeEnd(`submit-${attemptId}-fetch`);
 
     if (!attempt || attempt.userId !== req.user!.uid) {
       res.status(404).json({ error: "Attempt not found" });
@@ -129,17 +160,22 @@ router.post("/:id/submit", authenticate, async (req, res) => {
     );
 
     let score = 0;
-    const updatedAnswers: Promise<any>[] = [];
+    const upsertOperations: PrismaPromise<any>[] = [];
 
+    console.time(`submit-${attemptId}-upserts`);
     for (const question of attempt.mockTest.questions) {
       const selected = answerMap.get(question.id);
       let isCorrect: boolean | null;
 
-      isCorrect = selected === question.correctAnswer;
+      if (isSubjectiveQuestion(question)) {
+        isCorrect = evaluateSubjective(selected, question.correctAnswer);
+      } else {
+        isCorrect = selected === question.correctAnswer;
+      }
 
       if (isCorrect === true) score++;
 
-      updatedAnswers.push(
+      upsertOperations.push(
         prisma.answer.upsert({
           where: {
             testAttemptId_questionId: {
@@ -159,11 +195,13 @@ router.post("/:id/submit", authenticate, async (req, res) => {
       );
     }
 
-    await withRetry(() => Promise.all(updatedAnswers));
+    await withRetry(() => prisma.$transaction(upsertOperations));
+    console.timeEnd(`submit-${attemptId}-upserts`);
 
     const totalQuestions = attempt.mockTest.questions.length;
     const accuracy = totalQuestions > 0 ? (score / totalQuestions) * 100 : 0;
 
+    console.time(`submit-${attemptId}-updates`);
     const submitted = await withRetry(() =>
       prisma.testAttempt.update({
         where: { id: attemptId },
@@ -184,52 +222,73 @@ router.post("/:id/submit", authenticate, async (req, res) => {
         data: { attemptCount: { increment: 1 } },
       })
     );
+    console.timeEnd(`submit-${attemptId}-updates`);
+    console.log(`[Submit] attempt=${attemptId} questions=${totalQuestions} score=${score} accuracy=${accuracy}%`);
 
     res.json({ attempt: submitted });
 
-    // Background AI explanation for marked MCQ questions
-    (async () => {
-      const markedMcqAnswers = attempt.answers.filter((a) => {
-        const q = attempt.mockTest.questions.find((q) => q.id === a.questionId);
-        return markedSet.has(a.questionId) && a.selectedOption != null && q;
-      });
+    realtimeService.endQuizSession(attemptId);
 
-      for (const ans of markedMcqAnswers) {
-        const question = attempt.mockTest.questions.find(
-          (q) => q.id === ans.questionId
-        );
-        if (!question) continue;
+    // Background AI enrichment for ALL questions (explanations + feedback)
+    (async () => {
+      for (const question of attempt.mockTest.questions) {
+        const answer = attempt.answers.find((a) => a.questionId === question.id);
 
         evaluationQueue.enqueue(async () => {
           try {
-            const options = Array.isArray(question.options)
-              ? question.options
-              : typeof question.options === "string"
-              ? JSON.parse(question.options)
-              : [];
-            const explanation = await generateExplanationForMCQ(
-              question.questionText,
-              options,
-              question.correctAnswer,
-              ans.selectedOption
-            );
-            await prisma.explanation.upsert({
-              where: { questionId: question.id },
-              update: {
-                shortExplanation: explanation.shortExplanation,
-                detailedExplanation: explanation.detailedExplanation,
-              },
-              create: {
-                questionId: question.id,
-                shortExplanation: explanation.shortExplanation,
-                detailedExplanation: explanation.detailedExplanation,
-              },
-            });
+            const userAnswer = answer?.selectedOption ?? null;
+            const isSubj = isSubjectiveQuestion(question);
+
+            if (isSubj) {
+              const evaluation = await evaluateSubjectiveWithAI(
+                question.questionText,
+                userAnswer,
+                question.correctAnswer,
+                req.user!.uid
+              );
+              await prisma.answer.update({
+                where: {
+                  testAttemptId_questionId: { testAttemptId: attemptId, questionId: question.id },
+                },
+                data: {
+                  feedback: evaluation.feedback,
+                  isCorrect: evaluation.isCorrect,
+                },
+              });
+            } else {
+              const options = Array.isArray(question.options)
+                ? question.options
+                : typeof question.options === "string"
+                ? JSON.parse(question.options)
+                : [];
+              const explanation = await generateExplanationForMCQ(
+                question.questionText,
+                options,
+                question.correctAnswer,
+                userAnswer,
+                req.user!.uid
+              );
+              await prisma.explanation.upsert({
+                where: { questionId: question.id },
+                update: {
+                  shortExplanation: explanation.shortExplanation,
+                  detailedExplanation: explanation.detailedExplanation,
+                },
+                create: {
+                  questionId: question.id,
+                  shortExplanation: explanation.shortExplanation,
+                  detailedExplanation: explanation.detailedExplanation,
+                },
+              });
+              await prisma.answer.update({
+                where: {
+                  testAttemptId_questionId: { testAttemptId: attemptId, questionId: question.id },
+                },
+                data: { feedback: explanation.detailedExplanation },
+              });
+            }
           } catch (error) {
-            console.error(
-              `Background MCQ explanation failed for question ${question.id}:`,
-              error
-            );
+            console.error(`AI enrichment failed for question ${question.id}:`, error);
           }
         });
       }

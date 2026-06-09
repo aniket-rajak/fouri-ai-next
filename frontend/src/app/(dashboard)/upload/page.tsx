@@ -11,6 +11,8 @@ import type { AnalysisMode } from "@/components/credits/AnalysisModeSelector";
 import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { AlertTriangle, Clock, Zap, X, Eye } from "lucide-react";
+import { useAnalyticsTracker } from "@/hooks/useAnalyticsTracker";
+import { useAuth } from "@/contexts/AuthContext";
 
 interface PageEstimate {
   pageIndex: number;
@@ -110,6 +112,8 @@ const guidelines = [
 ];
 
 export default function UploadPage() {
+  const { user } = useAuth();
+  useAnalyticsTracker(user?.uid).trackFeature("upload");
   const [selectedFileSize, setSelectedFileSize] = useState<number>(0);
   const [creditEstimate, setCreditEstimate] = useState<{
     requiredCredits: number;

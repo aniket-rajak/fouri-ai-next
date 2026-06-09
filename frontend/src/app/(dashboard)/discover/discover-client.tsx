@@ -1,15 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { api } from "@/lib/api";
 import { Card } from "@/components/ui/Card";
-import { SearchBar } from "@/components/SearchBar";
+import { Button } from "@/components/ui/Button";
 import { FilterPanel } from "@/components/FilterPanel";
-import Link from "next/link";
+import { SearchBar } from "@/components/SearchBar";
+import { useAuth } from "@/contexts/AuthContext";
+import { useAnalyticsTracker } from "@/hooks/useAnalyticsTracker";
 import {
-  FileText, Clock, Play, TrendingUp, Loader2,
-  ChevronLeft, ChevronRight, Users, CheckCircle2
+  BookOpen, Clock, ChevronLeft, ChevronRight,
+  FileText, Play, TrendingUp, Users, CheckCircle2,
 } from "lucide-react";
 import { AdSlot } from "@/components/AdSlot";
 import { BookmarkButton } from "@/components/BookmarkButton";
@@ -51,6 +54,8 @@ const UPLOAD_DATE_TABS = [
 export function DiscoverClient() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { user } = useAuth();
+  const { trackSearch } = useAnalyticsTracker(user?.uid);
 
   const [tests, setTests] = useState<TestItem[]>([]);
   const [trending, setTrending] = useState<TrendingTest[]>([]);
@@ -120,6 +125,7 @@ export function DiscoverClient() {
 
   const handleSearch = (q: string) => {
     setQuery(q);
+    trackSearch(q, totalTests);
     router.replace(`/discover?q=${encodeURIComponent(q)}`);
   };
 

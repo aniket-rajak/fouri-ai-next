@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { getCached, setCache } from "../lib/cache.js";
 import { env } from "../config/env.js";
@@ -89,10 +90,10 @@ export async function getActiveUsers(period: string) {
   >`
     SELECT d::date::text AS date, COALESCE(active.cnt, 0) AS active,
       ${total} - COALESCE(active.cnt, 0) AS inactive
-    FROM generate_series($1::date, $2::date, '1 day'::interval) d
+    FROM generate_series(${from}::date, ${to}::date, '1 day'::interval) d
     LEFT JOIN (
       SELECT DATE("lastActiveAt") AS dt, COUNT(*)::bigint AS cnt
-      FROM "User" WHERE "lastActiveAt" >= $1 GROUP BY DATE("lastActiveAt")
+      FROM "User" WHERE "lastActiveAt" >= ${from} GROUP BY DATE("lastActiveAt")
     ) active ON d::date = active.dt
     ORDER BY d
   `;
@@ -112,10 +113,10 @@ export async function getTrafficData(period: string) {
 
   const dailyVisitors = await prisma.$queryRaw<{ date: string; visitors: bigint; pageViews: bigint }[]>`
     SELECT d::date::text AS date, COALESCE(v.visitors, 0) AS visitors, COALESCE(v.page_views, 0) AS page_views
-    FROM generate_series($1::date, $2::date, '1 day'::interval) d
+    FROM generate_series(${from}::date, ${to}::date, '1 day'::interval) d
     LEFT JOIN (
-      SELECT DATE("createdAt") AS dt, COUNT(DISTINCT "userId") AS visitors, COUNT(*) AS page_views
-      FROM "AnalyticsEvent" WHERE "eventType" = 'PAGE_VIEW' AND "createdAt" >= $1 GROUP BY DATE("createdAt")
+      SELECT DATE("createdAt") AS dt, COUNT(DISTINCT COALESCE("userId", "ip")) AS visitors, COUNT(*) AS page_views
+      FROM "AnalyticsEvent" WHERE "eventType" = 'PAGE_VIEW' AND "createdAt" >= ${from} GROUP BY DATE("createdAt")
     ) v ON d::date = v.dt ORDER BY d
   `;
 
@@ -133,7 +134,7 @@ export async function getDailyActivities(period: string) {
 
   const activities = await prisma.$queryRaw<{ date: string; eventType: string; count: bigint }[]>`
     SELECT DATE("createdAt")::text AS date, "eventType", COUNT(*)::bigint AS count
-    FROM "AnalyticsEvent" WHERE "createdAt" >= $1 AND "createdAt" <= $2
+    FROM "AnalyticsEvent" WHERE "createdAt" >= ${from} AND "createdAt" <= ${to}
     GROUP BY DATE("createdAt"), "eventType" ORDER BY date, "eventType"
   `;
 
@@ -158,8 +159,8 @@ export async function getPageAnalytics(period: string, limit = 20) {
     SELECT "metadata"->>'path' AS path, COUNT(*)::bigint AS views,
       COUNT(DISTINCT "userId")::bigint AS "uniqueUsers"
     FROM "AnalyticsEvent"
-    WHERE "eventType" = 'PAGE_VIEW' AND "createdAt" >= $1 AND "metadata"->>'path' IS NOT NULL
-    GROUP BY "metadata"->>'path' ORDER BY views DESC LIMIT $2
+    WHERE "eventType" = 'PAGE_VIEW' AND "createdAt" >= ${from} AND "metadata"->>'path' IS NOT NULL
+    GROUP BY "metadata"->>'path' ORDER BY views DESC LIMIT ${limit}
   `;
 
   const total = pages.reduce((s, p) => s + Number(p.views), 0);
@@ -179,7 +180,7 @@ export async function getFeatureRanking(period: string) {
     SELECT "metadata"->>'feature' AS feature, COUNT(*)::bigint AS "usageCount",
       COUNT(DISTINCT "userId")::bigint AS "uniqueUsers"
     FROM "AnalyticsEvent"
-    WHERE "eventType" = 'FEATURE_USAGE' AND "createdAt" >= $1 AND "metadata"->>'feature' IS NOT NULL
+    WHERE "eventType" = 'FEATURE_USAGE' AND "createdAt" >= ${from} AND "metadata"->>'feature' IS NOT NULL
     GROUP BY "metadata"->>'feature' ORDER BY "usageCount" DESC
   `;
 
@@ -204,7 +205,7 @@ export async function getBlogAnalytics(period: string) {
 
   const viewTrend = await prisma.$queryRaw<{ date: string; views: bigint }[]>`
     SELECT DATE("createdAt")::text AS date, COUNT(*)::bigint AS views
-    FROM "BlogView" WHERE "createdAt" >= $1 GROUP BY DATE("createdAt") ORDER BY date
+    FROM "BlogView" WHERE "createdAt" >= ${from} GROUP BY DATE("createdAt") ORDER BY date
   `;
 
   const result = { topBlogs, viewTrend: viewTrend.map((v) => ({ date: v.date, views: Number(v.views) })), totalViews: viewTrend.reduce((s, v) => s + Number(v.views), 0), totalPositiveFeedback: topBlogs.reduce((s, b) => s + b.positiveFeedback, 0), totalNegativeFeedback: topBlogs.reduce((s, b) => s + b.negativeFeedback, 0), totalFeedback: topBlogs.reduce((s, b) => s + b.positiveFeedback + b.negativeFeedback, 0) };
@@ -260,7 +261,7 @@ export async function getQuizDetailed(period: string) {
   const trend = await prisma.$queryRaw<{ date: string; attempts: bigint; completed: bigint }[]>`
     SELECT DATE("createdAt")::text AS date, COUNT(*)::bigint AS attempts,
       COUNT(*) FILTER (WHERE status = 'COMPLETED')::bigint AS completed
-    FROM "QuizAttempt" WHERE "createdAt" >= $1 GROUP BY DATE("createdAt") ORDER BY date
+    FROM "QuizAttempt" WHERE "createdAt" >= ${from} GROUP BY DATE("createdAt") ORDER BY date
   `;
 
   const result = {
@@ -317,7 +318,7 @@ export async function getUserSegments(period: string) {
     SELECT DATE("createdAt")::text AS date,
       COUNT(*) FILTER (WHERE "userId" IS NOT NULL)::bigint AS "loggedIn",
       COUNT(*) FILTER (WHERE "userId" IS NULL)::bigint AS guest
-    FROM "AnalyticsEvent" WHERE "eventType" = 'PAGE_VIEW' AND "createdAt" >= $1
+    FROM "AnalyticsEvent" WHERE "eventType" = 'PAGE_VIEW' AND "createdAt" >= ${from}
     GROUP BY DATE("createdAt") ORDER BY date
   `;
 
@@ -341,14 +342,14 @@ export async function getGeoData(period: string) {
   const cached: any = getCached(key);
   if (cached) return cached;
 
-  const geo = await prisma.$queryRaw<{ country: string; count: bigint }[]>`
+  const geo = await prisma.$queryRaw<{ country: string | null; count: bigint }[]>`
     SELECT "metadata"->>'country' AS country, COUNT(*)::bigint AS count
-    FROM "AnalyticsEvent" WHERE "eventType" = 'PAGE_VIEW' AND "createdAt" >= $1 AND "metadata"->>'country' IS NOT NULL
+    FROM "AnalyticsEvent" WHERE "eventType" = 'PAGE_VIEW' AND "createdAt" >= ${from}
     GROUP BY "metadata"->>'country' ORDER BY count DESC LIMIT 20
   `;
 
   const total = geo.reduce((s, g) => s + Number(g.count), 0);
-  const result = geo.map((g) => ({ country: g.country, count: Number(g.count), percentage: total > 0 ? Math.round((Number(g.count) / total) * 100) : 0 }));
+  const result = geo.map((g) => ({ country: g.country || "Unknown", count: Number(g.count), percentage: total > 0 ? Math.round((Number(g.count) / total) * 100) : 0 }));
   setCache(key, result, 60000);
   return result;
 }
@@ -363,17 +364,17 @@ export async function getDeviceData(period: string) {
   const [deviceTypes, browsers, oss] = await Promise.all([
     prisma.$queryRaw<{ device: string; count: bigint }[]>`
       SELECT "metadata"->>'deviceType' AS device, COUNT(*)::bigint AS count
-      FROM "AnalyticsEvent" WHERE "eventType" = 'PAGE_VIEW' AND "createdAt" >= $1 AND "metadata"->>'deviceType' IS NOT NULL
+      FROM "AnalyticsEvent" WHERE "eventType" = 'PAGE_VIEW' AND "createdAt" >= ${from} AND "metadata"->>'deviceType' IS NOT NULL
       GROUP BY "metadata"->>'deviceType' ORDER BY count DESC
     `,
     prisma.$queryRaw<{ browser: string; count: bigint }[]>`
       SELECT "metadata"->>'browser' AS browser, COUNT(*)::bigint AS count
-      FROM "AnalyticsEvent" WHERE "eventType" = 'PAGE_VIEW' AND "createdAt" >= $1 AND "metadata"->>'browser' IS NOT NULL
+      FROM "AnalyticsEvent" WHERE "eventType" = 'PAGE_VIEW' AND "createdAt" >= ${from} AND "metadata"->>'browser' IS NOT NULL
       GROUP BY "metadata"->>'browser' ORDER BY count DESC
     `,
     prisma.$queryRaw<{ os: string; count: bigint }[]>`
       SELECT "metadata"->>'os' AS os, COUNT(*)::bigint AS count
-      FROM "AnalyticsEvent" WHERE "eventType" = 'PAGE_VIEW' AND "createdAt" >= $1 AND "metadata"->>'os' IS NOT NULL
+      FROM "AnalyticsEvent" WHERE "eventType" = 'PAGE_VIEW' AND "createdAt" >= ${from} AND "metadata"->>'os' IS NOT NULL
       GROUP BY "metadata"->>'os' ORDER BY count DESC
     `,
   ]);
@@ -395,7 +396,7 @@ export async function getSearchAnalytics(period: string) {
   const queries = await prisma.$queryRaw<{ query: string; count: bigint; zeroResults: bigint }[]>`
     SELECT "metadata"->>'query' AS query, COUNT(*)::bigint AS count,
       COUNT(*) FILTER (WHERE ("metadata"->>'resultsCount')::int = 0)::bigint AS "zeroResults"
-    FROM "AnalyticsEvent" WHERE "eventType" = 'SEARCH' AND "createdAt" >= $1 AND "metadata"->>'query' IS NOT NULL
+    FROM "AnalyticsEvent" WHERE "eventType" = 'SEARCH' AND "createdAt" >= ${from} AND "metadata"->>'query' IS NOT NULL
     GROUP BY "metadata"->>'query' ORDER BY count DESC LIMIT 30
   `;
 
@@ -404,7 +405,7 @@ export async function getSearchAnalytics(period: string) {
 
   const trend = await prisma.$queryRaw<{ date: string; searches: bigint }[]>`
     SELECT DATE("createdAt")::text AS date, COUNT(*)::bigint AS searches
-    FROM "AnalyticsEvent" WHERE "eventType" = 'SEARCH' AND "createdAt" >= $1
+    FROM "AnalyticsEvent" WHERE "eventType" = 'SEARCH' AND "createdAt" >= ${from}
     GROUP BY DATE("createdAt") ORDER BY date
   `;
 
@@ -438,8 +439,8 @@ export async function getAiUsageByFeature(period: string, featureFilter?: string
     SELECT DATE("createdAt")::text AS date, COUNT(*)::bigint AS requests,
       COALESCE(SUM("tokensIn"), 0)::bigint AS "tokensIn",
       COALESCE(SUM("tokensOut"), 0)::bigint AS "tokensOut"
-    FROM "AiUsageLog" WHERE "createdAt" >= $1 AND "createdAt" <= $2
-      ${featureFilter ? `AND feature = '${featureFilter.replace(/'/g, "''")}'` : ""}
+    FROM "AiUsageLog" WHERE "createdAt" >= ${from} AND "createdAt" <= ${to}
+      ${featureFilter ? Prisma.sql`AND feature = ${featureFilter}` : Prisma.empty}
     GROUP BY DATE("createdAt") ORDER BY date
   `;
 
@@ -506,9 +507,9 @@ export async function getUserGrowthTrend(period: string) {
   const growth = await prisma.$queryRaw<{ date: string; signups: bigint; cumulative: bigint }[]>`
     WITH daily_signups AS (
       SELECT DATE("createdAt")::text AS date, COUNT(*)::bigint AS signups
-      FROM "User" WHERE "createdAt" >= $1 GROUP BY DATE("createdAt")
+      FROM "User" WHERE "createdAt" >= ${from} GROUP BY DATE("createdAt")
     ), all_dates AS (
-      SELECT d::date::text AS date FROM generate_series($1::date, $2::date, '1 day'::interval) d
+      SELECT d::date::text AS date FROM generate_series(${from}::date, ${to}::date, '1 day'::interval) d
     )
     SELECT ad.date, COALESCE(ds.signups, 0)::bigint AS signups,
       SUM(COALESCE(ds.signups, 0)) OVER (ORDER BY ad.date)::bigint AS cumulative

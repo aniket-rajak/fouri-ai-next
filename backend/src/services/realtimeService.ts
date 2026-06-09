@@ -52,14 +52,17 @@ export function startQuizSession(attemptId: string, userId: string): void {
 
 export function endQuizSession(attemptId: string): void {
   activeQuizSessions.delete(attemptId);
+  addLiveEvent(`User completed quiz session`, "quiz");
 }
 
 export function startAiRequest(id: string, feature: string, userId: string | null): void {
   activeAiRequests.set(id, { feature, userId, startedAt: Date.now() });
+  addLiveEvent(`AI request started: ${feature}`, "ai");
 }
 
 export function endAiRequest(id: string): void {
   activeAiRequests.delete(id);
+  addLiveEvent(`AI request completed: ${id.split("-")[0]}`, "ai");
 }
 
 export function addLiveEvent(message: string, type: string = "info"): void {

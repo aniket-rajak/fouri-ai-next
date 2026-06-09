@@ -206,11 +206,14 @@ router.post("/generate", quizLimiter, async (req, res) => {
     try {
       quizResult = await generateQuiz(subject, topic, difficulty);
     } catch (genError: any) {
+      const rawError = genError?.message || "Generation failed";
+      console.error("[quiz] Generation failed:", rawError);
+      if (genError?.stack) console.error("[quiz] Stack:", genError.stack);
       await prisma.quizAttempt.update({
         where: { id: attempt.id },
-        data: { status: "FAILED", failureReason: genError?.message || "Generation failed" },
+        data: { status: "FAILED", failureReason: rawError },
       });
-      res.status(500).json({ error: genError?.message || "Failed to generate quiz" });
+      res.status(500).json({ error: rawError });
       return;
     }
 

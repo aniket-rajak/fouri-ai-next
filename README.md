@@ -3,7 +3,7 @@
 An AI-driven education platform where students upload question papers, AI analyzes them, generates mock tests automatically, and provides detailed performance analytics.
 
 **Production URL:** https://www.fouri.in  
-**Last Updated:** 2026-06-07 (Phase 45 — Favicon Update ✅)
+**Last Updated:** 2026-06-08 (Phase 46 — AI Quiz Generation ✅)
 
 ---
 
@@ -162,6 +162,8 @@ fouri-ai-mocktest/
 | GET | `/api/search/trending` | Top 10 tests by attempt count |
 | GET | `/api/results` | List own results |
 | GET | `/api/results/:id` | Get detailed result |
+| POST | `/api/quiz/estimate` | Estimate AI quiz credit cost (rate-limited) |
+| POST | `/api/quiz/generate` | Generate AI quiz with 3 retries + 70B fallback (60s timeout) |
 
 ### Owner (JWT Required)
 
@@ -1205,6 +1207,56 @@ Professional HTML email prompt with inline CSS, table-based CTA buttons, full em
 | `frontend/public/favicon.ico` | Removed — replaced by PNG favicon |
 | `frontend/public/favicon.svg` | Removed — replaced by PNG favicon |
 | `frontend/public/apple-touch-icon.svg` | Removed — replaced by PNG favicon | |
+
+---
+
+### Phase 46 — AI Quiz Generation & Reliability ✅
+
+**Goal:** Add on-demand AI quiz generation (subject + topic + difficulty → 10 MCQ quiz), improve generation reliability with relaxed content validation, configurable timeouts, and better user feedback during generation.
+
+**AI Quiz Generator:**
+| Feature | Detail |
+|---------|--------|
+| Subject/topic/difficulty form | Frontend `/ai-quiz` page with Input, Dropdown, and MultiStep form with progress stages (8 stages: "Initializing quiz generator...", "Analyzing topic context...", "Generating questions...", "Validating question quality...", "Creating answer keys...", "Formatting output...", "Finalizing quiz...", "Quiz ready!") |
+| AI prompt | Strict subject/topic/difficulty adherence instructions, LaTeX math formatting with `$...$` delimiters, SVG diagram embedding via ````svg` code fences |
+| Retry loop | 3 attempts with `llama-3.1-8b-instant` (8B) + fallback to `llama-3.3-70b-versatile` (70B) — retries include specific feedback hints (SVG issues, topic relevance, trivial content) |
+| 60s total timeout | `Promise.race` wrapping entire generation pipeline — covers retries + 70B fallback; logs subject/topic/difficulty on timeout |
+| Content validation | Topic keyword relevance (question text only, relaxed threshold — fails only if ALL 10 questions lack keywords), SVG structural completeness (`viewBox`, `</svg>`, ≥2 text labels, visible shapes), difficulty alignment, non-trivial content check |
+| Theme-adaptive SVG | `adaptSvgColors()` adjusts stroke/fill colors for readability in both light and dark themes; `useDarkMode()` hook with `MutationObserver` + media query listener; white background in SVGs for both themes |
+| Client-side 35s abort | `AbortController` timeout in both `/ai-quiz/page.tsx` and `QuizModal.tsx` — shows "Quiz generation took too long" when exceeded |
+| Long-wait indicator | 15s timer shows "This is taking longer than usual" message during generation |
+
+**Reliability Improvements:**
+| Change | Before | After |
+|--------|--------|-------|
+| Content validation rejected math/code options | Options checked for topic keywords | Options/correctAnswers no longer validated for topic keywords (math expressions, code snippets cannot contain topic words) |
+| SVG `font-size` per-element check | Rejected valid SVGs with inherited font-size | Removed — inherited font-size from parent `<svg>`/`<g>` is valid |
+| Empty shape attributes check | Rejected `circle` without `r`, `rect` without `w`/`h` | Removed — AI often omits these when defaults suffice |
+| `<g>` counted as visible shape | Grouping elements satisfied shape requirement with no real shapes | Removed `<g>` from visible element regex |
+| Topic keyword threshold | Failed if >50% of questions lacked keywords | Fails only if ALL 10 questions lack keywords |
+| Backend timeout | 25s | 60s (allows full 3×8B + 70B pipeline) |
+| Error propagation | Hardcoded generic message `"Failed to generate quiz"` | Real backend error passed through (timeout, validation, AI error) |
+| Frontend error guard | `!includes("Failed to generate")` blocked real errors | Removed — always uses actual `err.message` |
+
+**Error UI & User Feedback:**
+- **Failed state** in `QuizModal.tsx` — error card with "Try Again" and "Cancel" buttons
+- **Error UI with retry button** in `/ai-quiz/page.tsx` — replaces generic toast on failure
+- **Real error messages** displayed to user instead of generic "Failed to generate quiz. Please try again."
+
+**Files Changed:**
+
+| File | Change |
+|------|--------|
+| `backend/src/routes/quiz.ts` | **NEW** — `POST /estimate` (credit cost estimation) + `POST /generate` (quiz generation with credit deduction, progress tracking, Prisma attempt record) |
+| `backend/src/services/openai.ts` | Added `generateQuiz()` with retry loop + 70B fallback + 60s timeout; added `validateQuizContent()` (topic, SVG, difficulty, trivial checks); added `validateSvgCompleteness()` (structural SVG validation); added `normalizeQuestions()` (correctAnswer letter→text mapping); updated prompt with subject/topic/difficulty instructions |
+| `frontend/src/app/(dashboard)/ai-quiz/page.tsx` | **NEW** — Full AI quiz generation flow with subject/topic/difficulty form, 8-stage progress display, 35s abort, long-wait message, error state with retry |
+| `frontend/src/app/(dashboard)/ai-quiz/take/page.tsx` | **NEW** — Take generated AI quiz (full-screen test interface with timer, auto-save, submit) |
+| `frontend/src/app/(dashboard)/ai-quiz/thank-you/page.tsx` | **NEW** — Thank-you overlay after quiz submission with score summary and retry |
+| `frontend/src/components/exam/QuizModal.tsx` | **NEW** — Modal-based quiz generation with subject/topic fields, info banner, progress stages, failed/retry UI |
+| `frontend/src/components/ui/ContentRenderer.tsx` | **NEW** — SVG rendering with `adaptSvgColors()` theme adaptation and `useDarkMode()` hook |
+| `frontend/src/components/exam/ExamPageClient.tsx` | **NEW** — Exam attempt client component for AI quizzes |
+| `frontend/src/components/exam/ExamContactForm.tsx` | **NEW** — Contact form within exam pages |
+| `frontend/src/components/exam/QuizFeedbackCarousel.tsx` | **NEW** — Feedback carousel after quiz completion |
 
 ---
 
