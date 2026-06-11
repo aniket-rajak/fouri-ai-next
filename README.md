@@ -3,7 +3,7 @@
 An AI-driven education platform where students upload question papers, AI analyzes them, generates mock tests automatically, and provides detailed performance analytics.
 
 **Production URL:** https://www.fouri.in  
-**Last Updated:** 2026-06-11 (Phase 48 — HowItWorks Section Refactor ✅)
+**Last Updated:** 2026-06-11 (Phase 49 — Technical SEO Overhaul ✅)
 
 ---
 
@@ -492,6 +492,13 @@ Hidden `/fouri-root-console` admin panel, JWT owner auth, user CSV export, uploa
 - Independently scrollable question palette — `max-h-[60vh]` grid with overflow-y-auto keeps legend always visible
 - Dynamic image URL rewriting — all stored file URLs (blog thumbs, ad images, avatars) rewritten to current server's host at response time via `resolveFileUrl()`
 - Blog Content Library — 11 SEO-optimized, AdSense-friendly blog posts covering study techniques, AI in education, time management, revision strategies, mock test analysis, common exam mistakes, subject-wise prep, active recall, digital tools, exam anxiety, and the FOURI AI Quiz feature; written in natural human tone with proper heading hierarchy; all created as DRAFT ready for one-click publishing
+- Self-referencing canonical tags on every public page (about, blog, faq, contact, privacy, terms, disclaimer, discover, exam landing pages, blog posts) — no more global homepage canonical inheritance
+- Robots.txt optimized — public pages (discover, upload, tests, results, login, register) allowed; only private/auth routes blocked
+- Discover page made indexable — removed `noindex, nofollow` restriction for SEO value
+- Dynamic canonical + OG URL per blog post via `generateMetadata()` — proper `Article` type and `publishedTime`
+- Auth layout metadata removed — prevents canonical leak from route group layout to login/register/forgot-password
+- Trailing slash normalization redirect — prevents redirect chains from /foo vs /foo/ ambiguity
+- Blog SSR internal links — hidden `<a>` tags ensure blog posts receive link equity from the listing page
 
 ### What Is Not Finished
 - Google Maps API key — embedded map uses placeholder key, needs real key for production
@@ -1348,6 +1355,63 @@ Professional HTML email prompt with inline CSS, table-based CTA buttons, full em
 | `frontend/src/data/howItWorks.ts` | **CREATED** | Typed step data with 4 exported steps |
 | `frontend/src/components/landing/HowItWorks.tsx` | **REWRITTEN** | Replaced GlassSurface with Tailwind glass classes; kept Framer Motion scroll reveals |
 | `frontend/src/components/ui/GlassSurface.tsx` | **DELETED** | No longer used anywhere (confirmed via grep) |
+
+---
+
+### Phase 49 — Technical SEO Overhaul ✅
+
+**Goal:** Fix critical SEO issues identified by Screaming Frog audit — canonical tags pointing to homepage on all subpages, overly aggressive robots.txt blocking public pages, noindex/nofollow on discover page, missing internal links on blog listing, trailing slash redirect chains.
+
+**Canonical Tags Fix:**
+| Issue | Root Cause | Fix |
+|-------|-----------|-----|
+| All subpages canonicalized to homepage | Root `layout.tsx` set `alternates: { canonical: "https://fouri.in" }` which propagated to every child page | Removed global canonical from root layout; each page now self-references via `alternates.canonical` in its own metadata |
+| Blog posts had no canonical | `generateMetadata()` in `blog/[slug]/page.tsx` did not set `alternates.canonical` | Added dynamic canonical + `openGraph.url` per blog post slug |
+
+**Robots.txt Overhaul:**
+| Path | Before | After |
+|------|--------|-------|
+| `/discover/` | ❌ Disallowed | ✅ Allowed (public discovery page) |
+| `/upload/` | ❌ Disallowed | ✅ Allowed (public feature page) |
+| `/tests/` | ❌ Disallowed | ✅ Allowed (public test listing) |
+| `/results/` | ❌ Disallowed | ✅ Allowed (public results) |
+| `/login` | ❌ Disallowed | ✅ Allowed (needed for indexation) |
+| `/register` | ❌ Disallowed | ✅ Allowed (needed for indexation) |
+| `/attempt/` | Not listed | ✅ Added to disallow (private auth pages) |
+| `/admin/`, `/api/`, `/fouri-root-console/`, `/dashboard/`, `/history/`, `/bookmarks/`, `/progress/`, `/resume-tests/`, `/analysis/`, `/test/` | ❌ Disallowed | ✅ Kept disallowed (private auth pages) |
+
+**Indexability Fix:**
+| Page | Before | After | Reason |
+|------|--------|-------|--------|
+| `/discover` | `robots: { index: false, follow: false }` | Removed; added self-referencing canonical | Public discovery page should rank in search |
+
+**Internal Linking Fix:**
+| Page | Before | After |
+|------|--------|-------|
+| `/blog` | Zero `<a>` tags in SSR HTML (all client-rendered) | 5 hidden blog post links + site nav links rendered server-side |
+
+**Redirect Fix:**
+| Issue | Fix |
+|-------|-----|
+| Trailing slash ambiguity (`/foo` vs `/foo/`) | Added 308 redirect in `next.config.ts`: `/:path(.*)/` → `/:path` |
+
+**Files Changed:**
+
+| File | Action | Purpose |
+|------|--------|---------|
+| `frontend/src/app/layout.tsx` | **MODIFIED** | Removed global `alternates.canonical` from root layout metadata |
+| `frontend/src/app/about/page.tsx` | **MODIFIED** | Added `alternates: { canonical: "https://fouri.in/about" }` |
+| `frontend/src/app/blog/page.tsx` | **MODIFIED** | Added canonical + SSR hidden `<a>` links for SEO |
+| `frontend/src/app/faq/page.tsx` | **MODIFIED** | Added `alternates: { canonical: "https://fouri.in/faq" }` |
+| `frontend/src/app/contact/page.tsx` | **MODIFIED** | Added `alternates: { canonical: "https://fouri.in/contact" }` |
+| `frontend/src/app/privacy/page.tsx` | **MODIFIED** | Added `alternates: { canonical: "https://fouri.in/privacy" }` |
+| `frontend/src/app/terms/page.tsx` | **MODIFIED** | Added `alternates: { canonical: "https://fouri.in/terms" }` |
+| `frontend/src/app/disclaimer/page.tsx` | **MODIFIED** | Added `alternates: { canonical: "https://fouri.in/disclaimer" }` |
+| `frontend/src/app/blog/[slug]/page.tsx` | **MODIFIED** | Added dynamic `alternates.canonical` + `openGraph.url` per slug |
+| `frontend/src/app/(auth)/layout.tsx` | **MODIFIED** | Removed metadata block (prevents canonical leak to login/register) |
+| `frontend/src/app/(dashboard)/discover/page.tsx` | **MODIFIED** | Removed `robots: { index: false, follow: false }`; added canonical |
+| `frontend/src/app/robots.ts` | **MODIFIED** | Allowed public pages; blocked only private/auth routes |
+| `frontend/next.config.ts` | **MODIFIED** | Added trailing slash normalization redirect |
 
 ---
 
