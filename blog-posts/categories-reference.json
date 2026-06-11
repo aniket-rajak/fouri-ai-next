@@ -1,0 +1,62 @@
+{
+  "_comment": "First create these categories in the admin panel at /fouri-root-console/blog/categories before publishing posts.",
+  "existing_categories": [
+    {
+      "name": "Study Tips",
+      "slug": "study-tips",
+      "color": "from-emerald-500 to-teal-500",
+      "used_in_posts": [1, 4, 6, 8]
+    },
+    {
+      "name": "Exam Preparation",
+      "slug": "exam-preparation",
+      "color": "from-blue-500 to-indigo-500",
+      "used_in_posts": [2, 5, 6, 7]
+    },
+    {
+      "name": "Technology",
+      "slug": "technology",
+      "color": "from-purple-500 to-pink-500",
+      "used_in_posts": [2, 9, 11]
+    },
+    {
+      "name": "Education",
+      "slug": "education",
+      "color": "from-amber-500 to-orange-500",
+      "used_in_posts": [1, 2, 3, 8, 10]
+    },
+    {
+      "name": "Product Updates",
+      "slug": "product-updates",
+      "color": "from-cyan-500 to-blue-500",
+      "used_in_posts": [11]
+    }
+  ],
+  "new_categories_to_create": [
+    {
+      "name": "Student Life",
+      "slug": "student-life",
+      "color_fallback": "from-rose-500 to-pink-500",
+      "used_in_posts": [3, 10]
+    },
+    {
+      "name": "Productivity",
+      "slug": "productivity",
+      "color_fallback": "from-green-500 to-emerald-500",
+      "used_in_posts": [9]
+    }
+  ],
+  "post_to_category_map": {
+    "01": ["Study Tips", "Education"],
+    "02": ["Technology", "Education", "Exam Preparation"],
+    "03": ["Education", "Student Life"],
+    "04": ["Study Tips"],
+    "05": ["Exam Preparation", "Education"],
+    "06": ["Exam Preparation", "Study Tips"],
+    "07": ["Exam Preparation"],
+    "08": ["Study Tips", "Education"],
+    "09": ["Technology", "Productivity"],
+    "10": ["Education", "Student Life"],
+    "11": ["Product Updates", "Technology"]
+  }
+}

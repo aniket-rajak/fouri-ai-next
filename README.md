@@ -3,7 +3,7 @@
 An AI-driven education platform where students upload question papers, AI analyzes them, generates mock tests automatically, and provides detailed performance analytics.
 
 **Production URL:** https://www.fouri.in  
-**Last Updated:** 2026-06-08 (Phase 46 — AI Quiz Generation ✅)
+**Last Updated:** 2026-06-11 (Phase 48 — HowItWorks Section Refactor ✅)
 
 ---
 
@@ -51,18 +51,19 @@ fouri-ai-mocktest/
 │   │   │   ├── robots.ts        # Dynamic robots.txt
 │   │   │   └── loading.tsx      # Root loading loader
 │   │   ├── components/
-│   │   │   ├── landing/         # Navbar, Hero (LightPillar + CardSwap), HowItWorks (GlassSurface),
+│   │   │   ├── landing/         # Navbar, Hero (LightPillar + CardSwap), HowItWorks (Tailwind + Framer Motion),
 │   │   │   │                   # FeaturesSection, StudentBenefits, AIDashboardShowcase, AboutSection,
 │   │   │   │                   # Testimonials, FreeAccess, FinalCTA, FAQSection, Footer
 │   │   │   ├── dashboard/       # GreetingSection, QuickActions, ActiveUploadCard
 │   │   │   ├── credits/         # CreditWarningBanner, CreditUsageCard, AnalysisModeSelector,
 │   │   │   │                   # InsufficientCreditsModal
-│   │   │   ├── ui/              # Button, Input, Card, MultiSelect, CardSwap, GlassSurface
+│   │   │   ├── ui/              # Button, Input, Card, MultiSelect, CardSwap
 │   │   │   ├── test/            # QuestionCard, QuestionPalette, Timer
 │   │   │   ├── results/         # ScoreCard, AnswerReview, ExplanationPanel
 │   │   │   ├── ads/             # AdCard (student dashboard ad display)
 │   │   │   └── blog/            # BlogImage component with CSP-safe blob URL loading
 │   │   ├── contexts/            # AuthContext, OwnerAuthContext
+│   │   ├── data/                # howItWorks (typed step data for HowItWorks section)
 │   │   ├── hooks/               # useAuth, useTestTimer, useAutoSave
 │   │   └── lib/                 # firebase, api, utils, validations, owner-auth, getFileUrl
 │   ├── public/assets/images/    # Local landing images + favicon/
@@ -456,7 +457,7 @@ Hidden `/fouri-root-console` admin panel, JWT owner auth, user CSV export, uploa
 - Responsive design (mobile/tablet/desktop)
 - Subjective questions with `<textarea>` support
 - Delete mock tests (cascade)
-- Landing page: 13 dark-themed components, Three.js LightPillar shader background, CardSwap animated cards, GlassSurface chromatic glass cards, premium AI-first redesign
+- Landing page: 13 dark-themed components, Three.js LightPillar shader background, CardSwap animated cards, Tailwind glassmorphism cards, premium AI-first redesign
 - Local landing images (no external deps)
 - Ad system: impression deduplication per session
 - Footer: links to About, Privacy, Terms, Contact
@@ -490,6 +491,7 @@ Hidden `/fouri-root-console` admin panel, JWT owner auth, user CSV export, uploa
 - Independently scrollable question area — test attempt page question section scrolls independently (timer bar + sidebar remain fixed)
 - Independently scrollable question palette — `max-h-[60vh]` grid with overflow-y-auto keeps legend always visible
 - Dynamic image URL rewriting — all stored file URLs (blog thumbs, ad images, avatars) rewritten to current server's host at response time via `resolveFileUrl()`
+- Blog Content Library — 11 SEO-optimized, AdSense-friendly blog posts covering study techniques, AI in education, time management, revision strategies, mock test analysis, common exam mistakes, subject-wise prep, active recall, digital tools, exam anxiety, and the FOURI AI Quiz feature; written in natural human tone with proper heading hierarchy; all created as DRAFT ready for one-click publishing
 
 ### What Is Not Finished
 - Google Maps API key — embedded map uses placeholder key, needs real key for production
@@ -726,9 +728,8 @@ Professional HTML email prompt with inline CSS, table-based CTA buttons, full em
 - **Unused deps removed** — `@appletosolutions/reactbits` and `gsap` uninstalled (GSAP later reinstated for CardSwap)
 - **Three.js LightPillar background** — `LightPillar.tsx` with GLSL shader-based procedural light column, auto-quality tiers (low/medium/high), WebGL context cleanup
 - **CardSwap animated cards** — `CardSwap.tsx` from React Bits with GSAP elastic swap animation, 3 glass cards (Questions Extracted, AI Analysis Accuracy, Mock Test Duration) with brand gradient accents
-- **GlassSurface chromatic cards** — `GlassSurface.tsx` with SVG displacement-map glass distortion, RGB channel offset chromatic aberration, graceful fallback to standard backdrop-filter
-- **13 landing components** — Navbar, HeroSection (LightPillar + CardSwap), HowItWorks (GlassSurface timeline), FeaturesSection (bento grid), StudentBenefits (counters), AIDashboardShowcase (3-panel mockup), AboutSection, Testimonials (auto-scroll carousel), FreeAccess, FinalCTA, FAQSection, Footer
-- **HowItWorks timeline** — Sequential scroll-triggered reveal with alternating left/right column layout, GlassSurface wrapped cards, vertical timeline line, responsive single-column on mobile
+- **13 landing components** — Navbar, HeroSection (LightPillar + CardSwap), HowItWorks (custom timeline), FeaturesSection (bento grid), StudentBenefits (counters), AIDashboardShowcase (3-panel mockup), AboutSection, Testimonials (auto-scroll carousel), FreeAccess, FinalCTA, FAQSection, Footer
+- **HowItWorks timeline** — Sequential scroll-triggered reveal with alternating left/right column layout, Tailwind glassmorphism cards, vertical timeline line, responsive single-column on mobile
 - **Build verified** — 36 routes, 0 errors, 7.8s compile time
 
 ### Phase 32 — Blog Categories, Multi-Category Support & Mobile Responsiveness ✅
@@ -741,7 +742,7 @@ Professional HTML email prompt with inline CSS, table-based CTA buttons, full em
 - **Rate limiter** — `ownerLimiter` raised 50 → 200 req/15min to fix "Too many requests" on saves
 - **Stats endpoint** — wrapped in `withRetry({ retries: 3, delay: 2000 })` for Neon cold-start resilience
 - **Back button** — `ArrowLeft` added to categories management page navigating to `/fouri-root-console/blog`
-- **Console errors fixed** — nested `<button>` inside trigger `<button>` in MultiSelect replaced with `<span>`; hydration mismatch in GlassSurface CSS custom properties (cosmetic)
+- **Console errors fixed** — nested `<button>` inside trigger `<button>` in MultiSelect replaced with `<span>`
 - **Dropdown arrow alignment** — 12 native `<select>` elements across 4 pages (email-broadcast template + AI tone, media upload category + filter, blog status filter, public blog category filter, FilterPanel 4-way grid) wrapped in `relative` container with `appearance-none pr-10` and custom `ChevronDown` icon for consistent dark/light theme styling
 - **Mobile responsiveness — Uploads page** — upload row changed from `flex` to `flex-col sm:flex-row`, actions use `self-end sm:self-auto`, stats grid `grid-cols-2 sm:grid-cols-4`, filter row `flex-col sm:flex-row`
 - **Mobile responsiveness — Blog admin page** — header `flex-col sm:flex-row`, blog rows `flex-col sm:flex-row sm:items-center` with thumbnail+title grouped, pagination `flex-wrap`
@@ -1260,6 +1261,96 @@ Professional HTML email prompt with inline CSS, table-based CTA buttons, full em
 
 ---
 
+### Phase 47 — Blog Content Library ✅
+
+**Goal:** Create a library of 11 original, SEO-optimized, AdSense-friendly blog posts to improve organic search visibility, engage users, and showcase platform capabilities. All posts created as DRAFT for one-click publishing via admin panel.
+
+**Blog Content:**
+
+| # | Title | Categories | Tags |
+|---|-------|-----------|------|
+| 1 | 10 Proven Study Techniques to Ace Competitive Exams | Study Tips, Education | active recall, spaced repetition, study methods |
+| 2 | How AI is Revolutionizing Exam Preparation for Students | Technology, Education, Exam Preparation | AI in education, smart learning, EdTech |
+| 3 | Mastering Time Management: A Guide for JEE & NEET Aspirants | Education, Student Life | time management, study schedule, productivity |
+| 4 | The Ultimate Guide to Effective Revision Techniques | Study Tips | revision tips, exam preparation, memory techniques |
+| 5 | How to Analyze Mock Test Results and Improve Your Score | Exam Preparation, Education | mock test analysis, score improvement, exam strategy |
+| 6 | 5 Common Mistakes Students Make During Exam Preparation | Exam Preparation, Study Tips | exam mistakes, preparation tips, student advice |
+| 7 | Subject-Wise Preparation Strategies for Engineering & Medical Exams | Exam Preparation | JEE preparation, NEET preparation, subject strategy |
+| 8 | The Science of Active Recall: Why It Works and How to Use It | Study Tips, Education | active recall, memory techniques, learning science |
+| 9 | Top Digital Tools Every Student Needs for Productive Learning | Technology, Productivity | study apps, digital learning, productivity tools |
+| 10 | Overcoming Exam Anxiety: Tips to Stay Calm and Focused | Education, Student Life | exam stress, mental health, anxiety management |
+| 11 | Introducing FOURI AI Quiz: Generate Personalized Quizzes in Seconds | Product Updates, Technology | AI quiz, new feature, FOURI |
+
+**Execution:**
+- Wrote all 11 posts as standalone HTML files in `blog-posts/` directory — each with full content, proper heading hierarchy, and natural human tone
+- Created Prisma seed script (`backend/scripts/seed-blogs.ts`) that creates categories, tags, and all 11 blog posts via the database
+- All posts authored as **FOURI Team**, set to **DRAFT** status, assigned to correct categories and tags
+- Categories created/used: Study Tips, Exam Preparation, Technology, Education, Product Updates, Student Life, Productivity
+- Accessible at `/fouri-root-console/blog` — one click to publish each
+
+**Content Guidelines Followed:**
+- Original, AdSense-compliant content — no keyword stuffing, robotic phrasing, or low-value filler
+- SEO-optimized with descriptive titles, meta excerpts, proper heading structure, and relevant tags
+- Natural conversational tone written from an experienced writer's perspective
+- Each article provides genuine educational value aligned with platform goals (exam prep, AI-powered learning, student productivity)
+
+**Files Created:**
+| File | Purpose |
+|------|---------|
+| `blog-posts/01` through `blog-posts/10` | 10 educational blog posts (HTML content) |
+| `blog-posts/11-introducing-fouri-ai-quiz.html` | Dedicated AI Quiz feature announcement post |
+| `blog-posts/categories-reference.json` | Category-to-post mapping reference |
+| `blog-posts/README-PUBLISHING.md` | Step-by-step publishing instructions |
+| `backend/scripts/seed-blogs.ts` | Reusable Prisma seed script for creating all posts |
+
+---
+
+### Phase 48 — HowItWorks Section Refactor: ReactBits → Custom Tailwind + Framer Motion ✅
+
+**Goal:** Replace the heavy `GlassSurface` SVG displacement-map component (372 lines) used in the HowItWorks section with lightweight Tailwind CSS glassmorphism, eliminating the primary source of rendering lag on mobile.
+
+**Problem:**
+| Issue | Cause | Impact |
+|-------|-------|--------|
+| SVG filter rendering | `GlassSurface` rendered 4 `<feDisplacementMap>` + `<feColorMatrix>` filter chains per card | ~16 `useEffect` hooks total, ResizeObserver per card, high GPU compositing cost |
+| Low FPS on mobile | SVG filter pipelines are not GPU-accelerated in mobile browsers | Noticeable scroll jank |
+| Bundle bloat | 372 lines of complex SVG filter logic | Unnecessary JS parse/hydration cost |
+| Scroll performance | ResizeObserver re-triggered displacement map regeneration on every resize | Layout thrashing during scroll |
+
+**Solution:**
+
+| Before | After | Gain |
+|--------|-------|------|
+| `GlassSurface` SVG displacement filter | `backdrop-blur-md bg-white/[0.03] border-white/10 rounded-xl shadow-xl` | 0 SVG rendering, GPU-accelerated CSS |
+| 4 `useEffect` hooks + ResizeObserver per card | Zero effects per card | No JS runtime for glass effect |
+| 372-line `GlassSurface.tsx` | Deleted | ~4KB less JS bundle |
+| Step data inline in component | Extracted to `src/data/howItWorks.ts` with typed `HowItWorksStep` interface | Cleaner separation of concerns |
+
+**Visual Preservation:**
+- Same alternating left/right timeline layout
+- Same vertical center gradient line
+- Same gradient icon circles with cyan glow
+- Same typography (STEP 0N, title, desc), colors, spacing, responsive behavior
+- Card hover: `scale: 1.02` via Tailwind `hover:scale-[1.02]` (GPU transform)
+- Icon floating animation via Framer Motion `animate={{ y: [0, -5, 0] }}` (lightweight)
+
+**Performance Improvements:**
+- No SVG displacement maps or chromatic aberration rendering
+- No ResizeObserver listeners
+- No effect hooks per card
+- All animations use GPU-composited CSS transforms
+- Framer Motion `viewport={{ once: true }}` — animations fire once then settle
+
+**Files Changed:**
+
+| File | Action | Purpose |
+|------|--------|---------|
+| `frontend/src/data/howItWorks.ts` | **CREATED** | Typed step data with 4 exported steps |
+| `frontend/src/components/landing/HowItWorks.tsx` | **REWRITTEN** | Replaced GlassSurface with Tailwind glass classes; kept Framer Motion scroll reveals |
+| `frontend/src/components/ui/GlassSurface.tsx` | **DELETED** | No longer used anywhere (confirmed via grep) |
+
+---
+
 ## Important Files
 
 | File | Purpose |
@@ -1268,9 +1359,9 @@ Professional HTML email prompt with inline CSS, table-based CTA buttons, full em
 | `frontend/src/app/page.tsx` | Landing page (13 components, 10 dynamically imported) |
 | `frontend/src/components/landing/LightPillar.tsx` | Three.js shader-based light column background |
 | `frontend/src/components/landing/HeroSection.tsx` | Hero with LightPillar background + CardSwap animated cards |
-| `frontend/src/components/landing/HowItWorks.tsx` | Timeline layout with GlassSurface wrapped step cards |
+| `frontend/src/data/howItWorks.ts` | Typed step data for the HowItWorks section (4 steps with icons + descriptions) |
+| `frontend/src/components/landing/HowItWorks.tsx` | Timeline layout with Tailwind glassmorphism cards + Framer Motion scroll reveals |
 | `frontend/src/components/ui/CardSwap.tsx` | React Bits CardSwap — GSAP elastic card swap animation |
-| `frontend/src/components/ui/GlassSurface.tsx` | React Bits GlassSurface — SVG chromatic glass distortion |
 | `frontend/src/app/layout.tsx` | Root layout with metadata, JSON-LD, canonical, fonts |
 | `frontend/src/app/error.tsx` | Error boundary with reset button |
 | `frontend/src/app/not-found.tsx` | 404 page |

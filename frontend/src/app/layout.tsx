@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import { Inter, Poppins } from "next/font/google";
+import Script from "next/script";
 import { Toaster } from "sonner";
 import "./globals.css";
 import { JsonLd } from "@/components/JsonLd";
 import { GoogleAnalytics } from "@/components/GoogleAnalytics";
 import { CookieConsent } from "@/components/CookieConsent";
-import { AdSenseScript } from "@/components/AdSenseScript";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -125,10 +125,16 @@ export default function RootLayout({
             offers: { "@type": "Offer", price: "0", priceCurrency: "INR" },
           }}
         />
+
+        {/* Google AdSense Auto Ads — loads globally on every page via beforeInteractive → <head> injection */}
+        <Script
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2512689434819222"
+          strategy="beforeInteractive"
+          crossOrigin="anonymous"
+        />
       </head>
       <body className="min-h-full flex flex-col bg-[#08080f] text-[#f5f5f7] font-sans">
         {children}
-        <AdSenseScript />
         <GoogleAnalytics />
         <Toaster richColors position="top-center" />
         <CookieConsent />
